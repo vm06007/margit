@@ -4,12 +4,17 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -n web,api -c blue,green \"npm:dev:web\" \"npm:dev:api\"",
+    "dev:web": "vite",
+    "dev:api": "tsx watch --env-file=.env server/src/index.ts",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@hono/node-server": "^1.19.7",
+    "@upstash/redis": "^1.38.4",
+    "hono": "^4.13.7",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
@@ -18,7 +23,9 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",
+    "concurrently": "^10.0.5",
     "oxlint": "^1.79.0",
+    "tsx": "^4.23.13",
     "typescript": "~6.0.2",
     "vite": "^8.2.2"
   }
