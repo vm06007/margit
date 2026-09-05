@@ -2,8 +2,10 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { paymentMiddleware } from "@x402/hono";
 import { createSession, destroySession, getSession } from "./session.js";
 import { consumeState, issueState } from "./oauth-state.js";
+import { ARC_TESTNET_NETWORK, arcSellerAddress, resourceServer } from "./x402-gateway.js";
 
 const {
     GITHUB_CLIENT_ID,
@@ -31,6 +33,34 @@ app.use(
         credentials: true,
     }),
 );
+
+// Proof-of-concept x402 paywall on Arc testnet — settled via Circle Gateway.
+// Hitting this route unpaid returns 402 with payment requirements; a paying
+// client (human wallet or an agent using @circle-fin/x402-batching's
+// GatewayClient) gets the JSON body below once payment settles.
+app.use(
+    paymentMiddleware(
+        {
+            "GET /api/gateway/demo": {
+                accepts: {
+                    scheme: "exact",
+                    price: "$0.01",
+                    network: ARC_TESTNET_NETWORK,
+                    payTo: arcSellerAddress ?? "0x0000000000000000000000000000000000000000",
+                },
+                description: "margit x402 gateway proof-of-concept (Arc testnet)",
+            },
+        },
+        resourceServer,
+    ),
+);
+
+app.get("/api/gateway/demo", (c) => {
+    return c.json({
+        message: "Payment verified on Arc testnet — this is the paywalled resource.",
+        unlockedAt: new Date().toISOString(),
+    });
+});
 
 app.get("/api/auth/github/login", async (c) => {
     const state = await issueState();
