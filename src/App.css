@@ -526,3 +526,29 @@
     color: var(--text-heading);
     font-size: 0.9rem;
 }
+
+/* Repo detail page */
+
+.repo-detail-header {
+    margin-bottom: 1rem;
+}
+
+.repo-detail-header h1 {
+    margin-bottom: 0.15rem;
+}
+
+.repo-detail-note {
+    margin: 1.25rem 0;
+    padding: 0.75rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.repo-detail-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+}

@@ -614,9 +614,11 @@ function ListingGrid({
                         <div className="repo-row">
                             <a
                                 className="repo-name"
-                                href={`https://github.com/${listing.repoFullName}`}
-                                target="_blank"
-                                rel="noreferrer"
+                                href={`/repo/${listing.repoFullName}`}
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    navigate(`/repo/${listing.repoFullName}`);
+                                }}
                             >
                                 {listing.repoFullName}
                             </a>
@@ -663,9 +665,11 @@ function ListingGrid({
                     )}
                     <a
                         className="listing-card-title"
-                        href={`https://github.com/${listing.repoFullName}`}
-                        target="_blank"
-                        rel="noreferrer"
+                        href={`/repo/${listing.repoFullName}`}
+                        onClick={(e) => {
+                            e.preventDefault();
+                            navigate(`/repo/${listing.repoFullName}`);
+                        }}
                     >
                         {listing.repoFullName.split("/")[1]}
                     </a>
@@ -796,6 +800,78 @@ function PublisherPage({
     );
 }
 
+function RepoDetailPage({
+    owner,
+    name,
+    listings,
+    navigate,
+}: {
+    owner: string;
+    name: string;
+    listings: Listing[] | null;
+    navigate: (p: string) => void;
+}) {
+    const [unlockResults, previewUnlock] = useUnlockPreview();
+    const fullName = `${owner}/${name}`;
+    const listing = listings?.find((l) => l.repoFullName.toLowerCase() === fullName.toLowerCase());
+
+    if (listings === null) {
+        return <p className="hint">Loading…</p>;
+    }
+
+    if (!listing) {
+        return (
+            <section>
+                <button type="button" className="btn btn-ghost back-link" onClick={() => navigate("/catalog")}>
+                    ← Back to catalog
+                </button>
+                <p className="hint">No listing found for "{fullName}" — it may have been unlisted.</p>
+            </section>
+        );
+    }
+
+    return (
+        <section>
+            <button type="button" className="btn btn-ghost back-link" onClick={() => navigate("/catalog")}>
+                ← Back to catalog
+            </button>
+
+            <div className="repo-detail-header">
+                <h1>{name}</h1>
+                <p className="hint">
+                    by <PublisherLink login={listing.ownerLogin} navigate={navigate} />
+                </p>
+            </div>
+
+            <p>{listing.description ?? "No description provided."}</p>
+
+            <div className="listing-card-tags">
+                {listing.language && <span className="tag">{listing.language}</span>}
+                {listing.stargazersCount > 0 && <span className="tag tag-muted">★ {listing.stargazersCount}</span>}
+            </div>
+
+            <p className="hint repo-detail-note">
+                This repo is private — the listing above is all that's publicly visible until you unlock it.
+                Screenshots and a richer description aren't supported yet. Reviews aren't built yet either — worth
+                doing properly on ERC-8004's Reputation Registry rather than a bespoke system.
+            </p>
+
+            <div className="repo-detail-footer">
+                <span className="listing-card-price">{listing.price}</span>
+                <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={unlockResults[listing.id] === "loading"}
+                    onClick={() => previewUnlock(listing.id)}
+                >
+                    {unlockResults[listing.id] === "loading" ? "Checking…" : "Unlock"}
+                </button>
+            </div>
+            {unlockDetailsNode(unlockResults[listing.id])}
+        </section>
+    );
+}
+
 function App() {
     const [path, navigate] = useRoute();
     const [me, setMe] = useState<Me | null>(null);
@@ -836,6 +912,7 @@ function App() {
     }
 
     const publisherMatch = path.match(/^\/publisher\/([^/]+)$/);
+    const repoMatch = path.match(/^\/repo\/([^/]+)\/([^/]+)$/);
 
     return (
         <main className="shell">
@@ -845,7 +922,9 @@ function App() {
                 me={me}
                 onLogout={() => logout().then(() => setMe({ authenticated: false }))}
             />
-            {publisherMatch ? (
+            {repoMatch ? (
+                <RepoDetailPage owner={repoMatch[1]} name={repoMatch[2]} listings={listings} navigate={navigate} />
+            ) : publisherMatch ? (
                 <PublisherPage login={publisherMatch[1]} listings={listings} navigate={navigate} />
             ) : path === "/catalog" ? (
                 <CatalogPage listings={listings} listingsError={listingsError} navigate={navigate} />
