@@ -34,6 +34,9 @@ if (!GITHUB_CLIENT_ID || !GITHUB_CLIENT_SECRET || !GITHUB_REDIRECT_URI) {
 
 const SESSION_COOKIE = "margit_session";
 const PRICE_PATTERN = /^\$\d+(\.\d{1,2})?$/;
+const MAX_DESCRIPTION_LENGTH = 4000;
+const MAX_SCREENSHOTS = 4;
+const MAX_SCREENSHOT_CHARS = 2_000_000; // ~1.5MB decoded
 
 const app = new Hono();
 
@@ -252,14 +255,31 @@ app.post("/api/listings", async (c) => {
     const session = await getSession(getCookie(c, SESSION_COOKIE));
     if (!session) return c.json({ error: "Not authenticated" }, 401);
 
-    const body = await c.req.json<{ repoFullName?: string; price?: string; payoutAddress?: string }>();
-    const { repoFullName, price, payoutAddress } = body;
+    const body = await c.req.json<{
+        repoFullName?: string;
+        price?: string;
+        payoutAddress?: string;
+        sellerDescription?: string;
+        screenshots?: string[];
+    }>();
+    const { repoFullName, price, payoutAddress, sellerDescription, screenshots } = body;
 
     if (!repoFullName || !price || !payoutAddress) {
         return c.json({ error: "repoFullName, price, and payoutAddress are required" }, 400);
     }
     if (!PRICE_PATTERN.test(price)) {
         return c.json({ error: 'price must look like "$1.50"' }, 400);
+    }
+    if (sellerDescription && sellerDescription.length > MAX_DESCRIPTION_LENGTH) {
+        return c.json({ error: `description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer` }, 400);
+    }
+    if (screenshots) {
+        if (screenshots.length > MAX_SCREENSHOTS) {
+            return c.json({ error: `at most ${MAX_SCREENSHOTS} screenshots` }, 400);
+        }
+        if (screenshots.some((s) => !s.startsWith("data:image/") || s.length > MAX_SCREENSHOT_CHARS)) {
+            return c.json({ error: "each screenshot must be a data:image/... URL under 2MB" }, 400);
+        }
     }
 
     let resolvedPayoutAddress: string;
@@ -298,6 +318,8 @@ app.post("/api/listings", async (c) => {
         description: repo.description,
         language: repo.language,
         stargazersCount: repo.stargazers_count,
+        sellerDescription: sellerDescription ?? null,
+        screenshots: screenshots ?? [],
     });
     return c.json(listing, 201);
 });

@@ -14,6 +14,11 @@ export interface Listing {
     description: string | null;
     language: string | null;
     stargazersCount: number;
+    // Seller-authored, shown in place of `description` when present.
+    sellerDescription: string | null;
+    // Data URLs (base64) — no external storage wired up, matches the simple
+    // approach the reference project used.
+    screenshots: string[];
 }
 
 interface StoredListing extends Listing {
@@ -32,6 +37,8 @@ export async function createListing(input: {
     description: string | null;
     language: string | null;
     stargazersCount: number;
+    sellerDescription: string | null;
+    screenshots: string[];
 }): Promise<Listing> {
     const id = randomBytes(8).toString("hex");
     const stored: StoredListing = {
@@ -44,6 +51,8 @@ export async function createListing(input: {
         description: input.description,
         language: input.language,
         stargazersCount: input.stargazersCount,
+        sellerDescription: input.sellerDescription,
+        screenshots: input.screenshots,
         encryptedOwnerToken: encryptToken(input.ownerGithubToken),
     };
     await redis.set(LISTING_PREFIX + id, stored);
@@ -79,5 +88,10 @@ export async function deleteListing(id: string, ownerLogin: string): Promise<boo
 
 function toPublicListing(stored: StoredListing): Listing {
     const { encryptedOwnerToken: _encryptedOwnerToken, ...pub } = stored;
-    return pub;
+    // Backward-compat: listings created before these fields existed won't have them in Redis.
+    return {
+        ...pub,
+        sellerDescription: pub.sellerDescription ?? null,
+        screenshots: pub.screenshots ?? [],
+    };
 }

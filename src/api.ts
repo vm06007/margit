@@ -29,6 +29,8 @@ export interface Listing {
     description: string | null;
     language: string | null;
     stargazersCount: number;
+    sellerDescription: string | null;
+    screenshots: string[];
 }
 
 export interface UnlockRequirement {
@@ -94,6 +96,8 @@ export async function createListing(input: {
     repoFullName: string;
     price: string;
     payoutAddress: string;
+    sellerDescription?: string;
+    screenshots?: string[];
 }): Promise<Listing> {
     const res = await fetch("/api/listings", {
         method: "POST",
