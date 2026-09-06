@@ -197,6 +197,41 @@ export async function sendAgentMessage(message: string): Promise<AgentChatRespon
     return res.json() as Promise<AgentChatResponse>;
 }
 
+export interface AgentModel {
+    id: string;
+    name: string;
+    free: boolean;
+    contextLength: number | null;
+}
+
+export interface AgentSettings {
+    model: string;
+    hasCustomKey: boolean;
+    hasSharedDefault: boolean;
+}
+
+export function fetchAgentModels(): Promise<AgentModel[]> {
+    return apiFetch<AgentModel[]>("/api/agent/models");
+}
+
+export function fetchAgentSettings(): Promise<AgentSettings> {
+    return apiFetch<AgentSettings>("/api/agent/settings");
+}
+
+export async function updateAgentSettings(input: { apiKey?: string; model?: string }): Promise<AgentSettings> {
+    const res = await fetch("/api/agent/settings", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+    });
+    if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? `Failed to update agent settings (${res.status})`);
+    }
+    return res.json() as Promise<AgentSettings>;
+}
+
 /** Fetches the real x402 payment challenge for a listing (no payment is made). */
 export async function fetchUnlockRequirements(listingId: string): Promise<UnlockRequirement> {
     const res = await fetch(`/api/listings/unlock?id=${encodeURIComponent(listingId)}`, {

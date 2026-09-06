@@ -148,6 +148,9 @@ vite.config.ts.timestamp-*
 dist-ssr
 *.local
 
+# Reference template — will build the homepage from this later, not yet wired in
+/portfolio-html-template/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

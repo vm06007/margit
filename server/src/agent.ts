@@ -1,21 +1,29 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
+import type { ChatCompletionMessageParam, ChatCompletionTool } from "openai/resources/chat/completions";
 import { createPublicClient, createWalletClient, formatUnits, http, parseAbiItem } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { redis } from "./redis.js";
+import { decryptToken, encryptToken } from "./crypto.js";
 import { getListing, getOwnerTokenForListing, listListings } from "./listings.js";
 import { ARC_TOKEN_ADDRESSES, arcTestnet, priceToAtomicUnits, verifyDirectPayment, type PaymentToken } from "./payments.js";
 
 const HISTORY_PREFIX = "margit:agent-chat:";
 const HISTORY_TTL_SECONDS = 60 * 60 * 24;
 const MAX_HISTORY_MESSAGES = 20;
-const MODEL = "claude-sonnet-5";
+const SETTINGS_PREFIX = "margit:agent-settings:";
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+
+// OpenRouter's own maintained router — auto-selects a free, currently-available model
+// per request, so this default never goes stale even as individual free models are
+// deprecated. Verified live against https://openrouter.ai/api/v1/models. Users can
+// still pick any specific model in Settings; listAgentModels() below reflects the
+// live catalog rather than this constant.
+const DEFAULT_MODEL = "openrouter/free";
 
 const ERC20_ABI = [
     parseAbiItem("function transfer(address to, uint256 value) returns (bool)"),
     parseAbiItem("function balanceOf(address owner) view returns (uint256)"),
 ];
-
-const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) : undefined;
 
 const agentAccount = process.env.ARC_DEMO_BUYER_PRIVATE_KEY
     ? privateKeyToAccount(process.env.ARC_DEMO_BUYER_PRIVATE_KEY as `0x${string}`)
@@ -117,40 +125,52 @@ async function buyListing(listingId: string, token: PaymentToken): Promise<BuyRe
     };
 }
 
-const TOOLS: Anthropic.Tool[] = [
+const TOOLS: ChatCompletionTool[] = [
     {
-        name: "list_listings",
-        description: "Browse the margit catalog of repos for sale. Optionally filter by a text query matched against name/description.",
-        input_schema: {
-            type: "object",
-            properties: { query: { type: "string", description: "Optional search text" } },
-        },
-    },
-    {
-        name: "get_listing",
-        description: "Get full details for one listing by id, including its price and description.",
-        input_schema: {
-            type: "object",
-            properties: { id: { type: "string", description: "Listing id" } },
-            required: ["id"],
-        },
-    },
-    {
-        name: "get_wallet_balance",
-        description: "Check the agent's own Arc-testnet wallet balance (native gas, USDC, EURC) before attempting a purchase.",
-        input_schema: { type: "object", properties: {} },
-    },
-    {
-        name: "buy_listing",
-        description:
-            "Actually pay for a listing on-chain using the agent's own funded Arc-testnet wallet, then return the repo's clone URL. This spends real (testnet) funds — only call it when the user has clearly asked to buy something.",
-        input_schema: {
-            type: "object",
-            properties: {
-                id: { type: "string", description: "Listing id to buy" },
-                token: { type: "string", enum: ["USDC", "EURC"], description: "Which stablecoin to pay with (default USDC)" },
+        type: "function",
+        function: {
+            name: "list_listings",
+            description: "Browse the margit catalog of repos for sale. Optionally filter by a text query matched against name/description.",
+            parameters: {
+                type: "object",
+                properties: { query: { type: "string", description: "Optional search text" } },
             },
-            required: ["id"],
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "get_listing",
+            description: "Get full details for one listing by id, including its price and description.",
+            parameters: {
+                type: "object",
+                properties: { id: { type: "string", description: "Listing id" } },
+                required: ["id"],
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "get_wallet_balance",
+            description: "Check the agent's own Arc-testnet wallet balance (native gas, USDC, EURC) before attempting a purchase.",
+            parameters: { type: "object", properties: {} },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "buy_listing",
+            description:
+                "Actually pay for a listing on-chain using the agent's own funded Arc-testnet wallet, then return the repo's clone URL. This spends real (testnet) funds — only call it when the user has clearly asked to buy something.",
+            parameters: {
+                type: "object",
+                properties: {
+                    id: { type: "string", description: "Listing id to buy" },
+                    token: { type: "string", enum: ["USDC", "EURC"], description: "Which stablecoin to pay with (default USDC)" },
+                },
+                required: ["id"],
+            },
         },
     },
 ];
@@ -170,6 +190,15 @@ function systemPrompt(): string {
 export interface AgentTurnResult {
     reply: string;
     purchase?: { cloneUrl: string; txHash: string; repoFullName: string; token: PaymentToken };
+}
+
+function safeParseArgs(text: string): Record<string, unknown> {
+    try {
+        const parsed = JSON.parse(text);
+        return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+        return {};
+    }
 }
 
 async function executeTool(
@@ -241,44 +270,168 @@ async function executeTool(
     }
 }
 
-export async function runAgentTurn(sessionId: string, userMessage: string): Promise<AgentTurnResult> {
-    if (!anthropic) {
-        return { reply: "The agent isn't configured yet — ANTHROPIC_API_KEY is missing from the server's .env." };
-    }
+// --- Per-visitor settings (model choice + optional bring-your-own API key) ---
 
-    const history = (await redis.get<Anthropic.MessageParam[]>(HISTORY_PREFIX + sessionId)) ?? [];
-    const messages: Anthropic.MessageParam[] = [...history, { role: "user", content: userMessage }];
+interface StoredAgentSettings {
+    model?: string;
+    encryptedApiKey?: string;
+}
+
+export interface AgentSettingsPublic {
+    model: string;
+    hasCustomKey: boolean;
+    hasSharedDefault: boolean;
+}
+
+export async function getAgentSettings(sessionId: string): Promise<AgentSettingsPublic> {
+    const stored = await redis.get<StoredAgentSettings>(SETTINGS_PREFIX + sessionId);
+    return {
+        model: stored?.model || DEFAULT_MODEL,
+        hasCustomKey: Boolean(stored?.encryptedApiKey),
+        hasSharedDefault: Boolean(process.env.OPENROUTER_API_KEY),
+    };
+}
+
+export async function updateAgentSettings(
+    sessionId: string,
+    input: { apiKey?: string; model?: string },
+): Promise<AgentSettingsPublic> {
+    const existing = (await redis.get<StoredAgentSettings>(SETTINGS_PREFIX + sessionId)) ?? {};
+    const next: StoredAgentSettings = { ...existing };
+    if (input.model !== undefined) next.model = input.model.trim() || undefined;
+    if (input.apiKey !== undefined) {
+        next.encryptedApiKey = input.apiKey.trim() ? encryptToken(input.apiKey.trim()) : undefined;
+    }
+    await redis.set(SETTINGS_PREFIX + sessionId, next);
+    return getAgentSettings(sessionId);
+}
+
+interface ResolvedCredentials {
+    apiKey: string;
+    model: string;
+}
+
+async function resolveCredentials(sessionId: string): Promise<ResolvedCredentials | { error: string }> {
+    const stored = await redis.get<StoredAgentSettings>(SETTINGS_PREFIX + sessionId);
+    const model = stored?.model || DEFAULT_MODEL;
+    if (stored?.encryptedApiKey) {
+        return { apiKey: decryptToken(stored.encryptedApiKey), model };
+    }
+    if (process.env.OPENROUTER_API_KEY) {
+        return { apiKey: process.env.OPENROUTER_API_KEY, model };
+    }
+    return {
+        error:
+            "The agent isn't configured yet — no OpenRouter API key available. Add your own key in Settings " +
+            "(get one free at openrouter.ai/keys), or ask the site owner to set OPENROUTER_API_KEY.",
+    };
+}
+
+// --- Live model catalog (OpenRouter's public /models endpoint, no auth needed) ---
+
+export interface OpenRouterModelSummary {
+    id: string;
+    name: string;
+    free: boolean;
+    contextLength: number | null;
+}
+
+interface OpenRouterModelsResponse {
+    data: Array<{
+        id: string;
+        name: string;
+        context_length?: number;
+        supported_parameters?: string[];
+        pricing?: { prompt?: string };
+    }>;
+}
+
+let modelsCache: { data: OpenRouterModelSummary[]; fetchedAt: number } | null = null;
+const MODELS_CACHE_TTL_MS = 10 * 60 * 1000;
+
+export async function listAgentModels(): Promise<OpenRouterModelSummary[]> {
+    if (modelsCache && Date.now() - modelsCache.fetchedAt < MODELS_CACHE_TTL_MS) return modelsCache.data;
+    try {
+        const res = await fetch(`${OPENROUTER_BASE_URL}/models`);
+        if (!res.ok) return modelsCache?.data ?? [];
+        const body = (await res.json()) as OpenRouterModelsResponse;
+        const models = body.data
+            .filter((m) => (m.supported_parameters ?? []).includes("tools"))
+            .map((m) => ({
+                id: m.id,
+                name: m.name,
+                free: m.pricing?.prompt === "0",
+                contextLength: m.context_length ?? null,
+            }))
+            .sort((a, b) => {
+                if (a.id === DEFAULT_MODEL) return -1;
+                if (b.id === DEFAULT_MODEL) return 1;
+                return Number(b.free) - Number(a.free) || a.name.localeCompare(b.name);
+            });
+        modelsCache = { data: models, fetchedAt: Date.now() };
+        return models;
+    } catch {
+        return modelsCache?.data ?? [];
+    }
+}
+
+export async function runAgentTurn(sessionId: string, userMessage: string): Promise<AgentTurnResult> {
+    const credentials = await resolveCredentials(sessionId);
+    if ("error" in credentials) return { reply: credentials.error };
+
+    const client = new OpenAI({
+        apiKey: credentials.apiKey,
+        baseURL: OPENROUTER_BASE_URL,
+        defaultHeaders: {
+            "HTTP-Referer": process.env.APP_URL ?? "http://localhost:5173",
+            "X-Title": "margit",
+        },
+    });
+
+    const history = (await redis.get<ChatCompletionMessageParam[]>(HISTORY_PREFIX + sessionId)) ?? [];
+    const messages: ChatCompletionMessageParam[] = [
+        { role: "system", content: systemPrompt() },
+        ...history,
+        { role: "user", content: userMessage },
+    ];
 
     let purchase: AgentTurnResult["purchase"];
     let finalText = "";
 
-    for (let round = 0; round < 6; round++) {
-        const response = await anthropic.messages.create({
-            model: MODEL,
-            max_tokens: 1024,
-            system: systemPrompt(),
-            tools: TOOLS,
-            messages,
-        });
+    try {
+        for (let round = 0; round < 6; round++) {
+            const response = await client.chat.completions.create({
+                model: credentials.model,
+                messages,
+                tools: TOOLS,
+            });
 
-        messages.push({ role: "assistant", content: response.content });
+            const message = response.choices[0]?.message;
+            if (!message) break;
+            messages.push(message);
 
-        const textBlocks = response.content.filter((b): b is Anthropic.TextBlock => b.type === "text");
-        if (textBlocks.length > 0) finalText = textBlocks.map((b) => b.text).join("\n");
+            if (message.content) finalText = message.content;
 
-        const toolUses = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
-        if (response.stop_reason !== "tool_use" || toolUses.length === 0) break;
+            const calls = message.tool_calls ?? [];
+            if (calls.length === 0) break;
 
-        const toolResults: Anthropic.ToolResultBlockParam[] = [];
-        for (const use of toolUses) {
-            const { output, purchase: madePurchase } = await executeTool(use.name, use.input as Record<string, unknown>);
-            if (madePurchase) purchase = madePurchase;
-            toolResults.push({ type: "tool_result", tool_use_id: use.id, content: JSON.stringify(output) });
+            for (const call of calls) {
+                if (call.type !== "function") continue;
+                const args = safeParseArgs(call.function.arguments);
+                const { output, purchase: madePurchase } = await executeTool(call.function.name, args);
+                if (madePurchase) purchase = madePurchase;
+                messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(output) });
+            }
         }
-        messages.push({ role: "user", content: toolResults });
+    } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err);
+        return { reply: `The agent's model backend rejected the request: ${detail}` };
     }
 
-    await redis.set(HISTORY_PREFIX + sessionId, messages.slice(-MAX_HISTORY_MESSAGES), { ex: HISTORY_TTL_SECONDS });
+    // Drop the regenerated system message before persisting; everything after it is real history.
+    await redis.set(HISTORY_PREFIX + sessionId, messages.slice(1).slice(-MAX_HISTORY_MESSAGES), {
+        ex: HISTORY_TTL_SECONDS,
+    });
 
     return { reply: finalText || "(no response)", purchase };
 }

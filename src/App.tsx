@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getContract, prepareContractCall, readContract, sendTransaction, waitForReceipt } from "thirdweb";
-import { ConnectButton, useActiveAccount } from "thirdweb/react";
+import { useActiveAccount, useConnectModal, useWalletDetailsModal } from "thirdweb/react";
 import { shortenAddress, toUnits } from "thirdweb/utils";
 import { x402Client, x402HTTPClient } from "@x402/core/client";
 import { BatchEvmScheme } from "@circle-fin/x402-batching/client";
@@ -8,6 +8,8 @@ import {
     createListing,
     deleteListing,
     downloadZip,
+    fetchAgentModels,
+    fetchAgentSettings,
     fetchAgentWallet,
     fetchListings,
     fetchMe,
@@ -20,7 +22,10 @@ import {
     resolveName,
     revokeGithubAccess,
     sendAgentMessage,
+    updateAgentSettings,
+    type AgentModel,
     type AgentPurchase,
+    type AgentSettings,
     type AgentWallet,
     type Listing,
     type Me,
@@ -35,6 +40,8 @@ const ARC_EURC_ADDRESS = "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a";
 
 type PaymentToken = "USDC" | "EURC";
 const ARC_TOKEN_ADDRESSES: Record<PaymentToken, string> = { USDC: ARC_USDC_ADDRESS, EURC: ARC_EURC_ADDRESS };
+
+const AGENT_OPEN_STORAGE_KEY = "margit:agent-open";
 
 function formatUsdc(amount: string): string {
     return `${(Number(amount) / 1_000_000).toFixed(2)} USDC`;
@@ -81,29 +88,16 @@ function NavBar({
     navigate,
     me,
     onLogout,
+    agentOpen,
     onToggleAgent,
 }: {
     path: string;
     navigate: (p: string) => void;
     me: Me;
     onLogout: () => void;
+    agentOpen: boolean;
     onToggleAgent: () => void;
 }) {
-    const account = useActiveAccount();
-    const [arcName, setArcName] = useState<string | null>(null);
-
-    useEffect(() => {
-        setArcName(null);
-        if (!account) return;
-        let cancelled = false;
-        resolveArcNsReverse(account.address).then((name) => {
-            if (!cancelled) setArcName(name);
-        });
-        return () => {
-            cancelled = true;
-        };
-    }, [account]);
-
     return (
         <header className="topbar">
             <div className="nav">
@@ -125,25 +119,14 @@ function NavBar({
                 </NavLink>
             </div>
             <div className="nav-right">
-                <button type="button" className="btn btn-outline nav-agent-btn" onClick={onToggleAgent}>
+                <button
+                    type="button"
+                    className={`btn nav-agent-btn ${agentOpen ? "btn-primary" : "btn-outline"}`}
+                    onClick={onToggleAgent}
+                >
                     <RobotIcon /> Agent
                 </button>
-                {me.authenticated && <ProfileDropdown me={me} onLogout={onLogout} />}
-                <ConnectButton
-                    client={thirdwebClient}
-                    wallets={thirdwebWallets}
-                    chain={arcTestnet}
-                    appMetadata={thirdwebAppMetadata}
-                    theme={thirdwebTheme}
-                    connectButton={{ label: "Connect Wallet", className: "nav-connect-btn" }}
-                    detailsButton={{
-                        displayBalanceToken: { [arcTestnet.id]: ARC_USDC_ADDRESS },
-                        className: "nav-connect-btn",
-                        connectedAccountName: account
-                            ? (arcName ?? shortenAddress(account.address))
-                            : undefined,
-                    }}
-                />
+                <ProfileDropdown me={me} onLogout={onLogout} />
             </div>
         </header>
     );
@@ -152,6 +135,22 @@ function NavBar({
 function ProfileDropdown({ me, onLogout }: { me: Me; onLogout: () => void }) {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
+    const account = useActiveAccount();
+    const [arcName, setArcName] = useState<string | null>(null);
+    const connectModal = useConnectModal();
+    const walletDetailsModal = useWalletDetailsModal();
+
+    useEffect(() => {
+        setArcName(null);
+        if (!account) return;
+        let cancelled = false;
+        resolveArcNsReverse(account.address).then((name) => {
+            if (!cancelled) setArcName(name);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [account]);
 
     useEffect(() => {
         function handleClick(e: MouseEvent) {
@@ -178,39 +177,84 @@ function ProfileDropdown({ me, onLogout }: { me: Me; onLogout: () => void }) {
         onLogout();
     };
 
+    const handleWalletClick = () => {
+        setOpen(false);
+        if (account) {
+            walletDetailsModal.open({
+                client: thirdwebClient,
+                chains: [arcTestnet],
+                theme: thirdwebTheme,
+                displayBalanceToken: { [arcTestnet.id]: ARC_USDC_ADDRESS },
+                connectedAccountName: arcName ?? shortenAddress(account.address),
+            });
+        } else {
+            connectModal
+                .connect({
+                    client: thirdwebClient,
+                    wallets: thirdwebWallets,
+                    chain: arcTestnet,
+                    appMetadata: thirdwebAppMetadata,
+                    theme: thirdwebTheme,
+                })
+                .catch(() => undefined); // user closed the modal without connecting
+        }
+    };
+
     return (
         <div className="profile-dropdown" ref={ref}>
             <button type="button" className="profile-trigger" onClick={() => setOpen((v) => !v)}>
-                {me.avatarUrl && <img src={me.avatarUrl} alt="" className="avatar" />}
-                <span>{me.name ?? me.login}</span>
+                {me.authenticated ? (
+                    <>
+                        {me.avatarUrl && <img src={me.avatarUrl} alt="" className="avatar" />}
+                        <span>{me.name ?? me.login}</span>
+                    </>
+                ) : (
+                    <>
+                        <AccountIcon />
+                        <span>Account</span>
+                    </>
+                )}
             </button>
             {open && (
                 <div className="profile-menu">
-                    <div className="profile-menu-header">
-                        <p className="hint">Signed in as</p>
-                        <p>{me.login}</p>
-                    </div>
-                    <a
-                        href={`https://github.com/${me.login}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="profile-menu-item github-icon-link"
-                    >
-                        <GitHubIcon /> GitHub profile
-                    </a>
-                    <button
-                        type="button"
-                        className="profile-menu-item"
-                        onClick={() => {
-                            setOpen(false);
-                            onLogout();
-                        }}
-                    >
-                        <LogoutIcon /> Log out
+                    {me.authenticated && (
+                        <div className="profile-menu-header">
+                            <p className="hint">Signed in as</p>
+                            <p>{me.login}</p>
+                        </div>
+                    )}
+                    <button type="button" className="profile-menu-item" onClick={handleWalletClick}>
+                        <WalletIcon /> {account ? (arcName ?? shortenAddress(account.address)) : "Connect Wallet"}
                     </button>
-                    <button type="button" className="profile-menu-item profile-menu-danger btn-icon" onClick={revoke}>
-                        <TrashIcon /> Revoke GitHub access
-                    </button>
+                    {me.authenticated && (
+                        <>
+                            <a
+                                href={`https://github.com/${me.login}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="profile-menu-item github-icon-link"
+                            >
+                                <GitHubIcon /> GitHub profile
+                            </a>
+                            <button
+                                type="button"
+                                className="profile-menu-item"
+                                onClick={() => {
+                                    setOpen(false);
+                                    onLogout();
+                                }}
+                            >
+                                <LogoutIcon /> Log out
+                            </button>
+                            <button
+                                type="button"
+                                className="profile-menu-item profile-menu-danger btn-icon"
+                                onClick={revoke}
+                            >
+                                <TrashIcon /> Revoke GitHub access
+                            </button>
+                        </>
+                    )}
                 </div>
             )}
         </div>
@@ -404,10 +448,12 @@ function ListingModal({
 function RepoGroup({
     label,
     repos,
+    view,
     children,
 }: {
     label: string;
     repos: Repo[];
+    view: "cards" | "list";
     children: (repo: Repo) => ReactNode;
 }) {
     const [open, setOpen] = useState(true);
@@ -421,8 +467,10 @@ function RepoGroup({
             {open &&
                 (repos.length === 0 ? (
                     <p className="hint">No {label.toLowerCase()} repos.</p>
-                ) : (
+                ) : view === "list" ? (
                     <ul className="repo-list">{repos.map(children)}</ul>
+                ) : (
+                    <div className="catalog-grid">{repos.map(children)}</div>
                 ))}
         </div>
     );
@@ -609,6 +657,98 @@ function RepoRow({
     );
 }
 
+function RepoCard({
+    repo,
+    listing,
+    onListed,
+    onUnlisted,
+    onMadePrivate,
+    navigate,
+}: {
+    repo: Repo;
+    listing: Listing | undefined;
+    onListed: (listing: Listing) => void;
+    onUnlisted: (listingId: string) => void;
+    onMadePrivate: (repoId: number) => void;
+    navigate: (p: string) => void;
+}) {
+    const [formOpen, setFormOpen] = useState(false);
+    const [manageOpen, setManageOpen] = useState(false);
+    const [converting, setConverting] = useState(false);
+    const [convertError, setConvertError] = useState<string | null>(null);
+
+    const convert = async () => {
+        setConverting(true);
+        setConvertError(null);
+        try {
+            await makeRepoPrivate(repo.fullName);
+            onMadePrivate(repo.id);
+        } catch (err) {
+            setConvertError(err instanceof Error ? err.message : "Failed to convert");
+        } finally {
+            setConverting(false);
+        }
+    };
+
+    return (
+        <div className="listing-card">
+            <div className="listing-card-owner">
+                <a className="listing-card-title" href={repo.htmlUrl} target="_blank" rel="noreferrer">
+                    {repo.name}
+                </a>
+                {listing && (
+                    <button
+                        type="button"
+                        className="btn-icon-plain"
+                        onClick={() => setManageOpen((v) => !v)}
+                        aria-label="Manage listing"
+                    >
+                        {manageOpen ? "▴" : "▾"}
+                    </button>
+                )}
+            </div>
+            <div className="listing-card-tags">
+                {repo.private && <span className="tag tag-muted">private</span>}
+                {repo.language && <span className="tag">{repo.language}</span>}
+                <span className="tag tag-muted">★ {repo.stargazersCount}</span>
+            </div>
+            <div className="listing-card-footer">
+                {listing ? <span className="listing-card-price">listed @ {listing.price}</span> : <span />}
+                {listing ? null : repo.isOrgOwned ? null : repo.private ? (
+                    <button type="button" className="btn btn-outline" onClick={() => setFormOpen((v) => !v)}>
+                        {formOpen ? "Close" : "List for sale"}
+                    </button>
+                ) : (
+                    <button type="button" className="btn btn-outline" disabled={converting} onClick={convert}>
+                        {converting ? "Converting…" : "Make private"}
+                    </button>
+                )}
+            </div>
+            {convertError && <p className="error repo-inline-error">{convertError}</p>}
+            {formOpen && !listing && (
+                <ListingModal
+                    repoFullName={repo.fullName}
+                    onCancel={() => setFormOpen(false)}
+                    onCreated={(created) => {
+                        setFormOpen(false);
+                        onListed(created);
+                    }}
+                />
+            )}
+            {manageOpen && listing && (
+                <ListingPanel
+                    listing={listing}
+                    navigate={navigate}
+                    onUnlisted={(id) => {
+                        setManageOpen(false);
+                        onUnlisted(id);
+                    }}
+                />
+            )}
+        </div>
+    );
+}
+
 function WelcomePage({ me, navigate }: { me: Me; navigate: (p: string) => void }) {
     return (
         <div className="welcome">
@@ -687,6 +827,7 @@ function DashboardPage({
     navigate: (p: string) => void;
 }) {
     const [filter, setFilter] = useState("");
+    const [view, setView] = useState<"cards" | "list">("cards");
 
     const filteredRepos = useMemo(() => {
         const q = filter.trim().toLowerCase();
@@ -713,21 +854,28 @@ function DashboardPage({
         return <WelcomePage me={me} navigate={navigate} />;
     }
 
-    const renderRow = (repo: Repo) => (
-        <RepoRow
-            key={repo.id}
-            repo={repo}
-            listing={listingByRepo.get(repo.fullName)}
-            onListed={onListed}
-            onUnlisted={onUnlisted}
-            onMadePrivate={onMadePrivate}
-            navigate={navigate}
-        />
-    );
+    const renderRow = (repo: Repo) => {
+        const commonProps = {
+            repo,
+            listing: listingByRepo.get(repo.fullName),
+            onListed,
+            onUnlisted,
+            onMadePrivate,
+            navigate,
+        };
+        return view === "list" ? (
+            <RepoRow key={repo.id} {...commonProps} />
+        ) : (
+            <RepoCard key={repo.id} {...commonProps} />
+        );
+    };
 
     return (
         <section>
-            <h2>Your repositories</h2>
+            <div className="catalog-header">
+                <h2>Your repositories</h2>
+                {repos && repos.length > 0 && <ViewToggle view={view} setView={setView} />}
+            </div>
             {reposError && <p className="error">{reposError}</p>}
             {repos === null && !reposError && <p className="hint">Loading repositories…</p>}
 
@@ -740,16 +888,16 @@ function DashboardPage({
                         onChange={(e) => setFilter(e.target.value)}
                     />
 
-                    <RepoGroup label="Private" repos={privateRepos}>
+                    <RepoGroup label="Private" repos={privateRepos} view={view}>
                         {renderRow}
                     </RepoGroup>
 
-                    <RepoGroup label="Public" repos={publicRepos}>
+                    <RepoGroup label="Public" repos={publicRepos} view={view}>
                         {renderRow}
                     </RepoGroup>
 
                     {orgGroups.map(([org, orgRepos]) => (
-                        <RepoGroup key={org} label={org} repos={orgRepos}>
+                        <RepoGroup key={org} label={org} repos={orgRepos} view={view}>
                             {renderRow}
                         </RepoGroup>
                     ))}
@@ -780,6 +928,25 @@ function GitHubIcon() {
     return (
         <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
             <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.295 24 12c0-6.63-5.37-12-12-12" />
+        </svg>
+    );
+}
+
+function AccountIcon() {
+    return (
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="8" r="4" />
+            <path d="M4 20c0-3.31 3.58-6 8-6s8 2.69 8 6" />
+        </svg>
+    );
+}
+
+function WalletIcon() {
+    return (
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="2" y="6" width="20" height="14" rx="2" />
+            <path d="M2 10h20" />
+            <circle cx="16" cy="15" r="1" fill="currentColor" stroke="none" />
         </svg>
     );
 }
@@ -896,6 +1063,152 @@ function CloseIcon() {
     );
 }
 
+function GearIcon() {
+    return (
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+    );
+}
+
+function MicIcon() {
+    return (
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <line x1="12" y1="19" x2="12" y2="23" />
+            <line x1="8" y1="23" x2="16" y2="23" />
+        </svg>
+    );
+}
+
+/** Browser-native speech-to-text (Web Speech API) — feature-detected, no server involved. */
+function useVoiceInput(onResult: (text: string) => void) {
+    const [listening, setListening] = useState(false);
+    const recognitionRef = useRef<SpeechRecognition | null>(null);
+    const Ctor = typeof window !== "undefined" ? (window.SpeechRecognition ?? window.webkitSpeechRecognition) : undefined;
+
+    const toggle = () => {
+        if (!Ctor) return;
+        if (listening) {
+            recognitionRef.current?.stop();
+            return;
+        }
+        const recognition = new Ctor();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = "en-US";
+        recognition.onresult = (event) => {
+            let transcript = "";
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                transcript += event.results[i][0].transcript;
+            }
+            onResult(transcript);
+        };
+        recognition.onend = () => setListening(false);
+        recognition.onerror = () => setListening(false);
+        recognitionRef.current = recognition;
+        recognition.start();
+        setListening(true);
+    };
+
+    return { supported: Boolean(Ctor), listening, toggle };
+}
+
+function AgentSettingsPanel({ onSaved }: { onSaved: (settings: AgentSettings) => void }) {
+    const [models, setModels] = useState<AgentModel[] | null>(null);
+    const [settings, setSettings] = useState<AgentSettings | null>(null);
+    const [model, setModel] = useState("");
+    const [apiKey, setApiKey] = useState("");
+    const [saving, setSaving] = useState(false);
+    const [saved, setSaved] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        fetchAgentModels()
+            .then(setModels)
+            .catch(() => setModels([]));
+        fetchAgentSettings()
+            .then((s) => {
+                setSettings(s);
+                setModel(s.model);
+            })
+            .catch(() => undefined);
+    }, []);
+
+    const save = async () => {
+        setSaving(true);
+        setError(null);
+        try {
+            const next = await updateAgentSettings({ model, apiKey });
+            setSettings(next);
+            setApiKey("");
+            setSaved(true);
+            onSaved(next);
+            setTimeout(() => setSaved(false), 2000);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to save settings");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="agent-settings">
+            <label className="agent-settings-label" htmlFor="agent-model-input">
+                Model
+            </label>
+            <input
+                id="agent-model-input"
+                className="input"
+                list="agent-model-options"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder="openrouter/free"
+            />
+            <datalist id="agent-model-options">
+                {(models ?? []).map((m) => (
+                    <option key={m.id} value={m.id}>
+                        {m.name}
+                        {m.free ? " (free)" : ""}
+                    </option>
+                ))}
+            </datalist>
+
+            <label className="agent-settings-label" htmlFor="agent-key-input">
+                Your OpenRouter API key (optional)
+            </label>
+            <input
+                id="agent-key-input"
+                className="input"
+                type="password"
+                autoComplete="off"
+                placeholder={
+                    settings?.hasCustomKey ? "•••••••• saved — leave blank to keep" : "Leave blank to use the shared default"
+                }
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+            />
+            <p className="hint">
+                Bring your own for any model —{" "}
+                <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">
+                    get a free key at openrouter.ai/keys
+                </a>
+                .{" "}
+                {settings && !settings.hasCustomKey && !settings.hasSharedDefault && (
+                    <strong>No shared key is configured — you need your own to use the agent.</strong>
+                )}
+            </p>
+
+            {error && <p className="error">{error}</p>}
+            <button type="button" className="btn btn-primary btn-small" disabled={saving} onClick={save}>
+                {saving ? "Saving…" : saved ? "Saved!" : "Save"}
+            </button>
+        </div>
+    );
+}
+
 interface AgentMessage {
     role: "user" | "assistant";
     text: string;
@@ -904,17 +1217,23 @@ interface AgentMessage {
 
 function AgentSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
     const [wallet, setWallet] = useState<AgentWallet | null>(null);
+    const [settings, setSettings] = useState<AgentSettings | null>(null);
+    const [showSettings, setShowSettings] = useState(false);
     const [messages, setMessages] = useState<AgentMessage[]>([]);
     const [input, setInput] = useState("");
     const [sending, setSending] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const voice = useVoiceInput(setInput);
 
     useEffect(() => {
         if (!open) return;
         fetchAgentWallet()
             .then(setWallet)
             .catch(() => setWallet({ error: "Could not load agent wallet" }));
+        fetchAgentSettings()
+            .then(setSettings)
+            .catch(() => undefined);
     }, [open]);
 
     useEffect(() => {
@@ -944,9 +1263,8 @@ function AgentSidebar({ open, onClose }: { open: boolean; onClose: () => void })
     };
 
     return (
-        <>
-            <div className={`agent-scrim ${open ? "open" : ""}`} onClick={onClose} />
-            <aside className={`agent-sidebar ${open ? "open" : ""}`}>
+        <aside className={`agent-sidebar ${open ? "open" : ""}`}>
+            <div className="agent-sidebar-inner">
                 <div className="agent-header">
                     <div>
                         <h3>
@@ -962,11 +1280,28 @@ function AgentSidebar({ open, onClose }: { open: boolean; onClose: () => void })
                         ) : (
                             <p className="hint">Loading wallet…</p>
                         )}
+                        {settings && (
+                            <p className="hint agent-model-line">
+                                Model: {settings.model} ({settings.hasCustomKey ? "your key" : "shared key"})
+                            </p>
+                        )}
                     </div>
-                    <button type="button" className="btn-icon-plain" onClick={onClose} aria-label="Close agent">
-                        <CloseIcon />
-                    </button>
+                    <div className="agent-header-actions">
+                        <button
+                            type="button"
+                            className={`btn-icon-plain ${showSettings ? "active" : ""}`}
+                            onClick={() => setShowSettings((v) => !v)}
+                            aria-label="Agent settings"
+                            title="Configure model / API key"
+                        >
+                            <GearIcon />
+                        </button>
+                        <button type="button" className="btn-icon-plain" onClick={onClose} aria-label="Close agent">
+                            <CloseIcon />
+                        </button>
+                    </div>
                 </div>
+                {showSettings && <AgentSettingsPanel onSaved={setSettings} />}
                 <div className="agent-messages" ref={scrollRef}>
                     {messages.length === 0 && (
                         <p className="hint agent-empty">
@@ -995,17 +1330,28 @@ function AgentSidebar({ open, onClose }: { open: boolean; onClose: () => void })
                     <input
                         type="text"
                         className="input"
-                        placeholder="Ask the agent to find or buy a repo…"
+                        placeholder={voice.listening ? "Listening…" : "Ask the agent to find or buy a repo…"}
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         disabled={sending}
                     />
+                    {voice.supported && (
+                        <button
+                            type="button"
+                            className={`btn-icon-plain agent-mic-btn ${voice.listening ? "listening" : ""}`}
+                            onClick={voice.toggle}
+                            aria-label={voice.listening ? "Stop voice input" : "Speak to the agent"}
+                            title={voice.listening ? "Stop voice input" : "Speak to the agent"}
+                        >
+                            <MicIcon />
+                        </button>
+                    )}
                     <button type="submit" className="btn btn-primary" disabled={sending || !input.trim()}>
                         Send
                     </button>
                 </form>
-            </aside>
-        </>
+            </div>
+        </aside>
     );
 }
 
@@ -1721,7 +2067,11 @@ function App() {
     const [reposError, setReposError] = useState<string | null>(null);
     const [listings, setListings] = useState<Listing[] | null>(null);
     const [listingsError, setListingsError] = useState<string | null>(null);
-    const [agentOpen, setAgentOpen] = useState(false);
+    const [agentOpen, setAgentOpen] = useState(() => localStorage.getItem(AGENT_OPEN_STORAGE_KEY) === "1");
+
+    useEffect(() => {
+        localStorage.setItem(AGENT_OPEN_STORAGE_KEY, agentOpen ? "1" : "0");
+    }, [agentOpen]);
 
     useEffect(() => {
         fetchMe().then(setMe);
@@ -1758,38 +2108,41 @@ function App() {
     const repoMatch = path.match(/^\/repo\/([^/]+)\/([^/]+)$/);
 
     return (
-        <main className="shell">
-            <NavBar
-                path={path}
-                navigate={navigate}
-                me={me}
-                onLogout={() => logout().then(() => setMe({ authenticated: false }))}
-                onToggleAgent={() => setAgentOpen((v) => !v)}
-            />
-            <AgentSidebar open={agentOpen} onClose={() => setAgentOpen(false)} />
-            {repoMatch ? (
-                <RepoDetailPage owner={repoMatch[1]} name={repoMatch[2]} listings={listings} navigate={navigate} />
-            ) : publisherMatch ? (
-                <PublisherPage login={publisherMatch[1]} listings={listings} navigate={navigate} />
-            ) : path === "/catalog" ? (
-                <CatalogPage listings={listings} listingsError={listingsError} navigate={navigate} />
-            ) : path === "/profile" ? (
-                <DashboardPage
-                    me={me}
-                    repos={repos}
-                    reposError={reposError}
-                    listingByRepo={listingByRepo}
+        <div className="app-row">
+            <main className="shell">
+                <NavBar
+                    path={path}
                     navigate={navigate}
-                    onListed={(listing) => setListings((prev) => [...(prev ?? []), listing])}
-                    onUnlisted={(id) => setListings((prev) => prev?.filter((l) => l.id !== id) ?? null)}
-                    onMadePrivate={(repoId) =>
-                        setRepos((prev) => prev?.map((r) => (r.id === repoId ? { ...r, private: true } : r)) ?? null)
-                    }
+                    me={me}
+                    onLogout={() => logout().then(() => setMe({ authenticated: false }))}
+                    agentOpen={agentOpen}
+                    onToggleAgent={() => setAgentOpen((v) => !v)}
                 />
-            ) : (
-                <WelcomePage me={me} navigate={navigate} />
-            )}
-        </main>
+                {repoMatch ? (
+                    <RepoDetailPage owner={repoMatch[1]} name={repoMatch[2]} listings={listings} navigate={navigate} />
+                ) : publisherMatch ? (
+                    <PublisherPage login={publisherMatch[1]} listings={listings} navigate={navigate} />
+                ) : path === "/catalog" ? (
+                    <CatalogPage listings={listings} listingsError={listingsError} navigate={navigate} />
+                ) : path === "/profile" ? (
+                    <DashboardPage
+                        me={me}
+                        repos={repos}
+                        reposError={reposError}
+                        listingByRepo={listingByRepo}
+                        navigate={navigate}
+                        onListed={(listing) => setListings((prev) => [...(prev ?? []), listing])}
+                        onUnlisted={(id) => setListings((prev) => prev?.filter((l) => l.id !== id) ?? null)}
+                        onMadePrivate={(repoId) =>
+                            setRepos((prev) => prev?.map((r) => (r.id === repoId ? { ...r, private: true } : r)) ?? null)
+                        }
+                    />
+                ) : (
+                    <WelcomePage me={me} navigate={navigate} />
+                )}
+            </main>
+            <AgentSidebar open={agentOpen} onClose={() => setAgentOpen(false)} />
+        </div>
     );
 }
 

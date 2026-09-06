@@ -18,7 +18,7 @@ import {
 } from "./listings.js";
 import { resolveArcNsReverse, resolvePayoutAddress } from "./names.js";
 import { priceToAtomicUnits, verifyDirectPayment, type PaymentToken } from "./payments.js";
-import { getAgentWalletBalance, runAgentTurn } from "./agent.js";
+import { getAgentSettings, getAgentWalletBalance, listAgentModels, runAgentTurn, updateAgentSettings } from "./agent.js";
 
 const {
     GITHUB_CLIENT_ID,
@@ -158,11 +158,7 @@ app.post("/api/download-zip", async (c) => {
 // wallet, independent of any human buyer's connected wallet. Conversation history
 // is keyed off an anonymous per-visitor cookie, not GitHub login — browsing/buying
 // doesn't require an account.
-app.get("/api/agent/wallet", async (c) => {
-    return c.json(await getAgentWalletBalance());
-});
-
-app.post("/api/agent/chat", async (c) => {
+function getOrCreateAgentSessionId(c: Parameters<typeof getCookie>[0]): string {
     let sessionId = getCookie(c, AGENT_SESSION_COOKIE);
     if (!sessionId) {
         sessionId = randomBytes(16).toString("hex");
@@ -174,12 +170,36 @@ app.post("/api/agent/chat", async (c) => {
             maxAge: 60 * 60 * 24,
         });
     }
+    return sessionId;
+}
+
+app.get("/api/agent/wallet", async (c) => {
+    return c.json(await getAgentWalletBalance());
+});
+
+app.post("/api/agent/chat", async (c) => {
+    const sessionId = getOrCreateAgentSessionId(c);
 
     const { message } = await c.req.json<{ message?: string }>();
     if (!message || !message.trim()) return c.json({ error: "message is required" }, 400);
 
     const result = await runAgentTurn(sessionId, message.trim());
     return c.json(result);
+});
+
+app.get("/api/agent/settings", async (c) => {
+    const sessionId = getOrCreateAgentSessionId(c);
+    return c.json(await getAgentSettings(sessionId));
+});
+
+app.post("/api/agent/settings", async (c) => {
+    const sessionId = getOrCreateAgentSessionId(c);
+    const { apiKey, model } = await c.req.json<{ apiKey?: string; model?: string }>();
+    return c.json(await updateAgentSettings(sessionId, { apiKey, model }));
+});
+
+app.get("/api/agent/models", async (c) => {
+    return c.json(await listAgentModels());
 });
 
 app.get("/api/auth/github/login", async (c) => {
