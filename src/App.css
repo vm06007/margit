@@ -97,3 +97,77 @@
 .error {
     color: #ff6b6b;
 }
+
+.hint {
+    color: #999;
+    font-size: 0.85rem;
+    margin: 0 0 0.75rem;
+}
+
+.badge-listed {
+    background: #1f3a2a;
+    color: #7fd99a;
+}
+
+.btn-list {
+    background: transparent;
+    border: 1px solid #6cb6ff;
+    color: #6cb6ff;
+    border-radius: 6px;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btn-list:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.listing-form-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid #2a2a2e;
+    flex-wrap: wrap;
+}
+
+.listing-input {
+    background: #1c1c20;
+    border: 1px solid #3a3a3e;
+    color: inherit;
+    border-radius: 6px;
+    padding: 0.35rem 0.6rem;
+    font-size: 0.85rem;
+}
+
+.listing-input-address {
+    flex: 1;
+    min-width: 220px;
+    font-family: ui-monospace, monospace;
+}
+
+.repo-row-wrap {
+    padding: 0.4rem 0;
+    border-bottom: 1px solid #2a2a2e;
+}
+
+.repo-row-wrap .repo-row {
+    border-bottom: none;
+    padding: 0.2rem 0;
+}
+
+.unlock-details {
+    font-size: 0.8rem;
+    color: #ccc;
+    padding: 0.3rem 0 0.5rem;
+}
+
+.unlock-details code {
+    font-family: ui-monospace, monospace;
+    background: #1c1c20;
+    padding: 0.05rem 0.3rem;
+    border-radius: 4px;
+}
