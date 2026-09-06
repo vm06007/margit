@@ -7,7 +7,14 @@ import type { HTTPRequestContext } from "@x402/core/server";
 import { createSession, destroySession, getSession } from "./session.js";
 import { consumeState, issueState } from "./oauth-state.js";
 import { ARC_TESTNET_NETWORK, resourceServer } from "./x402-gateway.js";
-import { createListing, getListing, getOwnerTokenForListing, listListings, type Listing } from "./listings.js";
+import {
+    createListing,
+    deleteListing,
+    getListing,
+    getOwnerTokenForListing,
+    listListings,
+    type Listing,
+} from "./listings.js";
 import { resolvePayoutAddress } from "./names.js";
 
 const {
@@ -182,7 +189,18 @@ app.get("/api/repos", async (c) => {
         return c.json({ error: "Failed to fetch repos from GitHub" }, 502);
     }
 
-    const repos = (await reposRes.json()) as Array<Record<string, unknown>>;
+    const repos = (await reposRes.json()) as Array<{
+        id: number;
+        name: string;
+        full_name: string;
+        private: boolean;
+        description: string | null;
+        html_url: string;
+        stargazers_count: number;
+        language: string | null;
+        updated_at: string;
+        owner: { login: string; type: string };
+    }>;
     return c.json(
         repos.map((r) => ({
             id: r.id,
@@ -194,6 +212,8 @@ app.get("/api/repos", async (c) => {
             stargazersCount: r.stargazers_count,
             language: r.language,
             updatedAt: r.updated_at,
+            ownerLogin: r.owner.login,
+            isOrgOwned: r.owner.type === "Organization",
         })),
     );
 });
@@ -272,6 +292,15 @@ app.post("/api/listings", async (c) => {
         payoutAddress: resolvedPayoutAddress,
     });
     return c.json(listing, 201);
+});
+
+app.delete("/api/listings/:id", async (c) => {
+    const session = await getSession(getCookie(c, SESSION_COOKIE));
+    if (!session) return c.json({ error: "Not authenticated" }, 401);
+
+    const ok = await deleteListing(c.req.param("id"), session.login);
+    if (!ok) return c.json({ error: "Listing not found or not yours" }, 404);
+    return c.body(null, 204);
 });
 
 app.get("/api/resolve-name", async (c) => {

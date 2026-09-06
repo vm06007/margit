@@ -15,6 +15,8 @@ export interface Repo {
     stargazersCount: number;
     language: string | null;
     updatedAt: string;
+    ownerLogin: string;
+    isOrgOwned: boolean;
 }
 
 export interface Listing {
@@ -101,6 +103,17 @@ export async function createListing(input: {
         throw new Error(body.error ?? `Failed to create listing (${res.status})`);
     }
     return res.json() as Promise<Listing>;
+}
+
+export async function deleteListing(id: string): Promise<void> {
+    const res = await fetch(`/api/listings/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        credentials: "include",
+    });
+    if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? `Failed to unlist (${res.status})`);
+    }
 }
 
 /** Fetches the real x402 payment challenge for a listing (no payment is made). */

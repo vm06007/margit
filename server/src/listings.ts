@@ -57,6 +57,15 @@ export async function listListings(): Promise<Listing[]> {
     return stored.filter((s): s is StoredListing => s !== null).map(toPublicListing);
 }
 
+/** Deletes a listing if `ownerLogin` matches its owner. Returns false if not found/not owned. */
+export async function deleteListing(id: string, ownerLogin: string): Promise<boolean> {
+    const stored = await redis.get<StoredListing>(LISTING_PREFIX + id);
+    if (!stored || stored.ownerLogin.toLowerCase() !== ownerLogin.toLowerCase()) return false;
+    await redis.del(LISTING_PREFIX + id);
+    await redis.srem(LISTING_INDEX, id);
+    return true;
+}
+
 function toPublicListing(stored: StoredListing): Listing {
     const { encryptedOwnerToken: _encryptedOwnerToken, ...pub } = stored;
     return pub;
