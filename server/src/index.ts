@@ -163,6 +163,33 @@ app.post("/api/auth/logout", async (c) => {
     return c.body(null, 204);
 });
 
+app.post("/api/auth/revoke", async (c) => {
+    const sessionId = getCookie(c, SESSION_COOKIE);
+    const session = await getSession(sessionId);
+    if (!session) return c.json({ error: "Not authenticated" }, 401);
+
+    // Revokes the OAuth grant itself (not just our session) — GitHub will
+    // require re-approval on next sign-in. https://docs.github.com/en/rest/apps/oauth-applications
+    const basicAuth = Buffer.from(`${GITHUB_CLIENT_ID}:${GITHUB_CLIENT_SECRET}`).toString("base64");
+    const revokeRes = await fetch(`https://api.github.com/applications/${GITHUB_CLIENT_ID}/grant`, {
+        method: "DELETE",
+        headers: {
+            Authorization: `Basic ${basicAuth}`,
+            Accept: "application/vnd.github+json",
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ access_token: session.githubAccessToken }),
+    });
+
+    await destroySession(sessionId);
+    deleteCookie(c, SESSION_COOKIE, { path: "/" });
+
+    if (!revokeRes.ok && revokeRes.status !== 404) {
+        return c.json({ error: `GitHub declined to revoke the grant (${revokeRes.status})` }, 502);
+    }
+    return c.body(null, 204);
+});
+
 app.get("/api/me", async (c) => {
     const session = await getSession(getCookie(c, SESSION_COOKIE));
     if (!session) return c.json({ authenticated: false }, 401);

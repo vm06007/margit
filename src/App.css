@@ -59,12 +59,83 @@
     gap: 0.75rem;
 }
 
-.user {
+.profile-dropdown {
+    position: relative;
+}
+
+.profile-trigger {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
-    font-weight: 500;
+    gap: 0.5rem;
+    background: none;
+    border: none;
     color: var(--text-heading);
+    font: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 0.2rem 0.3rem;
+    border-radius: 8px;
+}
+
+.profile-trigger:hover {
+    background: var(--surface-hover);
+}
+
+.profile-menu {
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    right: 0;
+    min-width: 220px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    padding: 0.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    z-index: 40;
+}
+
+.profile-menu-header {
+    padding: 0.4rem 0.6rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0.3rem;
+}
+
+.profile-menu-header p:last-child {
+    color: var(--text-heading);
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.profile-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: none;
+    border: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.85rem;
+    text-align: left;
+    text-decoration: none;
+    padding: 0.5rem 0.6rem;
+    border-radius: 6px;
+    cursor: pointer;
+    width: 100%;
+}
+
+.profile-menu-item:hover {
+    background: var(--surface-hover);
+}
+
+.profile-menu-danger {
+    color: var(--error);
+}
+
+.profile-menu-danger:hover {
+    background: rgba(255, 107, 107, 0.12);
 }
 
 .avatar {

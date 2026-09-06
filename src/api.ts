@@ -76,6 +76,14 @@ export async function logout(): Promise<void> {
     await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
 }
 
+export async function revokeGithubAccess(): Promise<void> {
+    const res = await fetch("/api/auth/revoke", { method: "POST", credentials: "include" });
+    if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? `Failed to revoke access (${res.status})`);
+    }
+}
+
 export function githubLoginUrl(): string {
     return "/api/auth/github/login";
 }

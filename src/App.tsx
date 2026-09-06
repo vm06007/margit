@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ConnectButton, useActiveAccount } from "thirdweb/react";
 import { x402Client, x402HTTPClient } from "@x402/core/client";
 import { registerBatchScheme } from "@circle-fin/x402-batching/client";
@@ -13,6 +13,7 @@ import {
     logout,
     makeRepoPrivate,
     resolveName,
+    revokeGithubAccess,
     type Listing,
     type Me,
     type Repo,
@@ -95,6 +96,7 @@ function NavBar({
                 </NavLink>
             </div>
             <div className="nav-right">
+                {me.authenticated && <ProfileDropdown me={me} onLogout={onLogout} />}
                 <ConnectButton
                     client={thirdwebClient}
                     wallets={thirdwebWallets}
@@ -102,17 +104,76 @@ function NavBar({
                     connectButton={{ label: "Connect Wallet" }}
                     detailsButton={{ displayBalanceToken: { [arcTestnet.id]: ARC_USDC_ADDRESS } }}
                 />
-                {me.authenticated && (
-                    <div className="user">
-                        {me.avatarUrl && <img src={me.avatarUrl} alt="" className="avatar" />}
-                        <span>{me.name ?? me.login}</span>
-                        <button type="button" className="btn btn-ghost" onClick={onLogout}>
-                            Log out
-                        </button>
-                    </div>
-                )}
             </div>
         </header>
+    );
+}
+
+function ProfileDropdown({ me, onLogout }: { me: Me; onLogout: () => void }) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        function handleClick(e: MouseEvent) {
+            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+        }
+        document.addEventListener("mousedown", handleClick);
+        return () => document.removeEventListener("mousedown", handleClick);
+    }, []);
+
+    const revoke = async () => {
+        if (
+            !confirm(
+                "This revokes margit's GitHub access entirely — you'll need to re-approve on next sign-in. Continue?",
+            )
+        ) {
+            return;
+        }
+        try {
+            await revokeGithubAccess();
+        } catch {
+            // Session is destroyed server-side either way; fall through to local logout.
+        }
+        setOpen(false);
+        onLogout();
+    };
+
+    return (
+        <div className="profile-dropdown" ref={ref}>
+            <button type="button" className="profile-trigger" onClick={() => setOpen((v) => !v)}>
+                {me.avatarUrl && <img src={me.avatarUrl} alt="" className="avatar" />}
+                <span>{me.name ?? me.login}</span>
+            </button>
+            {open && (
+                <div className="profile-menu">
+                    <div className="profile-menu-header">
+                        <p className="hint">Signed in as</p>
+                        <p>{me.login}</p>
+                    </div>
+                    <a
+                        href={`https://github.com/${me.login}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="profile-menu-item github-icon-link"
+                    >
+                        <GitHubIcon /> GitHub profile
+                    </a>
+                    <button
+                        type="button"
+                        className="profile-menu-item"
+                        onClick={() => {
+                            setOpen(false);
+                            onLogout();
+                        }}
+                    >
+                        Log out
+                    </button>
+                    <button type="button" className="profile-menu-item profile-menu-danger btn-icon" onClick={revoke}>
+                        <TrashIcon /> Revoke GitHub access
+                    </button>
+                </div>
+            )}
+        </div>
     );
 }
 
