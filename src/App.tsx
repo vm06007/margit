@@ -8,6 +8,7 @@ import {
     createListing,
     deleteListing,
     downloadZip,
+    fetchAgentWallet,
     fetchListings,
     fetchMe,
     fetchRepos,
@@ -18,6 +19,9 @@ import {
     resolveArcNsReverse,
     resolveName,
     revokeGithubAccess,
+    sendAgentMessage,
+    type AgentPurchase,
+    type AgentWallet,
     type Listing,
     type Me,
     type Repo,
@@ -77,11 +81,13 @@ function NavBar({
     navigate,
     me,
     onLogout,
+    onToggleAgent,
 }: {
     path: string;
     navigate: (p: string) => void;
     me: Me;
     onLogout: () => void;
+    onToggleAgent: () => void;
 }) {
     const account = useActiveAccount();
     const [arcName, setArcName] = useState<string | null>(null);
@@ -119,6 +125,9 @@ function NavBar({
                 </NavLink>
             </div>
             <div className="nav-right">
+                <button type="button" className="btn btn-outline nav-agent-btn" onClick={onToggleAgent}>
+                    <RobotIcon /> Agent
+                </button>
                 {me.authenticated && <ProfileDropdown me={me} onLogout={onLogout} />}
                 <ConnectButton
                     client={thirdwebClient}
@@ -866,6 +875,140 @@ function CloneResult({ cloneUrl, repoFullName }: { cloneUrl: string; repoFullNam
     );
 }
 
+function RobotIcon() {
+    return (
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="3" y="11" width="18" height="10" rx="2" />
+            <circle cx="12" cy="5" r="2" />
+            <path d="M12 7v4" />
+            <circle cx="8" cy="16" r="0.5" fill="currentColor" />
+            <circle cx="16" cy="16" r="0.5" fill="currentColor" />
+        </svg>
+    );
+}
+
+function CloseIcon() {
+    return (
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+    );
+}
+
+interface AgentMessage {
+    role: "user" | "assistant";
+    text: string;
+    purchase?: AgentPurchase;
+}
+
+function AgentSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+    const [wallet, setWallet] = useState<AgentWallet | null>(null);
+    const [messages, setMessages] = useState<AgentMessage[]>([]);
+    const [input, setInput] = useState("");
+    const [sending, setSending] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const scrollRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!open) return;
+        fetchAgentWallet()
+            .then(setWallet)
+            .catch(() => setWallet({ error: "Could not load agent wallet" }));
+    }, [open]);
+
+    useEffect(() => {
+        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    }, [messages, sending]);
+
+    const send = async () => {
+        const text = input.trim();
+        if (!text || sending) return;
+        setInput("");
+        setError(null);
+        setMessages((prev) => [...prev, { role: "user", text }]);
+        setSending(true);
+        try {
+            const res = await sendAgentMessage(text);
+            setMessages((prev) => [...prev, { role: "assistant", text: res.reply, purchase: res.purchase }]);
+            if (res.purchase) {
+                fetchAgentWallet()
+                    .then(setWallet)
+                    .catch(() => undefined);
+            }
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "The agent didn't respond");
+        } finally {
+            setSending(false);
+        }
+    };
+
+    return (
+        <>
+            <div className={`agent-scrim ${open ? "open" : ""}`} onClick={onClose} />
+            <aside className={`agent-sidebar ${open ? "open" : ""}`}>
+                <div className="agent-header">
+                    <div>
+                        <h3>
+                            <RobotIcon /> margit agent
+                        </h3>
+                        {wallet?.address ? (
+                            <p className="hint">
+                                {shortenAddress(wallet.address)} · {Number(wallet.usdc ?? "0").toFixed(2)} USDC ·{" "}
+                                {Number(wallet.eurc ?? "0").toFixed(2)} EURC
+                            </p>
+                        ) : wallet?.error ? (
+                            <p className="hint">{wallet.error}</p>
+                        ) : (
+                            <p className="hint">Loading wallet…</p>
+                        )}
+                    </div>
+                    <button type="button" className="btn-icon-plain" onClick={onClose} aria-label="Close agent">
+                        <CloseIcon />
+                    </button>
+                </div>
+                <div className="agent-messages" ref={scrollRef}>
+                    {messages.length === 0 && (
+                        <p className="hint agent-empty">
+                            Ask me to find a repo, or tell me to buy one — I have my own funded wallet and can pay
+                            for it directly.
+                        </p>
+                    )}
+                    {messages.map((m, i) => (
+                        <div key={i} className={`agent-message agent-message-${m.role}`}>
+                            <p>{m.text}</p>
+                            {m.purchase && (
+                                <CloneResult cloneUrl={m.purchase.cloneUrl} repoFullName={m.purchase.repoFullName} />
+                            )}
+                        </div>
+                    ))}
+                    {sending && <p className="hint agent-typing">Thinking…</p>}
+                </div>
+                {error && <p className="error agent-error">{error}</p>}
+                <form
+                    className="agent-input-row"
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        send();
+                    }}
+                >
+                    <input
+                        type="text"
+                        className="input"
+                        placeholder="Ask the agent to find or buy a repo…"
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        disabled={sending}
+                    />
+                    <button type="submit" className="btn btn-primary" disabled={sending || !input.trim()}>
+                        Send
+                    </button>
+                </form>
+            </aside>
+        </>
+    );
+}
+
 function PublisherLink({ login, navigate }: { login: string; navigate: (p: string) => void }) {
     return (
         <a
@@ -1578,6 +1721,7 @@ function App() {
     const [reposError, setReposError] = useState<string | null>(null);
     const [listings, setListings] = useState<Listing[] | null>(null);
     const [listingsError, setListingsError] = useState<string | null>(null);
+    const [agentOpen, setAgentOpen] = useState(false);
 
     useEffect(() => {
         fetchMe().then(setMe);
@@ -1620,7 +1764,9 @@ function App() {
                 navigate={navigate}
                 me={me}
                 onLogout={() => logout().then(() => setMe({ authenticated: false }))}
+                onToggleAgent={() => setAgentOpen((v) => !v)}
             />
+            <AgentSidebar open={agentOpen} onClose={() => setAgentOpen(false)} />
             {repoMatch ? (
                 <RepoDetailPage owner={repoMatch[1]} name={repoMatch[2]} listings={listings} navigate={navigate} />
             ) : publisherMatch ? (

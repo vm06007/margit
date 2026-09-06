@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -17,6 +18,7 @@ import {
 } from "./listings.js";
 import { resolveArcNsReverse, resolvePayoutAddress } from "./names.js";
 import { priceToAtomicUnits, verifyDirectPayment, type PaymentToken } from "./payments.js";
+import { getAgentWalletBalance, runAgentTurn } from "./agent.js";
 
 const {
     GITHUB_CLIENT_ID,
@@ -34,6 +36,7 @@ if (!GITHUB_CLIENT_ID || !GITHUB_CLIENT_SECRET || !GITHUB_REDIRECT_URI) {
 }
 
 const SESSION_COOKIE = "margit_session";
+const AGENT_SESSION_COOKIE = "margit_agent_session";
 const PRICE_PATTERN = /^\$\d+(\.\d{1,2})?$/;
 const MAX_DESCRIPTION_LENGTH = 4000;
 const MAX_SCREENSHOTS = 4;
@@ -149,6 +152,34 @@ app.post("/api/download-zip", async (c) => {
             "Content-Disposition": `attachment; filename="${repoName}.zip"`,
         },
     });
+});
+
+// Agent sidebar: a chat-driven shopping assistant with its own funded Arc-testnet
+// wallet, independent of any human buyer's connected wallet. Conversation history
+// is keyed off an anonymous per-visitor cookie, not GitHub login — browsing/buying
+// doesn't require an account.
+app.get("/api/agent/wallet", async (c) => {
+    return c.json(await getAgentWalletBalance());
+});
+
+app.post("/api/agent/chat", async (c) => {
+    let sessionId = getCookie(c, AGENT_SESSION_COOKIE);
+    if (!sessionId) {
+        sessionId = randomBytes(16).toString("hex");
+        setCookie(c, AGENT_SESSION_COOKIE, sessionId, {
+            httpOnly: true,
+            sameSite: "Lax",
+            secure: APP_URL.startsWith("https"),
+            path: "/",
+            maxAge: 60 * 60 * 24,
+        });
+    }
+
+    const { message } = await c.req.json<{ message?: string }>();
+    if (!message || !message.trim()) return c.json({ error: "message is required" }, 400);
+
+    const result = await runAgentTurn(sessionId, message.trim());
+    return c.json(result);
 });
 
 app.get("/api/auth/github/login", async (c) => {

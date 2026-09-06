@@ -159,6 +159,44 @@ export async function downloadZip(cloneUrl: string, repoName: string): Promise<v
     URL.revokeObjectURL(url);
 }
 
+export interface AgentWallet {
+    address?: string;
+    nativeGas?: string;
+    usdc?: string;
+    eurc?: string;
+    error?: string;
+}
+
+export interface AgentPurchase {
+    cloneUrl: string;
+    txHash: string;
+    repoFullName: string;
+    token: "USDC" | "EURC";
+}
+
+export interface AgentChatResponse {
+    reply: string;
+    purchase?: AgentPurchase;
+}
+
+export function fetchAgentWallet(): Promise<AgentWallet> {
+    return apiFetch<AgentWallet>("/api/agent/wallet");
+}
+
+export async function sendAgentMessage(message: string): Promise<AgentChatResponse> {
+    const res = await fetch("/api/agent/chat", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message }),
+    });
+    if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? `Agent request failed (${res.status})`);
+    }
+    return res.json() as Promise<AgentChatResponse>;
+}
+
 /** Fetches the real x402 payment challenge for a listing (no payment is made). */
 export async function fetchUnlockRequirements(listingId: string): Promise<UnlockRequirement> {
     const res = await fetch(`/api/listings/unlock?id=${encodeURIComponent(listingId)}`, {

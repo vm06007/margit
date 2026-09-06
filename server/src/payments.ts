@@ -1,7 +1,7 @@
 import { createPublicClient, decodeEventLog, defineChain, http, parseAbiItem } from "viem";
 import { redis } from "./redis.js";
 
-const arcTestnet = defineChain({
+export const arcTestnet = defineChain({
     id: 5042002,
     name: "Arc Testnet",
     nativeCurrency: { decimals: 18, name: "USDC", symbol: "USDC" },
