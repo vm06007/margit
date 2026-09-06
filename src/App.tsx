@@ -71,8 +71,17 @@ function NavBar({
     return (
         <header className="topbar">
             <div className="nav">
-                <span className="brand">margit</span>
-                <NavLink to="/" path={path} navigate={navigate}>
+                <a
+                    href="/"
+                    className="brand"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        navigate("/");
+                    }}
+                >
+                    margit
+                </a>
+                <NavLink to="/profile" path={path} navigate={navigate}>
                     My Repos
                 </NavLink>
                 <NavLink to="/catalog" path={path} navigate={navigate}>
@@ -353,7 +362,7 @@ function RepoRow({
     );
 }
 
-function WelcomePage({ navigate }: { navigate: (p: string) => void }) {
+function WelcomePage({ me, navigate }: { me: Me; navigate: (p: string) => void }) {
     return (
         <div className="welcome">
             <h1>margit</h1>
@@ -363,9 +372,15 @@ function WelcomePage({ navigate }: { navigate: (p: string) => void }) {
             </p>
 
             <div className="welcome-actions">
-                <a className="btn btn-primary" href={githubLoginUrl()}>
-                    Connect with GitHub
-                </a>
+                {me.authenticated ? (
+                    <button type="button" className="btn btn-primary" onClick={() => navigate("/profile")}>
+                        Go to My Repos
+                    </button>
+                ) : (
+                    <a className="btn btn-primary" href={githubLoginUrl()}>
+                        Connect with GitHub
+                    </a>
+                )}
                 <button
                     type="button"
                     className="btn btn-outline"
@@ -448,7 +463,7 @@ function DashboardPage({
     }, [filteredRepos]);
 
     if (!me.authenticated) {
-        return <WelcomePage navigate={navigate} />;
+        return <WelcomePage me={me} navigate={navigate} />;
     }
 
     const renderRow = (repo: Repo) => (
@@ -834,7 +849,7 @@ function App() {
                 <PublisherPage login={publisherMatch[1]} listings={listings} navigate={navigate} />
             ) : path === "/catalog" ? (
                 <CatalogPage listings={listings} listingsError={listingsError} navigate={navigate} />
-            ) : (
+            ) : path === "/profile" ? (
                 <DashboardPage
                     me={me}
                     repos={repos}
@@ -847,6 +862,8 @@ function App() {
                         setRepos((prev) => prev?.map((r) => (r.id === repoId ? { ...r, private: true } : r)) ?? null)
                     }
                 />
+            ) : (
+                <WelcomePage me={me} navigate={navigate} />
             )}
         </main>
     );
