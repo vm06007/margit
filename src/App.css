@@ -888,3 +888,13 @@
     margin-top: 0.35rem;
     word-break: break-all;
 }
+
+/* Thirdweb ConnectButton renders its own sizing — force it to match our .btn scale */
+.nav-connect-btn {
+    height: auto !important;
+    min-height: 0 !important;
+    padding: 0.45rem 0.9rem !important;
+    font-size: 0.82rem !important;
+    font-weight: 600 !important;
+    border-radius: 7px !important;
+}

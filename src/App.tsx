@@ -101,8 +101,11 @@ function NavBar({
                     client={thirdwebClient}
                     wallets={thirdwebWallets}
                     chain={arcTestnet}
-                    connectButton={{ label: "Connect Wallet" }}
-                    detailsButton={{ displayBalanceToken: { [arcTestnet.id]: ARC_USDC_ADDRESS } }}
+                    connectButton={{ label: "Connect Wallet", className: "nav-connect-btn" }}
+                    detailsButton={{
+                        displayBalanceToken: { [arcTestnet.id]: ARC_USDC_ADDRESS },
+                        className: "nav-connect-btn",
+                    }}
                 />
             </div>
         </header>
@@ -166,7 +169,7 @@ function ProfileDropdown({ me, onLogout }: { me: Me; onLogout: () => void }) {
                             onLogout();
                         }}
                     >
-                        Log out
+                        <LogoutIcon /> Log out
                     </button>
                     <button type="button" className="profile-menu-item profile-menu-danger btn-icon" onClick={revoke}>
                         <TrashIcon /> Revoke GitHub access
@@ -760,6 +763,16 @@ function EyeIcon() {
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" />
             <circle cx="12" cy="12" r="3" />
+        </svg>
+    );
+}
+
+function LogoutIcon() {
+    return (
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
         </svg>
     );
 }
