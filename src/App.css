@@ -335,3 +335,124 @@
     color: var(--error);
     font-size: 0.85rem;
 }
+
+/* Catalog: header + view toggle */
+
+.catalog-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.view-toggle {
+    display: flex;
+    gap: 0.25rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.2rem;
+}
+
+.view-toggle-btn {
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    border-radius: 6px;
+    padding: 0.3rem 0.7rem;
+    cursor: pointer;
+}
+
+.view-toggle-btn-active {
+    background: var(--surface-hover);
+    color: var(--text-heading);
+}
+
+.publisher-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.publisher-link:hover {
+    text-decoration: underline;
+}
+
+.back-link {
+    margin-bottom: 1rem;
+}
+
+/* Catalog: card grid */
+
+.catalog-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 0.75rem;
+}
+
+.listing-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.listing-card:hover {
+    border-color: #383a44;
+}
+
+.listing-card-owner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+}
+
+.listing-card-title {
+    color: var(--text-heading);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.listing-card-title:hover {
+    color: var(--accent);
+}
+
+.listing-card-desc {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.listing-card-tags {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.listing-card-footer {
+    margin-top: auto;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.listing-card-price {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-heading);
+}

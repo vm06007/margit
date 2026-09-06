@@ -450,8 +450,49 @@ function DashboardPage({
     );
 }
 
-function CatalogPage({ listings, listingsError }: { listings: Listing[] | null; listingsError: string | null }) {
+function unlockDetailsNode(result: UnlockRequirement | string | "loading" | undefined): ReactNode {
+    if (!result || result === "loading") return null;
+    return (
+        <div className="unlock-details">
+            {typeof result === "string" ? (
+                <span className="error">{result}</span>
+            ) : (
+                <span>
+                    Real x402 challenge: pay {formatUsdc(result.amount)} to <code>{result.payTo}</code> on{" "}
+                    <code>{result.network}</code>. Wallet payment isn't wired up yet — this previews the actual
+                    on-chain requirements.
+                </span>
+            )}
+        </div>
+    );
+}
+
+function PublisherLink({ login, navigate }: { login: string; navigate: (p: string) => void }) {
+    return (
+        <a
+            href={`/publisher/${login}`}
+            className="publisher-link"
+            onClick={(e) => {
+                e.preventDefault();
+                navigate(`/publisher/${login}`);
+            }}
+        >
+            {login}
+        </a>
+    );
+}
+
+function CatalogPage({
+    listings,
+    listingsError,
+    navigate,
+}: {
+    listings: Listing[] | null;
+    listingsError: string | null;
+    navigate: (p: string) => void;
+}) {
     const [unlockResults, setUnlockResults] = useState<Record<string, UnlockRequirement | string | "loading">>({});
+    const [view, setView] = useState<"cards" | "list">("cards");
 
     const previewUnlock = async (listingId: string) => {
         setUnlockResults((prev) => ({ ...prev, [listingId]: "loading" }));
@@ -468,54 +509,169 @@ function CatalogPage({ listings, listingsError }: { listings: Listing[] | null; 
 
     return (
         <section>
-            <h2>Catalog</h2>
-            <p className="hint">Repos for sale, paid in USDC on Arc testnet. Anyone — human or agent — can unlock.</p>
+            <div className="catalog-header">
+                <div>
+                    <h2>Catalog</h2>
+                    <p className="hint">
+                        Repos for sale, paid in USDC on Arc testnet. Anyone — human or agent — can unlock.
+                    </p>
+                </div>
+                <div className="view-toggle">
+                    <button
+                        type="button"
+                        className={`view-toggle-btn ${view === "cards" ? "view-toggle-btn-active" : ""}`}
+                        onClick={() => setView("cards")}
+                    >
+                        Cards
+                    </button>
+                    <button
+                        type="button"
+                        className={`view-toggle-btn ${view === "list" ? "view-toggle-btn-active" : ""}`}
+                        onClick={() => setView("list")}
+                    >
+                        List
+                    </button>
+                </div>
+            </div>
+
             {listingsError && <p className="error">{listingsError}</p>}
             {listings === null && !listingsError && <p className="hint">Loading catalog…</p>}
             {listings && listings.length === 0 && <p className="hint">No listings yet.</p>}
-            {listings && listings.length > 0 && (
-                <ul className="repo-list">
-                    {listings.map((listing) => {
-                        const result = unlockResults[listing.id];
-                        return (
-                            <li key={listing.id} className="repo-card">
-                                <div className="repo-row">
-                                    <a
-                                        className="repo-name"
-                                        href={`https://github.com/${listing.repoFullName}`}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                    >
-                                        {listing.repoFullName}
-                                    </a>
-                                    <span className="tag tag-muted">by {listing.ownerLogin}</span>
-                                    <span className="badge badge-listed">{listing.price}</span>
-                                    <button
-                                        type="button"
-                                        className="btn btn-outline"
-                                        disabled={result === "loading"}
-                                        onClick={() => previewUnlock(listing.id)}
-                                    >
-                                        {result === "loading" ? "Checking…" : "Unlock"}
-                                    </button>
-                                </div>
-                                {result && result !== "loading" && (
-                                    <div className="unlock-details">
-                                        {typeof result === "string" ? (
-                                            <span className="error">{result}</span>
-                                        ) : (
-                                            <span>
-                                                Real x402 challenge: pay {formatUsdc(result.amount)} to{" "}
-                                                <code>{result.payTo}</code> on <code>{result.network}</code>. Wallet
-                                                payment isn't wired up yet — this previews the actual on-chain
-                                                requirements.
-                                            </span>
-                                        )}
-                                    </div>
+
+            {listings && listings.length > 0 && view === "cards" && (
+                <div className="catalog-grid">
+                    {listings.map((listing) => (
+                        <div key={listing.id} className="listing-card">
+                            <div className="listing-card-owner">
+                                <PublisherLink login={listing.ownerLogin} navigate={navigate} />
+                                <a
+                                    href={`https://github.com/${listing.ownerLogin}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="tag tag-muted"
+                                >
+                                    GitHub ↗
+                                </a>
+                            </div>
+                            <a
+                                className="listing-card-title"
+                                href={`https://github.com/${listing.repoFullName}`}
+                                target="_blank"
+                                rel="noreferrer"
+                            >
+                                {listing.repoFullName.split("/")[1]}
+                            </a>
+                            <p className="listing-card-desc">{listing.description ?? "No description"}</p>
+                            <div className="listing-card-tags">
+                                {listing.language && <span className="tag">{listing.language}</span>}
+                                {listing.stargazersCount > 0 && (
+                                    <span className="tag tag-muted">★ {listing.stargazersCount}</span>
                                 )}
-                            </li>
-                        );
-                    })}
+                            </div>
+                            <div className="listing-card-footer">
+                                <span className="listing-card-price">{listing.price}</span>
+                                <button
+                                    type="button"
+                                    className="btn btn-outline"
+                                    disabled={unlockResults[listing.id] === "loading"}
+                                    onClick={() => previewUnlock(listing.id)}
+                                >
+                                    {unlockResults[listing.id] === "loading" ? "Checking…" : "Unlock"}
+                                </button>
+                            </div>
+                            {unlockDetailsNode(unlockResults[listing.id])}
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {listings && listings.length > 0 && view === "list" && (
+                <ul className="repo-list">
+                    {listings.map((listing) => (
+                        <li key={listing.id} className="repo-card">
+                            <div className="repo-row">
+                                <a
+                                    className="repo-name"
+                                    href={`https://github.com/${listing.repoFullName}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                >
+                                    {listing.repoFullName}
+                                </a>
+                                <span className="tag tag-muted">
+                                    by <PublisherLink login={listing.ownerLogin} navigate={navigate} />
+                                </span>
+                                <span className="badge badge-listed">{listing.price}</span>
+                                <button
+                                    type="button"
+                                    className="btn btn-outline"
+                                    disabled={unlockResults[listing.id] === "loading"}
+                                    onClick={() => previewUnlock(listing.id)}
+                                >
+                                    {unlockResults[listing.id] === "loading" ? "Checking…" : "Unlock"}
+                                </button>
+                            </div>
+                            {unlockDetailsNode(unlockResults[listing.id])}
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </section>
+    );
+}
+
+function PublisherPage({
+    login,
+    listings,
+    navigate,
+}: {
+    login: string;
+    listings: Listing[] | null;
+    navigate: (p: string) => void;
+}) {
+    const authorListings = useMemo(
+        () => (listings ?? []).filter((l) => l.ownerLogin.toLowerCase() === login.toLowerCase()),
+        [listings, login],
+    );
+
+    return (
+        <section>
+            <button type="button" className="btn btn-ghost back-link" onClick={() => navigate("/catalog")}>
+                ← Back to catalog
+            </button>
+            <h2>{login}</h2>
+            <p className="hint">
+                <a href={`https://github.com/${login}`} target="_blank" rel="noreferrer">
+                    GitHub profile ↗
+                </a>
+            </p>
+            <p className="hint">
+                Ratings & reviews aren't built yet — worth doing properly on ERC-8004's Reputation Registry rather
+                than a bespoke system. {authorListings.length} listing{authorListings.length !== 1 ? "s" : ""} for
+                sale.
+            </p>
+            {listings === null ? (
+                <p className="hint">Loading…</p>
+            ) : authorListings.length === 0 ? (
+                <p className="hint">No listings from {login}.</p>
+            ) : (
+                <ul className="repo-list">
+                    {authorListings.map((listing) => (
+                        <li key={listing.id} className="repo-card">
+                            <div className="repo-row">
+                                <a
+                                    className="repo-name"
+                                    href={`https://github.com/${listing.repoFullName}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                >
+                                    {listing.repoFullName}
+                                </a>
+                                {listing.language && <span className="tag">{listing.language}</span>}
+                                <span className="badge badge-listed">{listing.price}</span>
+                            </div>
+                        </li>
+                    ))}
                 </ul>
             )}
         </section>
@@ -561,6 +717,8 @@ function App() {
         );
     }
 
+    const publisherMatch = path.match(/^\/publisher\/([^/]+)$/);
+
     return (
         <main className="shell">
             <NavBar
@@ -569,8 +727,10 @@ function App() {
                 me={me}
                 onLogout={() => logout().then(() => setMe({ authenticated: false }))}
             />
-            {path === "/catalog" ? (
-                <CatalogPage listings={listings} listingsError={listingsError} />
+            {publisherMatch ? (
+                <PublisherPage login={publisherMatch[1]} listings={listings} navigate={navigate} />
+            ) : path === "/catalog" ? (
+                <CatalogPage listings={listings} listingsError={listingsError} navigate={navigate} />
             ) : (
                 <DashboardPage
                     me={me}
