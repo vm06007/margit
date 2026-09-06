@@ -19,7 +19,7 @@ import {
     type Repo,
     type UnlockRequirement,
 } from "./api";
-import { arcTestnet, thirdwebClient, thirdwebWallets } from "./lib/thirdweb";
+import { arcTestnet, thirdwebAppMetadata, thirdwebClient, thirdwebTheme, thirdwebWallets } from "./lib/thirdweb";
 import "./App.css";
 
 const ARC_USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
@@ -101,6 +101,8 @@ function NavBar({
                     client={thirdwebClient}
                     wallets={thirdwebWallets}
                     chain={arcTestnet}
+                    appMetadata={thirdwebAppMetadata}
+                    theme={thirdwebTheme}
                     connectButton={{ label: "Connect Wallet", className: "nav-connect-btn" }}
                     detailsButton={{
                         displayBalanceToken: { [arcTestnet.id]: ARC_USDC_ADDRESS },
