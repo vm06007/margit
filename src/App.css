@@ -456,3 +456,72 @@
     font-weight: 700;
     color: var(--text-heading);
 }
+
+.github-icon-link {
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+}
+
+.github-icon-link:hover {
+    color: var(--text);
+}
+
+.publisher-github-link {
+    gap: 0.35rem;
+}
+
+/* Welcome page */
+
+.welcome {
+    text-align: center;
+    padding: 3rem 1rem 1rem;
+}
+
+.welcome-tagline {
+    color: var(--text-muted);
+    max-width: 480px;
+    margin: 0.75rem auto 0;
+    line-height: 1.5;
+}
+
+.welcome-actions {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    margin: 1.75rem 0 3rem;
+}
+
+.welcome-steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1.5rem;
+    text-align: left;
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+.welcome-step {
+    display: flex;
+    gap: 0.6rem;
+}
+
+.welcome-step-num {
+    flex-shrink: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+.welcome-step strong {
+    color: var(--text-heading);
+    font-size: 0.9rem;
+}

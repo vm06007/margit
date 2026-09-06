@@ -353,6 +353,58 @@ function RepoRow({
     );
 }
 
+function WelcomePage({ navigate }: { navigate: (p: string) => void }) {
+    return (
+        <div className="welcome">
+            <h1>margit</h1>
+            <p className="welcome-tagline">
+                Sell access to your private GitHub repos. Get paid in USDC on Arc — buyers, human or AI agent, pay
+                once and get an authenticated clone URL.
+            </p>
+
+            <div className="welcome-actions">
+                <a className="btn btn-primary" href={githubLoginUrl()}>
+                    Connect with GitHub
+                </a>
+                <button
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={() => navigate("/catalog")}
+                >
+                    Browse Catalog
+                </button>
+            </div>
+
+            <div className="welcome-steps">
+                <div className="welcome-step">
+                    <span className="welcome-step-num">1</span>
+                    <div>
+                        <strong>Connect GitHub</strong>
+                        <p className="hint">Sign in to see your repos — nothing is listed automatically.</p>
+                    </div>
+                </div>
+                <div className="welcome-step">
+                    <span className="welcome-step-num">2</span>
+                    <div>
+                        <strong>List a private repo</strong>
+                        <p className="hint">Set a price and your Arc payout address (0x, ENS, or ArcNS name).</p>
+                    </div>
+                </div>
+                <div className="welcome-step">
+                    <span className="welcome-step-num">3</span>
+                    <div>
+                        <strong>Get paid, agents included</strong>
+                        <p className="hint">
+                            A real x402 paywall on Arc testnet — any AI agent can discover, pay, and clone
+                            autonomously.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function DashboardPage({
     me,
     repos,
@@ -361,6 +413,7 @@ function DashboardPage({
     onListed,
     onUnlisted,
     onMadePrivate,
+    navigate,
 }: {
     me: Me;
     repos: Repo[] | null;
@@ -369,6 +422,7 @@ function DashboardPage({
     onListed: (listing: Listing) => void;
     onUnlisted: (listingId: string) => void;
     onMadePrivate: (repoId: number) => void;
+    navigate: (p: string) => void;
 }) {
     const [filter, setFilter] = useState("");
 
@@ -394,15 +448,7 @@ function DashboardPage({
     }, [filteredRepos]);
 
     if (!me.authenticated) {
-        return (
-            <div className="card">
-                <h1>margit</h1>
-                <p className="hint">Connect your GitHub account to list a repo for sale.</p>
-                <a className="btn btn-primary" href={githubLoginUrl()}>
-                    Connect with GitHub
-                </a>
-            </div>
-        );
+        return <WelcomePage navigate={navigate} />;
     }
 
     const renderRow = (repo: Repo) => (
@@ -467,6 +513,14 @@ function unlockDetailsNode(result: UnlockRequirement | string | "loading" | unde
     );
 }
 
+function GitHubIcon() {
+    return (
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.295 24 12c0-6.63-5.37-12-12-12" />
+        </svg>
+    );
+}
+
 function PublisherLink({ login, navigate }: { login: string; navigate: (p: string) => void }) {
     return (
         <a
@@ -482,17 +536,8 @@ function PublisherLink({ login, navigate }: { login: string; navigate: (p: strin
     );
 }
 
-function CatalogPage({
-    listings,
-    listingsError,
-    navigate,
-}: {
-    listings: Listing[] | null;
-    listingsError: string | null;
-    navigate: (p: string) => void;
-}) {
+function useUnlockPreview() {
     const [unlockResults, setUnlockResults] = useState<Record<string, UnlockRequirement | string | "loading">>({});
-    const [view, setView] = useState<"cards" | "list">("cards");
 
     const previewUnlock = async (listingId: string) => {
         setUnlockResults((prev) => ({ ...prev, [listingId]: "loading" }));
@@ -507,6 +552,145 @@ function CatalogPage({
         }
     };
 
+    return [unlockResults, previewUnlock] as const;
+}
+
+function ViewToggle({ view, setView }: { view: "cards" | "list"; setView: (v: "cards" | "list") => void }) {
+    return (
+        <div className="view-toggle">
+            <button
+                type="button"
+                className={`view-toggle-btn ${view === "cards" ? "view-toggle-btn-active" : ""}`}
+                onClick={() => setView("cards")}
+            >
+                Cards
+            </button>
+            <button
+                type="button"
+                className={`view-toggle-btn ${view === "list" ? "view-toggle-btn-active" : ""}`}
+                onClick={() => setView("list")}
+            >
+                List
+            </button>
+        </div>
+    );
+}
+
+function ListingGrid({
+    listings,
+    view,
+    navigate,
+    unlockResults,
+    onPreview,
+    showOwner = true,
+}: {
+    listings: Listing[];
+    view: "cards" | "list";
+    navigate: (p: string) => void;
+    unlockResults: Record<string, UnlockRequirement | string | "loading">;
+    onPreview: (id: string) => void;
+    showOwner?: boolean;
+}) {
+    if (view === "list") {
+        return (
+            <ul className="repo-list">
+                {listings.map((listing) => (
+                    <li key={listing.id} className="repo-card">
+                        <div className="repo-row">
+                            <a
+                                className="repo-name"
+                                href={`https://github.com/${listing.repoFullName}`}
+                                target="_blank"
+                                rel="noreferrer"
+                            >
+                                {listing.repoFullName}
+                            </a>
+                            {showOwner && (
+                                <span className="tag tag-muted">
+                                    by <PublisherLink login={listing.ownerLogin} navigate={navigate} />
+                                </span>
+                            )}
+                            {listing.language && <span className="tag">{listing.language}</span>}
+                            <span className="badge badge-listed">{listing.price}</span>
+                            <button
+                                type="button"
+                                className="btn btn-outline"
+                                disabled={unlockResults[listing.id] === "loading"}
+                                onClick={() => onPreview(listing.id)}
+                            >
+                                {unlockResults[listing.id] === "loading" ? "Checking…" : "Unlock"}
+                            </button>
+                        </div>
+                        {unlockDetailsNode(unlockResults[listing.id])}
+                    </li>
+                ))}
+            </ul>
+        );
+    }
+
+    return (
+        <div className="catalog-grid">
+            {listings.map((listing) => (
+                <div key={listing.id} className="listing-card">
+                    {showOwner && (
+                        <div className="listing-card-owner">
+                            <PublisherLink login={listing.ownerLogin} navigate={navigate} />
+                            <a
+                                href={`https://github.com/${listing.ownerLogin}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="github-icon-link"
+                                title="GitHub profile"
+                            >
+                                <GitHubIcon />
+                            </a>
+                        </div>
+                    )}
+                    <a
+                        className="listing-card-title"
+                        href={`https://github.com/${listing.repoFullName}`}
+                        target="_blank"
+                        rel="noreferrer"
+                    >
+                        {listing.repoFullName.split("/")[1]}
+                    </a>
+                    <p className="listing-card-desc">{listing.description ?? "No description"}</p>
+                    <div className="listing-card-tags">
+                        {listing.language && <span className="tag">{listing.language}</span>}
+                        {listing.stargazersCount > 0 && (
+                            <span className="tag tag-muted">★ {listing.stargazersCount}</span>
+                        )}
+                    </div>
+                    <div className="listing-card-footer">
+                        <span className="listing-card-price">{listing.price}</span>
+                        <button
+                            type="button"
+                            className="btn btn-outline"
+                            disabled={unlockResults[listing.id] === "loading"}
+                            onClick={() => onPreview(listing.id)}
+                        >
+                            {unlockResults[listing.id] === "loading" ? "Checking…" : "Unlock"}
+                        </button>
+                    </div>
+                    {unlockDetailsNode(unlockResults[listing.id])}
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function CatalogPage({
+    listings,
+    listingsError,
+    navigate,
+}: {
+    listings: Listing[] | null;
+    listingsError: string | null;
+    navigate: (p: string) => void;
+}) {
+    const [unlockResults, previewUnlock] = useUnlockPreview();
+    const [view, setView] = useState<"cards" | "list">("cards");
+
     return (
         <section>
             <div className="catalog-header">
@@ -516,105 +700,21 @@ function CatalogPage({
                         Repos for sale, paid in USDC on Arc testnet. Anyone — human or agent — can unlock.
                     </p>
                 </div>
-                <div className="view-toggle">
-                    <button
-                        type="button"
-                        className={`view-toggle-btn ${view === "cards" ? "view-toggle-btn-active" : ""}`}
-                        onClick={() => setView("cards")}
-                    >
-                        Cards
-                    </button>
-                    <button
-                        type="button"
-                        className={`view-toggle-btn ${view === "list" ? "view-toggle-btn-active" : ""}`}
-                        onClick={() => setView("list")}
-                    >
-                        List
-                    </button>
-                </div>
+                {listings && listings.length > 0 && <ViewToggle view={view} setView={setView} />}
             </div>
 
             {listingsError && <p className="error">{listingsError}</p>}
             {listings === null && !listingsError && <p className="hint">Loading catalog…</p>}
             {listings && listings.length === 0 && <p className="hint">No listings yet.</p>}
 
-            {listings && listings.length > 0 && view === "cards" && (
-                <div className="catalog-grid">
-                    {listings.map((listing) => (
-                        <div key={listing.id} className="listing-card">
-                            <div className="listing-card-owner">
-                                <PublisherLink login={listing.ownerLogin} navigate={navigate} />
-                                <a
-                                    href={`https://github.com/${listing.ownerLogin}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="tag tag-muted"
-                                >
-                                    GitHub ↗
-                                </a>
-                            </div>
-                            <a
-                                className="listing-card-title"
-                                href={`https://github.com/${listing.repoFullName}`}
-                                target="_blank"
-                                rel="noreferrer"
-                            >
-                                {listing.repoFullName.split("/")[1]}
-                            </a>
-                            <p className="listing-card-desc">{listing.description ?? "No description"}</p>
-                            <div className="listing-card-tags">
-                                {listing.language && <span className="tag">{listing.language}</span>}
-                                {listing.stargazersCount > 0 && (
-                                    <span className="tag tag-muted">★ {listing.stargazersCount}</span>
-                                )}
-                            </div>
-                            <div className="listing-card-footer">
-                                <span className="listing-card-price">{listing.price}</span>
-                                <button
-                                    type="button"
-                                    className="btn btn-outline"
-                                    disabled={unlockResults[listing.id] === "loading"}
-                                    onClick={() => previewUnlock(listing.id)}
-                                >
-                                    {unlockResults[listing.id] === "loading" ? "Checking…" : "Unlock"}
-                                </button>
-                            </div>
-                            {unlockDetailsNode(unlockResults[listing.id])}
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {listings && listings.length > 0 && view === "list" && (
-                <ul className="repo-list">
-                    {listings.map((listing) => (
-                        <li key={listing.id} className="repo-card">
-                            <div className="repo-row">
-                                <a
-                                    className="repo-name"
-                                    href={`https://github.com/${listing.repoFullName}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                >
-                                    {listing.repoFullName}
-                                </a>
-                                <span className="tag tag-muted">
-                                    by <PublisherLink login={listing.ownerLogin} navigate={navigate} />
-                                </span>
-                                <span className="badge badge-listed">{listing.price}</span>
-                                <button
-                                    type="button"
-                                    className="btn btn-outline"
-                                    disabled={unlockResults[listing.id] === "loading"}
-                                    onClick={() => previewUnlock(listing.id)}
-                                >
-                                    {unlockResults[listing.id] === "loading" ? "Checking…" : "Unlock"}
-                                </button>
-                            </div>
-                            {unlockDetailsNode(unlockResults[listing.id])}
-                        </li>
-                    ))}
-                </ul>
+            {listings && listings.length > 0 && (
+                <ListingGrid
+                    listings={listings}
+                    view={view}
+                    navigate={navigate}
+                    unlockResults={unlockResults}
+                    onPreview={previewUnlock}
+                />
             )}
         </section>
     );
@@ -629,6 +729,9 @@ function PublisherPage({
     listings: Listing[] | null;
     navigate: (p: string) => void;
 }) {
+    const [unlockResults, previewUnlock] = useUnlockPreview();
+    const [view, setView] = useState<"cards" | "list">("cards");
+
     const authorListings = useMemo(
         () => (listings ?? []).filter((l) => l.ownerLogin.toLowerCase() === login.toLowerCase()),
         [listings, login],
@@ -639,40 +742,40 @@ function PublisherPage({
             <button type="button" className="btn btn-ghost back-link" onClick={() => navigate("/catalog")}>
                 ← Back to catalog
             </button>
-            <h2>{login}</h2>
-            <p className="hint">
-                <a href={`https://github.com/${login}`} target="_blank" rel="noreferrer">
-                    GitHub profile ↗
-                </a>
-            </p>
-            <p className="hint">
-                Ratings & reviews aren't built yet — worth doing properly on ERC-8004's Reputation Registry rather
-                than a bespoke system. {authorListings.length} listing{authorListings.length !== 1 ? "s" : ""} for
-                sale.
-            </p>
+            <div className="catalog-header">
+                <div>
+                    <h2>{login}</h2>
+                    <p className="hint">
+                        <a
+                            href={`https://github.com/${login}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="github-icon-link publisher-github-link"
+                        >
+                            <GitHubIcon /> Profile
+                        </a>
+                    </p>
+                    <p className="hint">
+                        Ratings & reviews aren't built yet — worth doing properly on ERC-8004's Reputation Registry
+                        rather than a bespoke system. {authorListings.length} listing
+                        {authorListings.length !== 1 ? "s" : ""} for sale.
+                    </p>
+                </div>
+                {authorListings.length > 0 && <ViewToggle view={view} setView={setView} />}
+            </div>
             {listings === null ? (
                 <p className="hint">Loading…</p>
             ) : authorListings.length === 0 ? (
                 <p className="hint">No listings from {login}.</p>
             ) : (
-                <ul className="repo-list">
-                    {authorListings.map((listing) => (
-                        <li key={listing.id} className="repo-card">
-                            <div className="repo-row">
-                                <a
-                                    className="repo-name"
-                                    href={`https://github.com/${listing.repoFullName}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                >
-                                    {listing.repoFullName}
-                                </a>
-                                {listing.language && <span className="tag">{listing.language}</span>}
-                                <span className="badge badge-listed">{listing.price}</span>
-                            </div>
-                        </li>
-                    ))}
-                </ul>
+                <ListingGrid
+                    listings={authorListings}
+                    view={view}
+                    navigate={navigate}
+                    unlockResults={unlockResults}
+                    onPreview={previewUnlock}
+                    showOwner={false}
+                />
             )}
         </section>
     );
@@ -737,6 +840,7 @@ function App() {
                     repos={repos}
                     reposError={reposError}
                     listingByRepo={listingByRepo}
+                    navigate={navigate}
                     onListed={(listing) => setListings((prev) => [...(prev ?? []), listing])}
                     onUnlisted={(id) => setListings((prev) => prev?.filter((l) => l.id !== id) ?? null)}
                     onMadePrivate={(repoId) =>
