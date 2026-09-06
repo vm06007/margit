@@ -9,6 +9,11 @@ export interface Listing {
     price: string;
     payoutAddress: string;
     createdAt: string;
+    // Snapshotted at listing time — once listed, the repo stays private, so we
+    // can't live-fetch this from GitHub later without the owner's token.
+    description: string | null;
+    language: string | null;
+    stargazersCount: number;
 }
 
 interface StoredListing extends Listing {
@@ -24,6 +29,9 @@ export async function createListing(input: {
     ownerGithubToken: string;
     price: string;
     payoutAddress: string;
+    description: string | null;
+    language: string | null;
+    stargazersCount: number;
 }): Promise<Listing> {
     const id = randomBytes(8).toString("hex");
     const stored: StoredListing = {
@@ -33,6 +41,9 @@ export async function createListing(input: {
         price: input.price,
         payoutAddress: input.payoutAddress,
         createdAt: new Date().toISOString(),
+        description: input.description,
+        language: input.language,
+        stargazersCount: input.stargazersCount,
         encryptedOwnerToken: encryptToken(input.ownerGithubToken),
     };
     await redis.set(LISTING_PREFIX + id, stored);

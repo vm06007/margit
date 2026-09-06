@@ -26,6 +26,9 @@ export interface Listing {
     price: string;
     payoutAddress: string;
     createdAt: string;
+    description: string | null;
+    language: string | null;
+    stargazersCount: number;
 }
 
 export interface UnlockRequirement {

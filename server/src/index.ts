@@ -278,7 +278,12 @@ app.post("/api/listings", async (c) => {
     if (!repoRes.ok) {
         return c.json({ error: "Repo not found or not accessible with your GitHub token" }, 404);
     }
-    const repo = (await repoRes.json()) as { owner: { login: string } };
+    const repo = (await repoRes.json()) as {
+        owner: { login: string };
+        description: string | null;
+        language: string | null;
+        stargazers_count: number;
+    };
     // MVP: only the repo's direct owner can list it (excludes org-owned repos for now).
     if (repo.owner.login.toLowerCase() !== session.login.toLowerCase()) {
         return c.json({ error: "You can only list repos you own" }, 403);
@@ -290,6 +295,9 @@ app.post("/api/listings", async (c) => {
         ownerGithubToken: session.githubAccessToken,
         price,
         payoutAddress: resolvedPayoutAddress,
+        description: repo.description,
+        language: repo.language,
+        stargazersCount: repo.stargazers_count,
     });
     return c.json(listing, 201);
 });
