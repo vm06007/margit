@@ -16,6 +16,7 @@ import {
     type Listing,
 } from "./listings.js";
 import { resolveArcNsReverse, resolvePayoutAddress } from "./names.js";
+import { priceToAtomicUsdc, verifyDirectPayment } from "./payments.js";
 
 const {
     GITHUB_CLIENT_ID,
@@ -75,19 +76,43 @@ app.use(
     ),
 );
 
+async function mintCloneResponse(listing: Listing) {
+    const ownerToken = await getOwnerTokenForListing(listing.id);
+    if (!ownerToken) return null;
+    return {
+        repoFullName: listing.repoFullName,
+        cloneUrl: `https://x-access-token:${ownerToken}@github.com/${listing.repoFullName}.git`,
+        note: "This URL embeds a live credential — clone it now. It is not re-issued; pay again to get a fresh one.",
+    };
+}
+
 app.get("/api/listings/unlock", async (c) => {
     const id = c.req.query("id");
     const listing = id ? await getListing(id) : undefined;
     if (!listing) return c.json({ error: "Unknown listing" }, 404);
 
-    const ownerToken = await getOwnerTokenForListing(listing.id);
-    if (!ownerToken) return c.json({ error: "Listing has no stored credentials" }, 500);
+    const response = await mintCloneResponse(listing);
+    if (!response) return c.json({ error: "Listing has no stored credentials" }, 500);
+    return c.json(response);
+});
 
-    return c.json({
-        repoFullName: listing.repoFullName,
-        cloneUrl: `https://x-access-token:${ownerToken}@github.com/${listing.repoFullName}.git`,
-        note: "This URL embeds a live credential — clone it now. It is not re-issued; pay again to get a fresh one.",
-    });
+// Direct-payment path: buyer sends USDC straight to the seller's payout address
+// (no Circle Gateway deposit required) and submits the tx hash here for
+// verification. Meant for humans buying once; the x402 unlock endpoint above
+// is better suited to agents making repeated gasless payments via Gateway.
+app.post("/api/listings/:id/verify-payment", async (c) => {
+    const listing = await getListing(c.req.param("id"));
+    if (!listing) return c.json({ error: "Unknown listing" }, 404);
+
+    const { txHash } = await c.req.json<{ txHash?: string }>();
+    if (!txHash) return c.json({ error: "txHash is required" }, 400);
+
+    const result = await verifyDirectPayment(txHash, listing.payoutAddress, priceToAtomicUsdc(listing.price));
+    if (!result.ok) return c.json({ error: result.reason ?? "Payment could not be verified" }, 400);
+
+    const response = await mintCloneResponse(listing);
+    if (!response) return c.json({ error: "Listing has no stored credentials" }, 500);
+    return c.json(response);
 });
 
 app.get("/api/auth/github/login", async (c) => {

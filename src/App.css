@@ -865,6 +865,30 @@
     flex: 1;
 }
 
+/* Two payment paths */
+
+.payment-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.payment-option {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+}
+
+.payment-option h3 {
+    margin-bottom: 0.3rem;
+}
+
+.payment-option .hint {
+    margin-bottom: 0.75rem;
+}
+
 /* Deposit + Buy button */
 
 .deposit-wrap {

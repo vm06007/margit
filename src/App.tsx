@@ -1244,6 +1244,69 @@ function DepositButton() {
     );
 }
 
+function DirectBuyButton({ listing }: { listing: Listing }) {
+    const account = useActiveAccount();
+    const [status, setStatus] = useState<"idle" | "sending" | "verifying" | "done" | "error">("idle");
+    const [error, setError] = useState<string | null>(null);
+    const [cloneUrl, setCloneUrl] = useState<string | null>(null);
+
+    if (!account) {
+        return <p className="hint">Connect a wallet above to pay directly.</p>;
+    }
+
+    const buy = async () => {
+        setError(null);
+        setStatus("sending");
+        try {
+            const amount = toUnits(listing.price.replace("$", ""), 6);
+            const usdcContract = getContract({ client: thirdwebClient, chain: arcTestnet, address: ARC_USDC_ADDRESS });
+            const transferTx = prepareContractCall({
+                contract: usdcContract,
+                method: "function transfer(address to, uint256 value) returns (bool)",
+                params: [listing.payoutAddress, amount],
+            });
+            const { transactionHash } = await sendTransaction({ transaction: transferTx, account });
+            await waitForReceipt({ client: thirdwebClient, chain: arcTestnet, transactionHash });
+
+            setStatus("verifying");
+            const res = await fetch(`/api/listings/${listing.id}/verify-payment`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ txHash: transactionHash }),
+            });
+            if (!res.ok) {
+                const body = (await res.json().catch(() => ({}))) as { error?: string };
+                throw new Error(body.error ?? `Verification failed (${res.status})`);
+            }
+            const data = (await res.json()) as { cloneUrl: string };
+            setCloneUrl(data.cloneUrl);
+            setStatus("done");
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Purchase failed");
+            setStatus("error");
+        }
+    };
+
+    const busy = status === "sending" || status === "verifying";
+    const label =
+        status === "sending" ? "Confirm in wallet…" : status === "verifying" ? "Verifying…" : "Pay Directly";
+
+    return (
+        <div className="buy-button-wrap">
+            <button type="button" className="btn btn-primary" disabled={busy} onClick={buy}>
+                {label}
+            </button>
+            {error && <p className="error">{error}</p>}
+            {cloneUrl && (
+                <div className="buy-result">
+                    <p className="hint">Purchased — clone URL:</p>
+                    <code>{cloneUrl}</code>
+                </div>
+            )}
+        </div>
+    );
+}
+
 function BuyButton({ listingId }: { listingId: string }) {
     const account = useActiveAccount();
     const [status, setStatus] = useState<"idle" | "signing" | "settling" | "done" | "error">("idle");
@@ -1409,8 +1472,23 @@ function RepoDetailPage({
             </div>
             {unlockDetailsNode(unlockResults[listing.id])}
 
-            <DepositButton />
-            <BuyButton listingId={listing.id} />
+            <div className="payment-options">
+                <div className="payment-option">
+                    <h3>Pay directly</h3>
+                    <p className="hint">
+                        One on-chain USDC transfer straight to the seller. No pre-funding, no facilitator.
+                    </p>
+                    <DirectBuyButton listing={listing} />
+                </div>
+                <div className="payment-option">
+                    <h3>Pay via x402 (built for agents)</h3>
+                    <p className="hint">
+                        Deposit once into Circle Gateway, then any agent can pay repeatedly and gaslessly.
+                    </p>
+                    <DepositButton />
+                    <BuyButton listingId={listing.id} />
+                </div>
+            </div>
 
             <AgentInstructions listingId={listing.id} />
 
