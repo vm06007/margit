@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { ConnectButton, useActiveAccount } from "thirdweb/react";
+import { x402Client, x402HTTPClient } from "@x402/core/client";
+import { registerBatchScheme } from "@circle-fin/x402-batching/client";
 import {
     createListing,
     deleteListing,
@@ -15,7 +18,10 @@ import {
     type Repo,
     type UnlockRequirement,
 } from "./api";
+import { arcTestnet, thirdwebClient, thirdwebWallets } from "./lib/thirdweb";
 import "./App.css";
+
+const ARC_USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 
 function formatUsdc(amount: string): string {
     return `${(Number(amount) / 1_000_000).toFixed(2)} USDC`;
@@ -88,15 +94,24 @@ function NavBar({
                     Catalog
                 </NavLink>
             </div>
-            {me.authenticated && (
-                <div className="user">
-                    {me.avatarUrl && <img src={me.avatarUrl} alt="" className="avatar" />}
-                    <span>{me.name ?? me.login}</span>
-                    <button type="button" className="btn btn-ghost" onClick={onLogout}>
-                        Log out
-                    </button>
-                </div>
-            )}
+            <div className="nav-right">
+                <ConnectButton
+                    client={thirdwebClient}
+                    wallets={thirdwebWallets}
+                    chain={arcTestnet}
+                    connectButton={{ label: "Connect Wallet" }}
+                    detailsButton={{ displayBalanceToken: { [arcTestnet.id]: ARC_USDC_ADDRESS } }}
+                />
+                {me.authenticated && (
+                    <div className="user">
+                        {me.avatarUrl && <img src={me.avatarUrl} alt="" className="avatar" />}
+                        <span>{me.name ?? me.login}</span>
+                        <button type="button" className="btn btn-ghost" onClick={onLogout}>
+                            Log out
+                        </button>
+                    </div>
+                )}
+            </div>
         </header>
     );
 }
@@ -362,10 +377,10 @@ function ListingPanel({
             <div className="listing-panel-row">
                 <button
                     type="button"
-                    className="btn btn-outline"
+                    className="btn btn-outline btn-icon"
                     onClick={() => navigate(`/repo/${listing.repoFullName}`)}
                 >
-                    Preview in catalog
+                    <EyeIcon /> View in catalog
                 </button>
                 <a
                     className="btn btn-outline btn-icon"
@@ -675,6 +690,15 @@ function TrashIcon() {
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
             <line x1="10" y1="11" x2="10" y2="17" />
             <line x1="14" y1="11" x2="14" y2="17" />
+        </svg>
+    );
+}
+
+function EyeIcon() {
+    return (
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" />
+            <circle cx="12" cy="12" r="3" />
         </svg>
     );
 }
@@ -1030,6 +1054,76 @@ function AgentInstructions({ listingId }: { listingId: string }) {
     );
 }
 
+function BuyButton({ listingId }: { listingId: string }) {
+    const account = useActiveAccount();
+    const [status, setStatus] = useState<"idle" | "signing" | "settling" | "done" | "error">("idle");
+    const [error, setError] = useState<string | null>(null);
+    const [cloneUrl, setCloneUrl] = useState<string | null>(null);
+
+    const buy = async () => {
+        if (!account) return;
+        setError(null);
+        setStatus("signing");
+        try {
+            const client = new x402Client();
+            registerBatchScheme(client, {
+                signer: {
+                    address: account.address as `0x${string}`,
+                    signTypedData: (params) => account.signTypedData(params),
+                },
+            });
+            const http = new x402HTTPClient(client);
+            const unlockUrl = `${window.location.origin}/api/listings/unlock?id=${listingId}`;
+
+            const res = await fetch(unlockUrl);
+            if (res.status !== 402) {
+                throw new Error(`Expected a 402 payment challenge, got ${res.status}`);
+            }
+
+            const paymentRequired = http.getPaymentRequiredResponse((name) => res.headers.get(name));
+            const paymentPayload = await http.createPaymentPayload(paymentRequired);
+            setStatus("settling");
+            const paymentHeaders = http.encodePaymentSignatureHeader(paymentPayload);
+
+            const paidRes = await fetch(unlockUrl, { headers: paymentHeaders });
+            if (!paidRes.ok) {
+                const body = (await paidRes.json().catch(() => ({}))) as { error?: string };
+                throw new Error(body.error ?? `Payment failed (${paidRes.status})`);
+            }
+            const data = (await paidRes.json()) as { cloneUrl: string };
+            setCloneUrl(data.cloneUrl);
+            setStatus("done");
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Purchase failed");
+            setStatus("error");
+        }
+    };
+
+    if (!account) {
+        return <p className="hint">Connect a wallet above to buy directly.</p>;
+    }
+
+    return (
+        <div className="buy-button-wrap">
+            <button
+                type="button"
+                className="btn btn-primary"
+                disabled={status === "signing" || status === "settling"}
+                onClick={buy}
+            >
+                {status === "signing" ? "Confirm in wallet…" : status === "settling" ? "Settling…" : "Buy Now"}
+            </button>
+            {error && <p className="error">{error}</p>}
+            {cloneUrl && (
+                <div className="buy-result">
+                    <p className="hint">Purchased — clone URL:</p>
+                    <code>{cloneUrl}</code>
+                </div>
+            )}
+        </div>
+    );
+}
+
 function RepoDetailPage({
     owner,
     name,
@@ -1097,14 +1191,16 @@ function RepoDetailPage({
                 <span className="listing-card-price">{listing.price}</span>
                 <button
                     type="button"
-                    className="btn btn-primary"
+                    className="btn btn-outline"
                     disabled={unlockResults[listing.id] === "loading"}
                     onClick={() => previewUnlock(listing.id)}
                 >
-                    {unlockResults[listing.id] === "loading" ? "Checking…" : "Unlock"}
+                    {unlockResults[listing.id] === "loading" ? "Checking…" : "Preview requirements"}
                 </button>
             </div>
             {unlockDetailsNode(unlockResults[listing.id])}
+
+            <BuyButton listingId={listing.id} />
 
             <AgentInstructions listingId={listing.id} />
 
