@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
     createListing,
+    deleteListing,
     fetchListings,
     fetchMe,
     fetchRepos,
@@ -21,6 +22,75 @@ function formatUsdc(amount: string): string {
 }
 
 const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
+
+/** Minimal client-side router — just two routes, no need for a routing library. */
+function useRoute(): [string, (path: string) => void] {
+    const [path, setPath] = useState(window.location.pathname);
+
+    useEffect(() => {
+        const onPopState = () => setPath(window.location.pathname);
+        window.addEventListener("popstate", onPopState);
+        return () => window.removeEventListener("popstate", onPopState);
+    }, []);
+
+    const navigate = (to: string) => {
+        window.history.pushState({}, "", to);
+        setPath(to);
+    };
+
+    return [path, navigate];
+}
+
+function NavLink({ to, path, navigate, children }: { to: string; path: string; navigate: (p: string) => void; children: ReactNode }) {
+    const active = path === to;
+    return (
+        <a
+            href={to}
+            className={`nav-link ${active ? "nav-link-active" : ""}`}
+            onClick={(e) => {
+                e.preventDefault();
+                navigate(to);
+            }}
+        >
+            {children}
+        </a>
+    );
+}
+
+function NavBar({
+    path,
+    navigate,
+    me,
+    onLogout,
+}: {
+    path: string;
+    navigate: (p: string) => void;
+    me: Me;
+    onLogout: () => void;
+}) {
+    return (
+        <header className="topbar">
+            <div className="nav">
+                <span className="brand">margit</span>
+                <NavLink to="/" path={path} navigate={navigate}>
+                    My Repos
+                </NavLink>
+                <NavLink to="/catalog" path={path} navigate={navigate}>
+                    Catalog
+                </NavLink>
+            </div>
+            {me.authenticated && (
+                <div className="user">
+                    {me.avatarUrl && <img src={me.avatarUrl} alt="" className="avatar" />}
+                    <span>{me.name ?? me.login}</span>
+                    <button type="button" className="btn btn-ghost" onClick={onLogout}>
+                        Log out
+                    </button>
+                </div>
+            )}
+        </header>
+    );
+}
 
 function ListingForm({
     repoFullName,
@@ -143,18 +213,78 @@ function RepoGroup({
     );
 }
 
+function ListingPanel({ listing, onUnlisted }: { listing: Listing; onUnlisted: (id: string) => void }) {
+    const [copied, setCopied] = useState(false);
+    const [unlisting, setUnlisting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const unlockUrl = `${window.location.origin}/api/listings/unlock?id=${listing.id}`;
+
+    const copy = () => {
+        navigator.clipboard.writeText(unlockUrl);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+    };
+
+    const unlist = async () => {
+        if (!confirm(`Remove "${listing.repoFullName}" from the catalog?`)) return;
+        setUnlisting(true);
+        setError(null);
+        try {
+            await deleteListing(listing.id);
+            onUnlisted(listing.id);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to unlist");
+        } finally {
+            setUnlisting(false);
+        }
+    };
+
+    return (
+        <div className="listing-panel">
+            <div className="listing-panel-row">
+                <span className="tag tag-muted">Payout</span>
+                <code>{listing.payoutAddress}</code>
+            </div>
+            <div className="listing-panel-row">
+                <span className="tag tag-muted">Agent unlock URL</span>
+                <code className="unlock-url">{unlockUrl}</code>
+                <button type="button" className="btn btn-ghost" onClick={copy}>
+                    {copied ? "Copied!" : "Copy"}
+                </button>
+            </div>
+            <div className="listing-panel-row">
+                <a
+                    className="btn btn-outline"
+                    href={`https://github.com/${listing.repoFullName}`}
+                    target="_blank"
+                    rel="noreferrer"
+                >
+                    Open repo ↗
+                </a>
+                <button type="button" className="btn btn-ghost" disabled={unlisting} onClick={unlist}>
+                    {unlisting ? "Unlisting…" : "Unlist"}
+                </button>
+            </div>
+            {error && <p className="error">{error}</p>}
+        </div>
+    );
+}
+
 function RepoRow({
     repo,
     listing,
     onListed,
+    onUnlisted,
     onMadePrivate,
 }: {
     repo: Repo;
     listing: Listing | undefined;
     onListed: (listing: Listing) => void;
+    onUnlisted: (listingId: string) => void;
     onMadePrivate: (repoId: number) => void;
 }) {
     const [formOpen, setFormOpen] = useState(false);
+    const [manageOpen, setManageOpen] = useState(false);
     const [converting, setConverting] = useState(false);
     const [convertError, setConvertError] = useState<string | null>(null);
 
@@ -177,12 +307,19 @@ function RepoRow({
                 <a className="repo-name" href={repo.htmlUrl} target="_blank" rel="noreferrer">
                     {repo.name}
                 </a>
+                {repo.private && <span className="tag tag-muted">private</span>}
                 {repo.language && <span className="tag">{repo.language}</span>}
                 <span className="tag tag-muted">★ {repo.stargazersCount}</span>
 
                 {listing ? (
-                    <span className="badge badge-listed">listed @ {listing.price}</span>
-                ) : repo.private ? (
+                    <button
+                        type="button"
+                        className="badge badge-listed badge-button"
+                        onClick={() => setManageOpen((v) => !v)}
+                    >
+                        listed @ {listing.price} {manageOpen ? "▴" : "▾"}
+                    </button>
+                ) : repo.isOrgOwned ? null : repo.private ? (
                     <button type="button" className="btn btn-outline" onClick={() => setFormOpen((v) => !v)}>
                         {formOpen ? "Close" : "List for sale"}
                     </button>
@@ -203,17 +340,195 @@ function RepoRow({
                     }}
                 />
             )}
+            {manageOpen && listing && (
+                <ListingPanel
+                    listing={listing}
+                    onUnlisted={(id) => {
+                        setManageOpen(false);
+                        onUnlisted(id);
+                    }}
+                />
+            )}
         </li>
     );
 }
 
+function DashboardPage({
+    me,
+    repos,
+    reposError,
+    listingByRepo,
+    onListed,
+    onUnlisted,
+    onMadePrivate,
+}: {
+    me: Me;
+    repos: Repo[] | null;
+    reposError: string | null;
+    listingByRepo: Map<string, Listing>;
+    onListed: (listing: Listing) => void;
+    onUnlisted: (listingId: string) => void;
+    onMadePrivate: (repoId: number) => void;
+}) {
+    const [filter, setFilter] = useState("");
+
+    const filteredRepos = useMemo(() => {
+        const q = filter.trim().toLowerCase();
+        if (!q) return repos ?? [];
+        return (repos ?? []).filter((r) => r.name.toLowerCase().includes(q));
+    }, [repos, filter]);
+
+    const personalRepos = useMemo(() => filteredRepos.filter((r) => !r.isOrgOwned), [filteredRepos]);
+    const privateRepos = useMemo(() => personalRepos.filter((r) => r.private), [personalRepos]);
+    const publicRepos = useMemo(() => personalRepos.filter((r) => !r.private), [personalRepos]);
+
+    const orgGroups = useMemo(() => {
+        const map = new Map<string, Repo[]>();
+        for (const repo of filteredRepos) {
+            if (!repo.isOrgOwned) continue;
+            const group = map.get(repo.ownerLogin) ?? [];
+            group.push(repo);
+            map.set(repo.ownerLogin, group);
+        }
+        return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
+    }, [filteredRepos]);
+
+    if (!me.authenticated) {
+        return (
+            <div className="card">
+                <h1>margit</h1>
+                <p className="hint">Connect your GitHub account to list a repo for sale.</p>
+                <a className="btn btn-primary" href={githubLoginUrl()}>
+                    Connect with GitHub
+                </a>
+            </div>
+        );
+    }
+
+    const renderRow = (repo: Repo) => (
+        <RepoRow
+            key={repo.id}
+            repo={repo}
+            listing={listingByRepo.get(repo.fullName)}
+            onListed={onListed}
+            onUnlisted={onUnlisted}
+            onMadePrivate={onMadePrivate}
+        />
+    );
+
+    return (
+        <section>
+            <h2>Your repositories</h2>
+            {reposError && <p className="error">{reposError}</p>}
+            {repos === null && !reposError && <p className="hint">Loading repositories…</p>}
+
+            {repos && (
+                <>
+                    <input
+                        className="input filter-input"
+                        placeholder="Filter by name…"
+                        value={filter}
+                        onChange={(e) => setFilter(e.target.value)}
+                    />
+
+                    <RepoGroup label="Private" repos={privateRepos}>
+                        {renderRow}
+                    </RepoGroup>
+
+                    <RepoGroup label="Public" repos={publicRepos}>
+                        {renderRow}
+                    </RepoGroup>
+
+                    {orgGroups.map(([org, orgRepos]) => (
+                        <RepoGroup key={org} label={org} repos={orgRepos}>
+                            {renderRow}
+                        </RepoGroup>
+                    ))}
+                </>
+            )}
+        </section>
+    );
+}
+
+function CatalogPage({ listings, listingsError }: { listings: Listing[] | null; listingsError: string | null }) {
+    const [unlockResults, setUnlockResults] = useState<Record<string, UnlockRequirement | string | "loading">>({});
+
+    const previewUnlock = async (listingId: string) => {
+        setUnlockResults((prev) => ({ ...prev, [listingId]: "loading" }));
+        try {
+            const req = await fetchUnlockRequirements(listingId);
+            setUnlockResults((prev) => ({ ...prev, [listingId]: req }));
+        } catch (err) {
+            setUnlockResults((prev) => ({
+                ...prev,
+                [listingId]: err instanceof Error ? err.message : "Failed to fetch payment requirements",
+            }));
+        }
+    };
+
+    return (
+        <section>
+            <h2>Catalog</h2>
+            <p className="hint">Repos for sale, paid in USDC on Arc testnet. Anyone — human or agent — can unlock.</p>
+            {listingsError && <p className="error">{listingsError}</p>}
+            {listings === null && !listingsError && <p className="hint">Loading catalog…</p>}
+            {listings && listings.length === 0 && <p className="hint">No listings yet.</p>}
+            {listings && listings.length > 0 && (
+                <ul className="repo-list">
+                    {listings.map((listing) => {
+                        const result = unlockResults[listing.id];
+                        return (
+                            <li key={listing.id} className="repo-card">
+                                <div className="repo-row">
+                                    <a
+                                        className="repo-name"
+                                        href={`https://github.com/${listing.repoFullName}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                    >
+                                        {listing.repoFullName}
+                                    </a>
+                                    <span className="tag tag-muted">by {listing.ownerLogin}</span>
+                                    <span className="badge badge-listed">{listing.price}</span>
+                                    <button
+                                        type="button"
+                                        className="btn btn-outline"
+                                        disabled={result === "loading"}
+                                        onClick={() => previewUnlock(listing.id)}
+                                    >
+                                        {result === "loading" ? "Checking…" : "Unlock"}
+                                    </button>
+                                </div>
+                                {result && result !== "loading" && (
+                                    <div className="unlock-details">
+                                        {typeof result === "string" ? (
+                                            <span className="error">{result}</span>
+                                        ) : (
+                                            <span>
+                                                Real x402 challenge: pay {formatUsdc(result.amount)} to{" "}
+                                                <code>{result.payTo}</code> on <code>{result.network}</code>. Wallet
+                                                payment isn't wired up yet — this previews the actual on-chain
+                                                requirements.
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                            </li>
+                        );
+                    })}
+                </ul>
+            )}
+        </section>
+    );
+}
+
 function App() {
+    const [path, navigate] = useRoute();
     const [me, setMe] = useState<Me | null>(null);
     const [repos, setRepos] = useState<Repo[] | null>(null);
     const [reposError, setReposError] = useState<string | null>(null);
     const [listings, setListings] = useState<Listing[] | null>(null);
     const [listingsError, setListingsError] = useState<string | null>(null);
-    const [unlockResults, setUnlockResults] = useState<Record<string, UnlockRequirement | string | "loading">>({});
 
     useEffect(() => {
         fetchMe().then(setMe);
@@ -238,26 +553,6 @@ function App() {
         return map;
     }, [listings]);
 
-    const privateRepos = useMemo(() => repos?.filter((r) => r.private) ?? [], [repos]);
-    const publicRepos = useMemo(() => repos?.filter((r) => !r.private) ?? [], [repos]);
-
-    const setRepoPrivate = (repoId: number) => {
-        setRepos((prev) => prev?.map((r) => (r.id === repoId ? { ...r, private: true } : r)) ?? null);
-    };
-
-    const previewUnlock = async (listingId: string) => {
-        setUnlockResults((prev) => ({ ...prev, [listingId]: "loading" }));
-        try {
-            const req = await fetchUnlockRequirements(listingId);
-            setUnlockResults((prev) => ({ ...prev, [listingId]: req }));
-        } catch (err) {
-            setUnlockResults((prev) => ({
-                ...prev,
-                [listingId]: err instanceof Error ? err.message : "Failed to fetch payment requirements",
-            }));
-        }
-    };
-
     if (me === null) {
         return (
             <main className="shell">
@@ -268,111 +563,27 @@ function App() {
 
     return (
         <main className="shell">
-            {me.authenticated ? (
-                <>
-                    <header className="topbar">
-                        <div className="user">
-                            {me.avatarUrl && <img src={me.avatarUrl} alt="" className="avatar" />}
-                            <span>{me.name ?? me.login}</span>
-                        </div>
-                        <button
-                            type="button"
-                            className="btn btn-ghost"
-                            onClick={() => logout().then(() => setMe({ authenticated: false }))}
-                        >
-                            Log out
-                        </button>
-                    </header>
-
-                    <section>
-                        <h2>Your repositories</h2>
-                        {reposError && <p className="error">{reposError}</p>}
-                        {repos === null && !reposError && <p className="hint">Loading repositories…</p>}
-
-                        {repos && (
-                            <>
-                                <RepoGroup label="Private" repos={privateRepos}>
-                                    {(repo) => (
-                                        <RepoRow
-                                            key={repo.id}
-                                            repo={repo}
-                                            listing={listingByRepo.get(repo.fullName)}
-                                            onListed={(listing) => setListings((prev) => [...(prev ?? []), listing])}
-                                            onMadePrivate={setRepoPrivate}
-                                        />
-                                    )}
-                                </RepoGroup>
-
-                                <RepoGroup label="Public" repos={publicRepos}>
-                                    {(repo) => (
-                                        <RepoRow
-                                            key={repo.id}
-                                            repo={repo}
-                                            listing={listingByRepo.get(repo.fullName)}
-                                            onListed={(listing) => setListings((prev) => [...(prev ?? []), listing])}
-                                            onMadePrivate={setRepoPrivate}
-                                        />
-                                    )}
-                                </RepoGroup>
-                            </>
-                        )}
-                    </section>
-                </>
+            <NavBar
+                path={path}
+                navigate={navigate}
+                me={me}
+                onLogout={() => logout().then(() => setMe({ authenticated: false }))}
+            />
+            {path === "/catalog" ? (
+                <CatalogPage listings={listings} listingsError={listingsError} />
             ) : (
-                <div className="card">
-                    <h1>margit</h1>
-                    <p className="hint">Connect your GitHub account to list a repo for sale.</p>
-                    <a className="btn btn-primary" href={githubLoginUrl()}>
-                        Connect with GitHub
-                    </a>
-                </div>
+                <DashboardPage
+                    me={me}
+                    repos={repos}
+                    reposError={reposError}
+                    listingByRepo={listingByRepo}
+                    onListed={(listing) => setListings((prev) => [...(prev ?? []), listing])}
+                    onUnlisted={(id) => setListings((prev) => prev?.filter((l) => l.id !== id) ?? null)}
+                    onMadePrivate={(repoId) =>
+                        setRepos((prev) => prev?.map((r) => (r.id === repoId ? { ...r, private: true } : r)) ?? null)
+                    }
+                />
             )}
-
-            <section>
-                <h2>Catalog</h2>
-                <p className="hint">Repos for sale, paid in USDC on Arc testnet. Anyone — human or agent — can unlock.</p>
-                {listingsError && <p className="error">{listingsError}</p>}
-                {listings === null && !listingsError && <p className="hint">Loading catalog…</p>}
-                {listings && listings.length === 0 && <p className="hint">No listings yet.</p>}
-                {listings && listings.length > 0 && (
-                    <ul className="repo-list">
-                        {listings.map((listing) => {
-                            const result = unlockResults[listing.id];
-                            return (
-                                <li key={listing.id} className="repo-card">
-                                    <div className="repo-row">
-                                        <span className="repo-name repo-name-static">{listing.repoFullName}</span>
-                                        <span className="tag tag-muted">by {listing.ownerLogin}</span>
-                                        <span className="badge badge-listed">{listing.price}</span>
-                                        <button
-                                            type="button"
-                                            className="btn btn-outline"
-                                            disabled={result === "loading"}
-                                            onClick={() => previewUnlock(listing.id)}
-                                        >
-                                            {result === "loading" ? "Checking…" : "Unlock"}
-                                        </button>
-                                    </div>
-                                    {result && result !== "loading" && (
-                                        <div className="unlock-details">
-                                            {typeof result === "string" ? (
-                                                <span className="error">{result}</span>
-                                            ) : (
-                                                <span>
-                                                    Real x402 challenge: pay {formatUsdc(result.amount)} to{" "}
-                                                    <code>{result.payTo}</code> on <code>{result.network}</code>.
-                                                    Wallet payment isn't wired up yet — this previews the actual
-                                                    on-chain requirements.
-                                                </span>
-                                            )}
-                                        </div>
-                                    )}
-                                </li>
-                            );
-                        })}
-                    </ul>
-                )}
-            </section>
         </main>
     );
 }
