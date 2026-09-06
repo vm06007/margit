@@ -8,6 +8,7 @@ import { createSession, destroySession, getSession } from "./session.js";
 import { consumeState, issueState } from "./oauth-state.js";
 import { ARC_TESTNET_NETWORK, resourceServer } from "./x402-gateway.js";
 import { createListing, getListing, getOwnerTokenForListing, listListings, type Listing } from "./listings.js";
+import { resolvePayoutAddress } from "./names.js";
 
 const {
     GITHUB_CLIENT_ID,
@@ -26,7 +27,6 @@ if (!GITHUB_CLIENT_ID || !GITHUB_CLIENT_SECRET || !GITHUB_REDIRECT_URI) {
 
 const SESSION_COOKIE = "margit_session";
 const PRICE_PATTERN = /^\$\d+(\.\d{1,2})?$/;
-const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
 
 const app = new Hono();
 
@@ -241,8 +241,12 @@ app.post("/api/listings", async (c) => {
     if (!PRICE_PATTERN.test(price)) {
         return c.json({ error: 'price must look like "$1.50"' }, 400);
     }
-    if (!EVM_ADDRESS_PATTERN.test(payoutAddress)) {
-        return c.json({ error: "payoutAddress must be a 0x-prefixed 20-byte EVM address" }, 400);
+
+    let resolvedPayoutAddress: string;
+    try {
+        resolvedPayoutAddress = await resolvePayoutAddress(payoutAddress);
+    } catch (err) {
+        return c.json({ error: err instanceof Error ? err.message : "Could not resolve payoutAddress" }, 400);
     }
 
     const repoRes = await fetch(`https://api.github.com/repos/${repoFullName}`, {
@@ -265,9 +269,20 @@ app.post("/api/listings", async (c) => {
         ownerLogin: session.login,
         ownerGithubToken: session.githubAccessToken,
         price,
-        payoutAddress,
+        payoutAddress: resolvedPayoutAddress,
     });
     return c.json(listing, 201);
+});
+
+app.get("/api/resolve-name", async (c) => {
+    const name = c.req.query("name");
+    if (!name) return c.json({ error: "name is required" }, 400);
+    try {
+        const address = await resolvePayoutAddress(name);
+        return c.json({ address });
+    } catch (err) {
+        return c.json({ error: err instanceof Error ? err.message : "Could not resolve name" }, 404);
+    }
 });
 
 const port = Number(PORT);

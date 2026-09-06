@@ -8,6 +8,7 @@ import {
     githubLoginUrl,
     logout,
     makeRepoPrivate,
+    resolveName,
     type Listing,
     type Me,
     type Repo,
@@ -18,6 +19,8 @@ import "./App.css";
 function formatUsdc(amount: string): string {
     return `${(Number(amount) / 1_000_000).toFixed(2)} USDC`;
 }
+
+const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
 
 function ListingForm({
     repoFullName,
@@ -30,8 +33,36 @@ function ListingForm({
 }) {
     const [price, setPrice] = useState("$0.05");
     const [payoutAddress, setPayoutAddress] = useState("");
+    const [resolved, setResolved] = useState<string | "loading" | "error" | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
+
+    // Live-preview ENS (.eth) / ArcNS (.arc, .circle) resolution as the seller types.
+    useEffect(() => {
+        const trimmed = payoutAddress.trim();
+        if (!trimmed || EVM_ADDRESS_PATTERN.test(trimmed)) {
+            setResolved(null);
+            return;
+        }
+        if (!/\.(eth|arc|circle)$/i.test(trimmed)) {
+            setResolved(null);
+            return;
+        }
+        let cancelled = false;
+        setResolved("loading");
+        const timer = setTimeout(async () => {
+            try {
+                const address = await resolveName(trimmed);
+                if (!cancelled) setResolved(address);
+            } catch {
+                if (!cancelled) setResolved("error");
+            }
+        }, 500);
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [payoutAddress]);
 
     const submit = async () => {
         setSubmitting(true);
@@ -57,17 +88,29 @@ function ListingForm({
                 />
                 <input
                     className="input input-address"
-                    placeholder="0x… your Arc payout address"
+                    placeholder="0x… address, name.eth, or name.arc"
                     value={payoutAddress}
                     onChange={(e) => setPayoutAddress(e.target.value)}
                 />
-                <button type="button" className="btn btn-primary" disabled={submitting} onClick={submit}>
+                <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={submitting || resolved === "loading"}
+                    onClick={submit}
+                >
                     {submitting ? "Listing…" : "Confirm"}
                 </button>
                 <button type="button" className="btn btn-ghost" onClick={onCancel}>
                     Cancel
                 </button>
             </div>
+            {resolved === "loading" && <p className="hint">Resolving…</p>}
+            {resolved === "error" && <p className="error">Could not resolve that name.</p>}
+            {resolved && resolved !== "loading" && resolved !== "error" && (
+                <p className="hint">
+                    → <code>{resolved}</code>
+                </p>
+            )}
             {error && <p className="error">{error}</p>}
         </div>
     );

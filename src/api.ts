@@ -77,6 +77,14 @@ export function fetchListings(): Promise<Listing[]> {
     return apiFetch<Listing[]>("/api/listings");
 }
 
+/** Resolves a 0x address, ENS (.eth) name, or ArcNS (.arc / .circle) name to a real address. */
+export async function resolveName(name: string): Promise<string> {
+    const res = await fetch(`/api/resolve-name?name=${encodeURIComponent(name)}`, { credentials: "include" });
+    const data = (await res.json().catch(() => ({}))) as { address?: string; error?: string };
+    if (!res.ok || !data.address) throw new Error(data.error ?? "Could not resolve name");
+    return data.address;
+}
+
 export async function createListing(input: {
     repoFullName: string;
     price: string;
