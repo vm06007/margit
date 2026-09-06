@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { getContract, prepareContractCall, readContract, sendTransaction, waitForReceipt } from "thirdweb";
 import { ConnectButton, useActiveAccount } from "thirdweb/react";
-import { shortenAddress } from "thirdweb/utils";
+import { shortenAddress, toUnits } from "thirdweb/utils";
 import { x402Client, x402HTTPClient } from "@x402/core/client";
 import { BatchEvmScheme } from "@circle-fin/x402-batching/client";
 import {
@@ -1150,6 +1151,99 @@ function AgentInstructions({ listingId }: { listingId: string }) {
     );
 }
 
+// Real, verified ABI/addresses from @circle-fin/x402-batching's own bundled
+// CHAIN_CONFIGS.arcTestnet — not guessed.
+const ARC_GATEWAY_WALLET_ADDRESS = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9";
+
+function DepositButton() {
+    const account = useActiveAccount();
+    const [amount, setAmount] = useState("1.00");
+    const [status, setStatus] = useState<"idle" | "checking" | "approving" | "depositing" | "done" | "error">(
+        "idle",
+    );
+    const [error, setError] = useState<string | null>(null);
+
+    if (!account) return null;
+
+    const deposit = async () => {
+        setError(null);
+        try {
+            const usdcContract = getContract({ client: thirdwebClient, chain: arcTestnet, address: ARC_USDC_ADDRESS });
+            const gatewayContract = getContract({
+                client: thirdwebClient,
+                chain: arcTestnet,
+                address: ARC_GATEWAY_WALLET_ADDRESS,
+            });
+            const depositAmount = toUnits(amount, 6);
+
+            setStatus("checking");
+            const allowance = await readContract({
+                contract: usdcContract,
+                method: "function allowance(address owner, address spender) view returns (uint256)",
+                params: [account.address, ARC_GATEWAY_WALLET_ADDRESS],
+            });
+
+            if (allowance < depositAmount) {
+                setStatus("approving");
+                const approveTx = prepareContractCall({
+                    contract: usdcContract,
+                    method: "function approve(address spender, uint256 amount)",
+                    params: [ARC_GATEWAY_WALLET_ADDRESS, depositAmount],
+                });
+                const { transactionHash } = await sendTransaction({ transaction: approveTx, account });
+                await waitForReceipt({ client: thirdwebClient, chain: arcTestnet, transactionHash });
+            }
+
+            setStatus("depositing");
+            const depositTx = prepareContractCall({
+                contract: gatewayContract,
+                method: "function deposit(address token, uint256 value)",
+                params: [ARC_USDC_ADDRESS, depositAmount],
+            });
+            const { transactionHash } = await sendTransaction({ transaction: depositTx, account });
+            await waitForReceipt({ client: thirdwebClient, chain: arcTestnet, transactionHash });
+
+            setStatus("done");
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Deposit failed");
+            setStatus("error");
+        }
+    };
+
+    const busy = status === "checking" || status === "approving" || status === "depositing";
+    const label =
+        status === "checking"
+            ? "Checking…"
+            : status === "approving"
+              ? "Approve in wallet…"
+              : status === "depositing"
+                ? "Confirm deposit…"
+                : status === "done"
+                  ? "Deposited!"
+                  : "Deposit to Gateway";
+
+    return (
+        <div className="deposit-wrap">
+            <p className="hint">
+                Circle Gateway requires a one-time deposit before payments settle — holding USDC in your wallet
+                isn't enough on its own.
+            </p>
+            <div className="deposit-controls">
+                <input
+                    className="input"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    disabled={busy}
+                />
+                <button type="button" className="btn btn-outline" disabled={busy} onClick={deposit}>
+                    {label}
+                </button>
+            </div>
+            {error && <p className="error">{error}</p>}
+        </div>
+    );
+}
+
 function BuyButton({ listingId }: { listingId: string }) {
     const account = useActiveAccount();
     const [status, setStatus] = useState<"idle" | "signing" | "settling" | "done" | "error">("idle");
@@ -1315,6 +1409,7 @@ function RepoDetailPage({
             </div>
             {unlockDetailsNode(unlockResults[listing.id])}
 
+            <DepositButton />
             <BuyButton listingId={listing.id} />
 
             <AgentInstructions listingId={listing.id} />

@@ -865,7 +865,25 @@
     flex: 1;
 }
 
-/* Buy button */
+/* Deposit + Buy button */
+
+.deposit-wrap {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.deposit-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.deposit-controls .input {
+    width: 100px;
+}
 
 .buy-button-wrap {
     margin-top: 1rem;
