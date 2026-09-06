@@ -8,14 +8,6 @@ export const ARC_TESTNET_NETWORK = "eip155:5042002";
 const GATEWAY_FACILITATOR_URL =
     process.env.GATEWAY_FACILITATOR_URL ?? "https://gateway-api-testnet.circle.com";
 
-export const arcSellerAddress = process.env.ARC_SELLER_ADDRESS;
-
-if (!arcSellerAddress) {
-    console.warn(
-        "[margit] Missing ARC_SELLER_ADDRESS in .env — x402-protected routes will fail to register a payTo address.",
-    );
-}
-
 const facilitator = new BatchFacilitatorClient({ url: GATEWAY_FACILITATOR_URL });
 
 // @circle-fin/x402-batching redeclares its own PaymentPayload/PaymentRequirements

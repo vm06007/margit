@@ -3,9 +3,11 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { paymentMiddleware } from "@x402/hono";
+import type { HTTPRequestContext } from "@x402/core/server";
 import { createSession, destroySession, getSession } from "./session.js";
 import { consumeState, issueState } from "./oauth-state.js";
-import { ARC_TESTNET_NETWORK, arcSellerAddress, resourceServer } from "./x402-gateway.js";
+import { ARC_TESTNET_NETWORK, resourceServer } from "./x402-gateway.js";
+import { createListing, getListing, getOwnerTokenForListing, listListings, type Listing } from "./listings.js";
 
 const {
     GITHUB_CLIENT_ID,
@@ -23,8 +25,17 @@ if (!GITHUB_CLIENT_ID || !GITHUB_CLIENT_SECRET || !GITHUB_REDIRECT_URI) {
 }
 
 const SESSION_COOKIE = "margit_session";
+const PRICE_PATTERN = /^\$\d+(\.\d{1,2})?$/;
+const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
 
 const app = new Hono();
+
+async function resolveListingFromContext(ctx: HTTPRequestContext): Promise<Listing> {
+    const id = ctx.adapter.getQueryParam?.("id");
+    const listing = typeof id === "string" ? await getListing(id) : undefined;
+    if (!listing) throw new Error(`Unknown listing id: ${String(id)}`);
+    return listing;
+}
 
 app.use(
     "/api/*",
@@ -34,31 +45,38 @@ app.use(
     }),
 );
 
-// Proof-of-concept x402 paywall on Arc testnet — settled via Circle Gateway.
-// Hitting this route unpaid returns 402 with payment requirements; a paying
-// client (human wallet or an agent using @circle-fin/x402-batching's
-// GatewayClient) gets the JSON body below once payment settles.
+// x402 paywall on Arc testnet, settled via Circle's Gateway facilitator. Price and
+// payout address are resolved per-listing from the `id` query param, so one static
+// route can sell access to any listing.
 app.use(
     paymentMiddleware(
         {
-            "GET /api/gateway/demo": {
+            "GET /api/listings/unlock": {
                 accepts: {
                     scheme: "exact",
-                    price: "$0.01",
                     network: ARC_TESTNET_NETWORK,
-                    payTo: arcSellerAddress ?? "0x0000000000000000000000000000000000000000",
+                    price: async (ctx) => (await resolveListingFromContext(ctx)).price,
+                    payTo: async (ctx) => (await resolveListingFromContext(ctx)).payoutAddress,
                 },
-                description: "margit x402 gateway proof-of-concept (Arc testnet)",
+                description: "Unlock a margit repo listing (Arc testnet)",
             },
         },
         resourceServer,
     ),
 );
 
-app.get("/api/gateway/demo", (c) => {
+app.get("/api/listings/unlock", async (c) => {
+    const id = c.req.query("id");
+    const listing = id ? await getListing(id) : undefined;
+    if (!listing) return c.json({ error: "Unknown listing" }, 404);
+
+    const ownerToken = await getOwnerTokenForListing(listing.id);
+    if (!ownerToken) return c.json({ error: "Listing has no stored credentials" }, 500);
+
     return c.json({
-        message: "Payment verified on Arc testnet — this is the paywalled resource.",
-        unlockedAt: new Date().toISOString(),
+        repoFullName: listing.repoFullName,
+        cloneUrl: `https://x-access-token:${ownerToken}@github.com/${listing.repoFullName}.git`,
+        note: "This URL embeds a live credential — clone it now. It is not re-issued; pay again to get a fresh one.",
     });
 });
 
@@ -178,6 +196,52 @@ app.get("/api/repos", async (c) => {
             updatedAt: r.updated_at,
         })),
     );
+});
+
+app.get("/api/listings", async (c) => {
+    return c.json(await listListings());
+});
+
+app.post("/api/listings", async (c) => {
+    const session = await getSession(getCookie(c, SESSION_COOKIE));
+    if (!session) return c.json({ error: "Not authenticated" }, 401);
+
+    const body = await c.req.json<{ repoFullName?: string; price?: string; payoutAddress?: string }>();
+    const { repoFullName, price, payoutAddress } = body;
+
+    if (!repoFullName || !price || !payoutAddress) {
+        return c.json({ error: "repoFullName, price, and payoutAddress are required" }, 400);
+    }
+    if (!PRICE_PATTERN.test(price)) {
+        return c.json({ error: 'price must look like "$1.50"' }, 400);
+    }
+    if (!EVM_ADDRESS_PATTERN.test(payoutAddress)) {
+        return c.json({ error: "payoutAddress must be a 0x-prefixed 20-byte EVM address" }, 400);
+    }
+
+    const repoRes = await fetch(`https://api.github.com/repos/${repoFullName}`, {
+        headers: {
+            Authorization: `Bearer ${session.githubAccessToken}`,
+            Accept: "application/vnd.github+json",
+        },
+    });
+    if (!repoRes.ok) {
+        return c.json({ error: "Repo not found or not accessible with your GitHub token" }, 404);
+    }
+    const repo = (await repoRes.json()) as { owner: { login: string } };
+    // MVP: only the repo's direct owner can list it (excludes org-owned repos for now).
+    if (repo.owner.login.toLowerCase() !== session.login.toLowerCase()) {
+        return c.json({ error: "You can only list repos you own" }, 403);
+    }
+
+    const listing = await createListing({
+        repoFullName,
+        ownerLogin: session.login,
+        ownerGithubToken: session.githubAccessToken,
+        price,
+        payoutAddress,
+    });
+    return c.json(listing, 201);
 });
 
 const port = Number(PORT);
