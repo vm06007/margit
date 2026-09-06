@@ -1192,8 +1192,18 @@ function BuyButton({ listingId }: { listingId: string }) {
 
             const paidRes = await fetch(unlockUrl, { headers: paymentHeaders });
             if (!paidRes.ok) {
-                const body = (await paidRes.json().catch(() => ({}))) as { error?: string };
-                throw new Error(body.error ?? `Payment failed (${paidRes.status})`);
+                let detail: string | undefined;
+                try {
+                    const settleResponse = http.getPaymentSettleResponse((name) => paidRes.headers.get(name));
+                    detail = settleResponse.errorMessage ?? settleResponse.errorReason;
+                } catch {
+                    // No decodable settlement header — fall back to the JSON body below.
+                }
+                if (!detail) {
+                    const body = (await paidRes.json().catch(() => ({}))) as { error?: string };
+                    detail = body.error;
+                }
+                throw new Error(detail ?? `Payment failed (${paidRes.status})`);
             }
             const data = (await paidRes.json()) as { cloneUrl: string };
             setCloneUrl(data.cloneUrl);
