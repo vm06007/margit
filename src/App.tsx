@@ -7,6 +7,7 @@ import { BatchEvmScheme } from "@circle-fin/x402-batching/client";
 import {
     createListing,
     deleteListing,
+    downloadZip,
     fetchListings,
     fetchMe,
     fetchRepos,
@@ -26,6 +27,10 @@ import { arcTestnet, thirdwebAppMetadata, thirdwebClient, thirdwebTheme, thirdwe
 import "./App.css";
 
 const ARC_USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
+const ARC_EURC_ADDRESS = "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a";
+
+type PaymentToken = "USDC" | "EURC";
+const ARC_TOKEN_ADDRESSES: Record<PaymentToken, string> = { USDC: ARC_USDC_ADDRESS, EURC: ARC_EURC_ADDRESS };
 
 function formatUsdc(amount: string): string {
     return `${(Number(amount) / 1_000_000).toFixed(2)} USDC`;
@@ -800,6 +805,67 @@ function LogoutIcon() {
     );
 }
 
+function CopyIcon() {
+    return (
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="9" y="9" width="13" height="13" rx="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
+    );
+}
+
+function DownloadIcon() {
+    return (
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+    );
+}
+
+/** Shown after a successful purchase — the clone URL plus copy/download shortcuts. */
+function CloneResult({ cloneUrl, repoFullName }: { cloneUrl: string; repoFullName: string }) {
+    const [copied, setCopied] = useState(false);
+    const [downloading, setDownloading] = useState(false);
+    const [downloadError, setDownloadError] = useState<string | null>(null);
+    const repoName = repoFullName.split("/")[1] ?? repoFullName;
+
+    const copyCommand = async () => {
+        await navigator.clipboard.writeText(`git clone ${cloneUrl}`);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    const download = async () => {
+        setDownloadError(null);
+        setDownloading(true);
+        try {
+            await downloadZip(cloneUrl, repoName);
+        } catch (err) {
+            setDownloadError(err instanceof Error ? err.message : "Download failed");
+        } finally {
+            setDownloading(false);
+        }
+    };
+
+    return (
+        <div className="buy-result">
+            <p className="hint">Purchased — clone URL:</p>
+            <code>{cloneUrl}</code>
+            <div className="clone-actions">
+                <button type="button" className="btn btn-primary btn-small" disabled={downloading} onClick={download}>
+                    <DownloadIcon /> {downloading ? "Downloading…" : "Download ZIP"}
+                </button>
+                <button type="button" className="btn btn-outline btn-small" onClick={copyCommand}>
+                    <CopyIcon /> {copied ? "Copied!" : "Copy Command"}
+                </button>
+            </div>
+            {downloadError && <p className="error">{downloadError}</p>}
+        </div>
+    );
+}
+
 function PublisherLink({ login, navigate }: { login: string; navigate: (p: string) => void }) {
     return (
         <a
@@ -1246,6 +1312,7 @@ function DepositButton() {
 
 function DirectBuyButton({ listing }: { listing: Listing }) {
     const account = useActiveAccount();
+    const [token, setToken] = useState<PaymentToken>("USDC");
     const [status, setStatus] = useState<"idle" | "sending" | "verifying" | "done" | "error">("idle");
     const [error, setError] = useState<string | null>(null);
     const [cloneUrl, setCloneUrl] = useState<string | null>(null);
@@ -1259,9 +1326,13 @@ function DirectBuyButton({ listing }: { listing: Listing }) {
         setStatus("sending");
         try {
             const amount = toUnits(listing.price.replace("$", ""), 6);
-            const usdcContract = getContract({ client: thirdwebClient, chain: arcTestnet, address: ARC_USDC_ADDRESS });
+            const tokenContract = getContract({
+                client: thirdwebClient,
+                chain: arcTestnet,
+                address: ARC_TOKEN_ADDRESSES[token],
+            });
             const transferTx = prepareContractCall({
-                contract: usdcContract,
+                contract: tokenContract,
                 method: "function transfer(address to, uint256 value) returns (bool)",
                 params: [listing.payoutAddress, amount],
             });
@@ -1272,7 +1343,7 @@ function DirectBuyButton({ listing }: { listing: Listing }) {
             const res = await fetch(`/api/listings/${listing.id}/verify-payment`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ txHash: transactionHash }),
+                body: JSON.stringify({ txHash: transactionHash, token }),
             });
             if (!res.ok) {
                 const body = (await res.json().catch(() => ({}))) as { error?: string };
@@ -1289,25 +1360,33 @@ function DirectBuyButton({ listing }: { listing: Listing }) {
 
     const busy = status === "sending" || status === "verifying";
     const label =
-        status === "sending" ? "Confirm in wallet…" : status === "verifying" ? "Verifying…" : "Pay Directly";
+        status === "sending" ? "Confirm in wallet…" : status === "verifying" ? "Verifying…" : `Pay ${token}`;
 
     return (
         <div className="buy-button-wrap">
+            <div className="token-toggle" role="group" aria-label="Payment currency">
+                {(["USDC", "EURC"] as const).map((option) => (
+                    <button
+                        key={option}
+                        type="button"
+                        className={`token-toggle-option ${token === option ? "active" : ""}`}
+                        disabled={busy}
+                        onClick={() => setToken(option)}
+                    >
+                        {option}
+                    </button>
+                ))}
+            </div>
             <button type="button" className="btn btn-primary" disabled={busy} onClick={buy}>
                 {label}
             </button>
             {error && <p className="error">{error}</p>}
-            {cloneUrl && (
-                <div className="buy-result">
-                    <p className="hint">Purchased — clone URL:</p>
-                    <code>{cloneUrl}</code>
-                </div>
-            )}
+            {cloneUrl && <CloneResult cloneUrl={cloneUrl} repoFullName={listing.repoFullName} />}
         </div>
     );
 }
 
-function BuyButton({ listingId }: { listingId: string }) {
+function BuyButton({ listingId, repoFullName }: { listingId: string; repoFullName: string }) {
     const account = useActiveAccount();
     const [status, setStatus] = useState<"idle" | "signing" | "settling" | "done" | "error">("idle");
     const [error, setError] = useState<string | null>(null);
@@ -1386,12 +1465,7 @@ function BuyButton({ listingId }: { listingId: string }) {
                 {status === "signing" ? "Confirm in wallet…" : status === "settling" ? "Settling…" : "Buy Now"}
             </button>
             {error && <p className="error">{error}</p>}
-            {cloneUrl && (
-                <div className="buy-result">
-                    <p className="hint">Purchased — clone URL:</p>
-                    <code>{cloneUrl}</code>
-                </div>
-            )}
+            {cloneUrl && <CloneResult cloneUrl={cloneUrl} repoFullName={repoFullName} />}
         </div>
     );
 }
@@ -1486,7 +1560,7 @@ function RepoDetailPage({
                         Deposit once into Circle Gateway, then any agent can pay repeatedly and gaslessly.
                     </p>
                     <DepositButton />
-                    <BuyButton listingId={listing.id} />
+                    <BuyButton listingId={listing.id} repoFullName={listing.repoFullName} />
                 </div>
             </div>
 

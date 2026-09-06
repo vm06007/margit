@@ -16,7 +16,7 @@ import {
     type Listing,
 } from "./listings.js";
 import { resolveArcNsReverse, resolvePayoutAddress } from "./names.js";
-import { priceToAtomicUsdc, verifyDirectPayment } from "./payments.js";
+import { priceToAtomicUnits, verifyDirectPayment, type PaymentToken } from "./payments.js";
 
 const {
     GITHUB_CLIENT_ID,
@@ -104,15 +104,51 @@ app.post("/api/listings/:id/verify-payment", async (c) => {
     const listing = await getListing(c.req.param("id"));
     if (!listing) return c.json({ error: "Unknown listing" }, 404);
 
-    const { txHash } = await c.req.json<{ txHash?: string }>();
+    const { txHash, token } = await c.req.json<{ txHash?: string; token?: PaymentToken }>();
     if (!txHash) return c.json({ error: "txHash is required" }, 400);
+    const paymentToken: PaymentToken = token === "EURC" ? "EURC" : "USDC";
 
-    const result = await verifyDirectPayment(txHash, listing.payoutAddress, priceToAtomicUsdc(listing.price));
+    const result = await verifyDirectPayment(
+        txHash,
+        listing.payoutAddress,
+        priceToAtomicUnits(listing.price),
+        paymentToken,
+    );
     if (!result.ok) return c.json({ error: result.reason ?? "Payment could not be verified" }, 400);
 
     const response = await mintCloneResponse(listing);
     if (!response) return c.json({ error: "Listing has no stored credentials" }, 500);
     return c.json(response);
+});
+
+// Convenience for buyers who don't want to use `git clone` — proxies a zip
+// download through our server (GitHub's codeload response doesn't send CORS
+// headers our origin can read, so the browser can't fetch it directly).
+// Only usable with a clone URL the buyer already legitimately holds — this
+// grants no access beyond what that URL's embedded token already allows.
+const CLONE_URL_PATTERN = /^https:\/\/x-access-token:([^@]+)@github\.com\/([\w.-]+\/[\w.-]+)\.git$/;
+
+app.post("/api/download-zip", async (c) => {
+    const { cloneUrl } = await c.req.json<{ cloneUrl?: string }>();
+    const match = cloneUrl ? CLONE_URL_PATTERN.exec(cloneUrl) : null;
+    if (!match) return c.json({ error: "Invalid clone URL" }, 400);
+    const [, token, repoFullName] = match;
+
+    const ghRes = await fetch(`https://api.github.com/repos/${repoFullName}/zipball`, {
+        headers: { Authorization: `token ${token}`, "User-Agent": "margit" },
+    });
+    if (!ghRes.ok || !ghRes.body) {
+        return c.json({ error: `GitHub declined the download (${ghRes.status})` }, 502);
+    }
+
+    const repoName = repoFullName.split("/")[1];
+    return new Response(ghRes.body, {
+        status: 200,
+        headers: {
+            "Content-Type": "application/zip",
+            "Content-Disposition": `attachment; filename="${repoName}.zip"`,
+        },
+    });
 });
 
 app.get("/api/auth/github/login", async (c) => {

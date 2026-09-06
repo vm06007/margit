@@ -139,6 +139,26 @@ export async function deleteListing(id: string): Promise<void> {
     }
 }
 
+/** Downloads a purchased repo as a zip via our server (proxies GitHub's zipball API). */
+export async function downloadZip(cloneUrl: string, repoName: string): Promise<void> {
+    const res = await fetch("/api/download-zip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cloneUrl }),
+    });
+    if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? `Download failed (${res.status})`);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${repoName}.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
 /** Fetches the real x402 payment challenge for a listing (no payment is made). */
 export async function fetchUnlockRequirements(listingId: string): Promise<UnlockRequirement> {
     const res = await fetch(`/api/listings/unlock?id=${encodeURIComponent(listingId)}`, {

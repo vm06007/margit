@@ -918,6 +918,36 @@
     gap: 0.5rem;
 }
 
+.token-toggle {
+    display: inline-flex;
+    align-self: flex-start;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 2px;
+    gap: 2px;
+}
+
+.token-toggle-option {
+    border: none;
+    background: transparent;
+    border-radius: 999px;
+    padding: 0.3rem 0.85rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.token-toggle-option.active {
+    background: var(--accent);
+    color: var(--accent-contrast, #fff);
+}
+
+.token-toggle-option:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
 .buy-result {
     background: var(--success-bg);
     border: 1px solid var(--success);
@@ -929,6 +959,21 @@
     display: block;
     margin-top: 0.35rem;
     word-break: break-all;
+}
+
+.clone-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.65rem;
+}
+
+.btn-small {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.78rem;
 }
 
 /* Thirdweb ConnectButton renders its own sizing — force it to match our .btn scale */
