@@ -101,7 +101,9 @@ function NavBar({
     );
 }
 
-function ListingForm({
+const MAX_SCREENSHOTS = 4;
+
+function ListingModal({
     repoFullName,
     onCancel,
     onCreated,
@@ -113,6 +115,8 @@ function ListingForm({
     const [price, setPrice] = useState("$0.05");
     const [payoutAddress, setPayoutAddress] = useState("");
     const [resolved, setResolved] = useState<string | "loading" | "error" | null>(null);
+    const [description, setDescription] = useState("");
+    const [screenshots, setScreenshots] = useState<string[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
 
@@ -143,11 +147,28 @@ function ListingForm({
         };
     }, [payoutAddress]);
 
+    const addScreenshots = (files: FileList | null) => {
+        for (const file of Array.from(files ?? []).slice(0, MAX_SCREENSHOTS - screenshots.length)) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const result = ev.target?.result;
+                if (typeof result === "string") setScreenshots((prev) => [...prev, result]);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
     const submit = async () => {
         setSubmitting(true);
         setError(null);
         try {
-            const listing = await createListing({ repoFullName, price, payoutAddress });
+            const listing = await createListing({
+                repoFullName,
+                price,
+                payoutAddress,
+                sellerDescription: description.trim() || undefined,
+                screenshots: screenshots.length > 0 ? screenshots : undefined,
+            });
             onCreated(listing);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to create listing");
@@ -157,40 +178,109 @@ function ListingForm({
     };
 
     return (
-        <div className="listing-form">
-            <div className="listing-form-fields">
-                <input
-                    className="input"
-                    placeholder="$0.05"
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                />
-                <input
-                    className="input input-address"
-                    placeholder="0x… address, name.eth, or name.arc"
-                    value={payoutAddress}
-                    onChange={(e) => setPayoutAddress(e.target.value)}
-                />
-                <button
-                    type="button"
-                    className="btn btn-primary"
-                    disabled={submitting || resolved === "loading"}
-                    onClick={submit}
-                >
-                    {submitting ? "Listing…" : "Confirm"}
-                </button>
-                <button type="button" className="btn btn-ghost" onClick={onCancel}>
-                    Cancel
-                </button>
+        <div className="modal-overlay" onClick={onCancel}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-header">
+                    <h2>List for sale</h2>
+                    <p className="hint">{repoFullName}</p>
+                    <button type="button" className="modal-close" onClick={onCancel}>
+                        ✕
+                    </button>
+                </div>
+
+                <div className="modal-body">
+                    <label className="modal-field">
+                        <span className="modal-label">Price</span>
+                        <input
+                            className="input"
+                            placeholder="$0.05"
+                            value={price}
+                            onChange={(e) => setPrice(e.target.value)}
+                        />
+                    </label>
+
+                    <label className="modal-field">
+                        <span className="modal-label">Payout address</span>
+                        <input
+                            className="input"
+                            placeholder="0x… address, name.eth, or name.arc"
+                            value={payoutAddress}
+                            onChange={(e) => setPayoutAddress(e.target.value)}
+                        />
+                        {resolved === "loading" && <span className="hint">Resolving…</span>}
+                        {resolved === "error" && <span className="error">Could not resolve that name.</span>}
+                        {resolved && resolved !== "loading" && resolved !== "error" && (
+                            <span className="hint">
+                                → <code>{resolved}</code>
+                            </span>
+                        )}
+                    </label>
+
+                    <label className="modal-field">
+                        <span className="modal-label">Description (optional — overrides the repo's own)</span>
+                        <textarea
+                            className="input"
+                            rows={4}
+                            placeholder="Describe what buyers get…"
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                        />
+                    </label>
+
+                    <div className="modal-field">
+                        <span className="modal-label">
+                            Screenshots <span className="hint">({screenshots.length}/{MAX_SCREENSHOTS})</span>
+                        </span>
+                        {screenshots.length < MAX_SCREENSHOTS && (
+                            <label className="screenshot-upload">
+                                + Add images
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    className="sr-only"
+                                    onChange={(e) => {
+                                        addScreenshots(e.target.files);
+                                        e.target.value = "";
+                                    }}
+                                />
+                            </label>
+                        )}
+                        {screenshots.length > 0 && (
+                            <div className="screenshot-thumbs">
+                                {screenshots.map((src, i) => (
+                                    <div key={i} className="screenshot-thumb">
+                                        <img src={src} alt="" />
+                                        <button
+                                            type="button"
+                                            className="screenshot-remove"
+                                            onClick={() => setScreenshots((prev) => prev.filter((_, idx) => idx !== i))}
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {error && <p className="error">{error}</p>}
+                </div>
+
+                <div className="modal-footer">
+                    <button type="button" className="btn btn-ghost" onClick={onCancel}>
+                        Cancel
+                    </button>
+                    <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={submitting || resolved === "loading"}
+                        onClick={submit}
+                    >
+                        {submitting ? "Listing…" : "Confirm"}
+                    </button>
+                </div>
             </div>
-            {resolved === "loading" && <p className="hint">Resolving…</p>}
-            {resolved === "error" && <p className="error">Could not resolve that name.</p>}
-            {resolved && resolved !== "loading" && resolved !== "error" && (
-                <p className="hint">
-                    → <code>{resolved}</code>
-                </p>
-            )}
-            {error && <p className="error">{error}</p>}
         </div>
     );
 }
@@ -222,7 +312,15 @@ function RepoGroup({
     );
 }
 
-function ListingPanel({ listing, onUnlisted }: { listing: Listing; onUnlisted: (id: string) => void }) {
+function ListingPanel({
+    listing,
+    onUnlisted,
+    navigate,
+}: {
+    listing: Listing;
+    onUnlisted: (id: string) => void;
+    navigate: (p: string) => void;
+}) {
     const [copied, setCopied] = useState(false);
     const [unlisting, setUnlisting] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -262,16 +360,23 @@ function ListingPanel({ listing, onUnlisted }: { listing: Listing; onUnlisted: (
                 </button>
             </div>
             <div className="listing-panel-row">
-                <a
+                <button
+                    type="button"
                     className="btn btn-outline"
+                    onClick={() => navigate(`/repo/${listing.repoFullName}`)}
+                >
+                    Preview in catalog
+                </button>
+                <a
+                    className="btn btn-outline btn-icon"
                     href={`https://github.com/${listing.repoFullName}`}
                     target="_blank"
                     rel="noreferrer"
                 >
-                    Open repo ↗
+                    <GitHubIcon /> Open repo
                 </a>
-                <button type="button" className="btn btn-ghost" disabled={unlisting} onClick={unlist}>
-                    {unlisting ? "Unlisting…" : "Unlist"}
+                <button type="button" className="btn btn-ghost btn-icon" disabled={unlisting} onClick={unlist}>
+                    <TrashIcon /> {unlisting ? "Unlisting…" : "Unlist"}
                 </button>
             </div>
             {error && <p className="error">{error}</p>}
@@ -285,12 +390,14 @@ function RepoRow({
     onListed,
     onUnlisted,
     onMadePrivate,
+    navigate,
 }: {
     repo: Repo;
     listing: Listing | undefined;
     onListed: (listing: Listing) => void;
     onUnlisted: (listingId: string) => void;
     onMadePrivate: (repoId: number) => void;
+    navigate: (p: string) => void;
 }) {
     const [formOpen, setFormOpen] = useState(false);
     const [manageOpen, setManageOpen] = useState(false);
@@ -312,35 +419,58 @@ function RepoRow({
 
     return (
         <li className="repo-card">
-            <div className="repo-row">
-                <a className="repo-name" href={repo.htmlUrl} target="_blank" rel="noreferrer">
+            <div
+                className={`repo-row ${listing ? "repo-row-clickable" : ""}`}
+                onClick={() => {
+                    if (listing) setManageOpen((v) => !v);
+                }}
+            >
+                <a
+                    className="repo-name"
+                    href={repo.htmlUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                >
                     {repo.name}
                 </a>
+                <span className="repo-row-spacer" />
                 {repo.private && <span className="tag tag-muted">private</span>}
                 {repo.language && <span className="tag">{repo.language}</span>}
                 <span className="tag tag-muted">★ {repo.stargazersCount}</span>
 
                 {listing ? (
+                    <span className="badge badge-listed">
+                        listed @ {listing.price} {manageOpen ? "▴" : "▾"}
+                    </span>
+                ) : repo.isOrgOwned ? null : repo.private ? (
                     <button
                         type="button"
-                        className="badge badge-listed badge-button"
-                        onClick={() => setManageOpen((v) => !v)}
+                        className="btn btn-outline"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setFormOpen((v) => !v);
+                        }}
                     >
-                        listed @ {listing.price} {manageOpen ? "▴" : "▾"}
-                    </button>
-                ) : repo.isOrgOwned ? null : repo.private ? (
-                    <button type="button" className="btn btn-outline" onClick={() => setFormOpen((v) => !v)}>
                         {formOpen ? "Close" : "List for sale"}
                     </button>
                 ) : (
-                    <button type="button" className="btn btn-outline" disabled={converting} onClick={convert}>
+                    <button
+                        type="button"
+                        className="btn btn-outline"
+                        disabled={converting}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            convert();
+                        }}
+                    >
                         {converting ? "Converting…" : "Make private"}
                     </button>
                 )}
             </div>
             {convertError && <p className="error repo-inline-error">{convertError}</p>}
             {formOpen && !listing && (
-                <ListingForm
+                <ListingModal
                     repoFullName={repo.fullName}
                     onCancel={() => setFormOpen(false)}
                     onCreated={(created) => {
@@ -352,6 +482,7 @@ function RepoRow({
             {manageOpen && listing && (
                 <ListingPanel
                     listing={listing}
+                    navigate={navigate}
                     onUnlisted={(id) => {
                         setManageOpen(false);
                         onUnlisted(id);
@@ -474,6 +605,7 @@ function DashboardPage({
             onListed={onListed}
             onUnlisted={onUnlisted}
             onMadePrivate={onMadePrivate}
+            navigate={navigate}
         />
     );
 
@@ -532,6 +664,17 @@ function GitHubIcon() {
     return (
         <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
             <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.295 24 12c0-6.63-5.37-12-12-12" />
+        </svg>
+    );
+}
+
+function TrashIcon() {
+    return (
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M3 6h18" />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            <line x1="10" y1="11" x2="10" y2="17" />
+            <line x1="14" y1="11" x2="14" y2="17" />
         </svg>
     );
 }
@@ -673,7 +816,9 @@ function ListingGrid({
                     >
                         {listing.repoFullName.split("/")[1]}
                     </a>
-                    <p className="listing-card-desc">{listing.description ?? "No description"}</p>
+                    <p className="listing-card-desc">
+                        {listing.sellerDescription ?? listing.description ?? "No description"}
+                    </p>
                     <div className="listing-card-tags">
                         {listing.language && <span className="tag">{listing.language}</span>}
                         {listing.stargazersCount > 0 && (
@@ -739,6 +884,45 @@ function CatalogPage({
     );
 }
 
+function StarRating({ average, count }: { average: number; count: number }) {
+    const rounded = Math.round(average);
+    return (
+        <span className="star-rating" title={count > 0 ? `${average.toFixed(1)} / 5 from ${count} review${count !== 1 ? "s" : ""}` : "No reviews yet"}>
+            {Array.from({ length: 5 }, (_, i) => (
+                <span key={i} className={i < rounded ? "star star-filled" : "star"}>
+                    ★
+                </span>
+            ))}
+            <span className="star-rating-count">{count > 0 ? `${average.toFixed(1)} (${count})` : "No reviews yet"}</span>
+        </span>
+    );
+}
+
+/**
+ * Placeholder — no backend yet. Reviews will be gated on a verified purchase
+ * (a receipt issued on successful unlock, so both humans and agents can
+ * review without needing a margit/GitHub account), rating + comment, with a
+ * best-effort self-declared "agent" flag until something like ERC-8004
+ * provides real verification.
+ */
+function ReviewsSection({ subject }: { subject: string }) {
+    return (
+        <div className="reviews-section">
+            <div className="reviews-header">
+                <h3>Reviews</h3>
+                <StarRating average={0} count={0} />
+            </div>
+            <p className="hint">No reviews yet for {subject}.</p>
+            <div className="reviews-cta">
+                <button type="button" className="btn btn-outline" disabled>
+                    Leave a review
+                </button>
+                <span className="hint">Only buyers who've unlocked can review — not wired up yet.</span>
+            </div>
+        </div>
+    );
+}
+
 function PublisherPage({
     login,
     listings,
@@ -775,10 +959,9 @@ function PublisherPage({
                         </a>
                     </p>
                     <p className="hint">
-                        Ratings & reviews aren't built yet — worth doing properly on ERC-8004's Reputation Registry
-                        rather than a bespoke system. {authorListings.length} listing
-                        {authorListings.length !== 1 ? "s" : ""} for sale.
+                        {authorListings.length} listing{authorListings.length !== 1 ? "s" : ""} for sale.
                     </p>
+                    <StarRating average={0} count={0} />
                 </div>
                 {authorListings.length > 0 && <ViewToggle view={view} setView={setView} />}
             </div>
@@ -796,6 +979,7 @@ function PublisherPage({
                     showOwner={false}
                 />
             )}
+            <ReviewsSection subject={login} />
         </section>
     );
 }
@@ -841,9 +1025,18 @@ function RepoDetailPage({
                 <p className="hint">
                     by <PublisherLink login={listing.ownerLogin} navigate={navigate} />
                 </p>
+                <StarRating average={0} count={0} />
             </div>
 
-            <p>{listing.description ?? "No description provided."}</p>
+            <p>{listing.sellerDescription ?? listing.description ?? "No description provided."}</p>
+
+            {listing.screenshots?.length > 0 && (
+                <div className="repo-detail-screenshots">
+                    {listing.screenshots.map((src, i) => (
+                        <img key={i} src={src} alt="" />
+                    ))}
+                </div>
+            )}
 
             <div className="listing-card-tags">
                 {listing.language && <span className="tag">{listing.language}</span>}
@@ -852,8 +1045,6 @@ function RepoDetailPage({
 
             <p className="hint repo-detail-note">
                 This repo is private — the listing above is all that's publicly visible until you unlock it.
-                Screenshots and a richer description aren't supported yet. Reviews aren't built yet either — worth
-                doing properly on ERC-8004's Reputation Registry rather than a bespoke system.
             </p>
 
             <div className="repo-detail-footer">
@@ -868,6 +1059,8 @@ function RepoDetailPage({
                 </button>
             </div>
             {unlockDetailsNode(unlockResults[listing.id])}
+
+            <ReviewsSection subject={name} />
         </section>
     );
 }
