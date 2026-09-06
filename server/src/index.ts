@@ -198,6 +198,32 @@ app.get("/api/repos", async (c) => {
     );
 });
 
+app.post("/api/repos/make-private", async (c) => {
+    const session = await getSession(getCookie(c, SESSION_COOKIE));
+    if (!session) return c.json({ error: "Not authenticated" }, 401);
+
+    const { fullName } = await c.req.json<{ fullName?: string }>();
+    if (!fullName) return c.json({ error: "fullName is required" }, 400);
+
+    const patchRes = await fetch(`https://api.github.com/repos/${fullName}`, {
+        method: "PATCH",
+        headers: {
+            Authorization: `Bearer ${session.githubAccessToken}`,
+            Accept: "application/vnd.github+json",
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ private: true }),
+    });
+
+    if (!patchRes.ok) {
+        const body = (await patchRes.json().catch(() => ({}))) as { message?: string };
+        const status = patchRes.status === 403 || patchRes.status === 404 ? patchRes.status : 502;
+        return c.json({ error: body.message ?? "Failed to convert repo to private" }, status);
+    }
+
+    return c.json({ ok: true });
+});
+
 app.get("/api/listings", async (c) => {
     return c.json(await listListings());
 });

@@ -52,6 +52,19 @@ export function fetchRepos(): Promise<Repo[]> {
     return apiFetch<Repo[]>("/api/repos");
 }
 
+export async function makeRepoPrivate(fullName: string): Promise<void> {
+    const res = await fetch("/api/repos/make-private", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullName }),
+    });
+    if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? `Failed to make repo private (${res.status})`);
+    }
+}
+
 export async function logout(): Promise<void> {
     await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
 }

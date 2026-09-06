@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
     createListing,
     fetchListings,
@@ -7,6 +7,7 @@ import {
     fetchUnlockRequirements,
     githubLoginUrl,
     logout,
+    makeRepoPrivate,
     type Listing,
     type Me,
     type Repo,
@@ -46,26 +47,119 @@ function ListingForm({
     };
 
     return (
-        <li className="listing-form-row">
-            <input
-                className="listing-input"
-                placeholder="$0.05"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-            />
-            <input
-                className="listing-input listing-input-address"
-                placeholder="0x… your Arc payout address"
-                value={payoutAddress}
-                onChange={(e) => setPayoutAddress(e.target.value)}
-            />
-            <button type="button" className="btn-list" disabled={submitting} onClick={submit}>
-                {submitting ? "Listing…" : "Confirm"}
+        <div className="listing-form">
+            <div className="listing-form-fields">
+                <input
+                    className="input"
+                    placeholder="$0.05"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                />
+                <input
+                    className="input input-address"
+                    placeholder="0x… your Arc payout address"
+                    value={payoutAddress}
+                    onChange={(e) => setPayoutAddress(e.target.value)}
+                />
+                <button type="button" className="btn btn-primary" disabled={submitting} onClick={submit}>
+                    {submitting ? "Listing…" : "Confirm"}
+                </button>
+                <button type="button" className="btn btn-ghost" onClick={onCancel}>
+                    Cancel
+                </button>
+            </div>
+            {error && <p className="error">{error}</p>}
+        </div>
+    );
+}
+
+function RepoGroup({
+    label,
+    repos,
+    children,
+}: {
+    label: string;
+    repos: Repo[];
+    children: (repo: Repo) => ReactNode;
+}) {
+    const [open, setOpen] = useState(true);
+
+    return (
+        <div className="repo-group">
+            <button type="button" className="repo-group-label" onClick={() => setOpen((v) => !v)}>
+                <span className={`chevron ${open ? "chevron-open" : ""}`}>▸</span>
+                {label} <span className="count">{repos.length}</span>
             </button>
-            <button type="button" className="btn-logout" onClick={onCancel}>
-                Cancel
-            </button>
-            {error && <span className="error">{error}</span>}
+            {open &&
+                (repos.length === 0 ? (
+                    <p className="hint">No {label.toLowerCase()} repos.</p>
+                ) : (
+                    <ul className="repo-list">{repos.map(children)}</ul>
+                ))}
+        </div>
+    );
+}
+
+function RepoRow({
+    repo,
+    listing,
+    onListed,
+    onMadePrivate,
+}: {
+    repo: Repo;
+    listing: Listing | undefined;
+    onListed: (listing: Listing) => void;
+    onMadePrivate: (repoId: number) => void;
+}) {
+    const [formOpen, setFormOpen] = useState(false);
+    const [converting, setConverting] = useState(false);
+    const [convertError, setConvertError] = useState<string | null>(null);
+
+    const convert = async () => {
+        setConverting(true);
+        setConvertError(null);
+        try {
+            await makeRepoPrivate(repo.fullName);
+            onMadePrivate(repo.id);
+        } catch (err) {
+            setConvertError(err instanceof Error ? err.message : "Failed to convert");
+        } finally {
+            setConverting(false);
+        }
+    };
+
+    return (
+        <li className="repo-card">
+            <div className="repo-row">
+                <a className="repo-name" href={repo.htmlUrl} target="_blank" rel="noreferrer">
+                    {repo.name}
+                </a>
+                {repo.language && <span className="tag">{repo.language}</span>}
+                <span className="tag tag-muted">★ {repo.stargazersCount}</span>
+
+                {listing ? (
+                    <span className="badge badge-listed">listed @ {listing.price}</span>
+                ) : repo.private ? (
+                    <button type="button" className="btn btn-outline" onClick={() => setFormOpen((v) => !v)}>
+                        {formOpen ? "Close" : "List for sale"}
+                    </button>
+                ) : (
+                    <button type="button" className="btn btn-outline" disabled={converting} onClick={convert}>
+                        {converting ? "Converting…" : "Make private"}
+                    </button>
+                )}
+            </div>
+            {convertError && <p className="error repo-inline-error">{convertError}</p>}
+            {formOpen && !listing && (
+                <ListingForm
+                    repoFullName={repo.fullName}
+                    onCancel={() => setFormOpen(false)}
+                    onCreated={(created) => {
+                        setFormOpen(false);
+                        onListed(created);
+                    }}
+                />
+            )}
         </li>
     );
 }
@@ -76,7 +170,6 @@ function App() {
     const [reposError, setReposError] = useState<string | null>(null);
     const [listings, setListings] = useState<Listing[] | null>(null);
     const [listingsError, setListingsError] = useState<string | null>(null);
-    const [openFormFor, setOpenFormFor] = useState<string | null>(null);
     const [unlockResults, setUnlockResults] = useState<Record<string, UnlockRequirement | string | "loading">>({});
 
     useEffect(() => {
@@ -90,14 +183,10 @@ function App() {
             .catch(() => setReposError("Could not load repositories."));
     }, [me]);
 
-    const reloadListings = () => {
+    useEffect(() => {
         fetchListings()
             .then(setListings)
             .catch(() => setListingsError("Could not load the catalog."));
-    };
-
-    useEffect(() => {
-        reloadListings();
     }, []);
 
     const listingByRepo = useMemo(() => {
@@ -105,6 +194,13 @@ function App() {
         for (const listing of listings ?? []) map.set(listing.repoFullName, listing);
         return map;
     }, [listings]);
+
+    const privateRepos = useMemo(() => repos?.filter((r) => r.private) ?? [], [repos]);
+    const publicRepos = useMemo(() => repos?.filter((r) => !r.private) ?? [], [repos]);
+
+    const setRepoPrivate = (repoId: number) => {
+        setRepos((prev) => prev?.map((r) => (r.id === repoId ? { ...r, private: true } : r)) ?? null);
+    };
 
     const previewUnlock = async (listingId: string) => {
         setUnlockResults((prev) => ({ ...prev, [listingId]: "loading" }));
@@ -122,7 +218,7 @@ function App() {
     if (me === null) {
         return (
             <main className="shell">
-                <p>Loading…</p>
+                <p className="hint">Loading…</p>
             </main>
         );
     }
@@ -138,7 +234,7 @@ function App() {
                         </div>
                         <button
                             type="button"
-                            className="btn-logout"
+                            className="btn btn-ghost"
                             onClick={() => logout().then(() => setMe({ authenticated: false }))}
                         >
                             Log out
@@ -148,57 +244,42 @@ function App() {
                     <section>
                         <h2>Your repositories</h2>
                         {reposError && <p className="error">{reposError}</p>}
-                        {repos === null && !reposError && <p>Loading repositories…</p>}
+                        {repos === null && !reposError && <p className="hint">Loading repositories…</p>}
+
                         {repos && (
-                            <ul className="repo-list">
-                                {repos.map((repo) => {
-                                    const existing = listingByRepo.get(repo.fullName);
-                                    return (
-                                        <li key={repo.id} className="repo-row">
-                                            <a href={repo.htmlUrl} target="_blank" rel="noreferrer">
-                                                {repo.fullName}
-                                            </a>
-                                            {repo.private && <span className="badge">private</span>}
-                                            {repo.language && <span className="lang">{repo.language}</span>}
-                                            <span className="stars">★ {repo.stargazersCount}</span>
-                                            {existing ? (
-                                                <span className="badge badge-listed">listed @ {existing.price}</span>
-                                            ) : openFormFor === repo.fullName ? null : (
-                                                <button
-                                                    type="button"
-                                                    className="btn-list"
-                                                    onClick={() => setOpenFormFor(repo.fullName)}
-                                                >
-                                                    List for sale
-                                                </button>
-                                            )}
-                                        </li>
-                                    );
-                                })}
-                            </ul>
-                        )}
-                        {repos?.map(
-                            (repo) =>
-                                openFormFor === repo.fullName && (
-                                    <ul className="repo-list" key={`form-${repo.id}`}>
-                                        <ListingForm
-                                            repoFullName={repo.fullName}
-                                            onCancel={() => setOpenFormFor(null)}
-                                            onCreated={(listing) => {
-                                                setOpenFormFor(null);
-                                                setListings((prev) => [...(prev ?? []), listing]);
-                                            }}
+                            <>
+                                <RepoGroup label="Private" repos={privateRepos}>
+                                    {(repo) => (
+                                        <RepoRow
+                                            key={repo.id}
+                                            repo={repo}
+                                            listing={listingByRepo.get(repo.fullName)}
+                                            onListed={(listing) => setListings((prev) => [...(prev ?? []), listing])}
+                                            onMadePrivate={setRepoPrivate}
                                         />
-                                    </ul>
-                                ),
+                                    )}
+                                </RepoGroup>
+
+                                <RepoGroup label="Public" repos={publicRepos}>
+                                    {(repo) => (
+                                        <RepoRow
+                                            key={repo.id}
+                                            repo={repo}
+                                            listing={listingByRepo.get(repo.fullName)}
+                                            onListed={(listing) => setListings((prev) => [...(prev ?? []), listing])}
+                                            onMadePrivate={setRepoPrivate}
+                                        />
+                                    )}
+                                </RepoGroup>
+                            </>
                         )}
                     </section>
                 </>
             ) : (
                 <div className="card">
                     <h1>margit</h1>
-                    <p>Connect your GitHub account to list a repo for sale.</p>
-                    <a className="btn-github" href={githubLoginUrl()}>
+                    <p className="hint">Connect your GitHub account to list a repo for sale.</p>
+                    <a className="btn btn-primary" href={githubLoginUrl()}>
                         Connect with GitHub
                     </a>
                 </div>
@@ -208,21 +289,21 @@ function App() {
                 <h2>Catalog</h2>
                 <p className="hint">Repos for sale, paid in USDC on Arc testnet. Anyone — human or agent — can unlock.</p>
                 {listingsError && <p className="error">{listingsError}</p>}
-                {listings === null && !listingsError && <p>Loading catalog…</p>}
+                {listings === null && !listingsError && <p className="hint">Loading catalog…</p>}
                 {listings && listings.length === 0 && <p className="hint">No listings yet.</p>}
                 {listings && listings.length > 0 && (
                     <ul className="repo-list">
                         {listings.map((listing) => {
                             const result = unlockResults[listing.id];
                             return (
-                                <li key={listing.id} className="repo-row-wrap">
+                                <li key={listing.id} className="repo-card">
                                     <div className="repo-row">
-                                        <span>{listing.repoFullName}</span>
+                                        <span className="repo-name repo-name-static">{listing.repoFullName}</span>
+                                        <span className="tag tag-muted">by {listing.ownerLogin}</span>
                                         <span className="badge badge-listed">{listing.price}</span>
-                                        <span className="lang">by {listing.ownerLogin}</span>
                                         <button
                                             type="button"
-                                            className="btn-list"
+                                            className="btn btn-outline"
                                             disabled={result === "loading"}
                                             onClick={() => previewUnlock(listing.id)}
                                         >
