@@ -15,7 +15,7 @@ import {
     listListings,
     type Listing,
 } from "./listings.js";
-import { resolvePayoutAddress } from "./names.js";
+import { resolveArcNsReverse, resolvePayoutAddress } from "./names.js";
 
 const {
     GITHUB_CLIENT_ID,
@@ -369,6 +369,15 @@ app.get("/api/resolve-name", async (c) => {
     } catch (err) {
         return c.json({ error: err instanceof Error ? err.message : "Could not resolve name" }, 404);
     }
+});
+
+app.get("/api/resolve-address", async (c) => {
+    const address = c.req.query("address");
+    if (!address || !/^0x[a-fA-F0-9]{40}$/.test(address)) {
+        return c.json({ error: "a valid 0x address is required" }, 400);
+    }
+    const name = await resolveArcNsReverse(address);
+    return c.json({ name });
 });
 
 const port = Number(PORT);

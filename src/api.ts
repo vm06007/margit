@@ -100,6 +100,14 @@ export async function resolveName(name: string): Promise<string> {
     return data.address;
 }
 
+/** Reverse lookup: verified primary ArcNS name for an address, or null if none/unavailable. */
+export async function resolveArcNsReverse(address: string): Promise<string | null> {
+    const res = await fetch(`/api/resolve-address?address=${encodeURIComponent(address)}`);
+    if (!res.ok) return null;
+    const data = (await res.json().catch(() => ({}))) as { name?: string | null };
+    return data.name ?? null;
+}
+
 export async function createListing(input: {
     repoFullName: string;
     price: string;

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ConnectButton, useActiveAccount } from "thirdweb/react";
+import { shortenAddress } from "thirdweb/utils";
 import { x402Client, x402HTTPClient } from "@x402/core/client";
-import { registerBatchScheme } from "@circle-fin/x402-batching/client";
+import { BatchEvmScheme } from "@circle-fin/x402-batching/client";
 import {
     createListing,
     deleteListing,
@@ -12,6 +13,7 @@ import {
     githubLoginUrl,
     logout,
     makeRepoPrivate,
+    resolveArcNsReverse,
     resolveName,
     revokeGithubAccess,
     type Listing,
@@ -75,6 +77,21 @@ function NavBar({
     me: Me;
     onLogout: () => void;
 }) {
+    const account = useActiveAccount();
+    const [arcName, setArcName] = useState<string | null>(null);
+
+    useEffect(() => {
+        setArcName(null);
+        if (!account) return;
+        let cancelled = false;
+        resolveArcNsReverse(account.address).then((name) => {
+            if (!cancelled) setArcName(name);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [account]);
+
     return (
         <header className="topbar">
             <div className="nav">
@@ -107,6 +124,9 @@ function NavBar({
                     detailsButton={{
                         displayBalanceToken: { [arcTestnet.id]: ARC_USDC_ADDRESS },
                         className: "nav-connect-btn",
+                        connectedAccountName: account
+                            ? (arcName ?? shortenAddress(account.address))
+                            : undefined,
                     }}
                 />
             </div>
@@ -1141,13 +1161,22 @@ function BuyButton({ listingId }: { listingId: string }) {
         setError(null);
         setStatus("signing");
         try {
-            const client = new x402Client();
-            registerBatchScheme(client, {
-                signer: {
-                    address: account.address as `0x${string}`,
-                    signTypedData: (params) => account.signTypedData(params),
-                },
+            const batchScheme = new BatchEvmScheme({
+                address: account.address as `0x${string}`,
+                signTypedData: (params) => account.signTypedData(params),
             });
+            // spendControls: false — @x402/core's default spend-control allowlist
+            // doesn't recognize Arc's native-gas-as-USDC asset (0x3600...0000) as a
+            // "default asset", so it rejects the payment requirement otherwise.
+            //
+            // @circle-fin/x402-batching redeclares its own PaymentPayload shape instead
+            // of importing @x402/core's, so BatchEvmScheme is structurally narrower than
+            // SchemeNetworkClient — harmless at runtime (same cast used server-side in
+            // x402-gateway.ts).
+            const client = x402Client.fromConfig({
+                schemes: [{ network: "eip155:*", client: batchScheme }],
+                spendControls: false,
+            } as unknown as Parameters<typeof x402Client.fromConfig>[0]);
             const http = new x402HTTPClient(client);
             const unlockUrl = `${window.location.origin}/api/listings/unlock?id=${listingId}`;
 

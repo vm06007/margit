@@ -14,6 +14,13 @@ interface ArcNsResponse {
     code?: string;
 }
 
+interface ArcNsReverseResponse {
+    status: "ok" | "not_found" | "error";
+    name?: string | null;
+    verified?: boolean;
+    hint?: string;
+}
+
 async function resolveArcNs(name: string): Promise<string> {
     const res = await fetch(`${ARCNS_API}/${encodeURIComponent(name.toLowerCase())}`);
     const data = (await res.json().catch(() => ({}))) as ArcNsResponse;
@@ -21,6 +28,14 @@ async function resolveArcNs(name: string): Promise<string> {
     if (data.status === "ok" && data.address) return data.address;
     if (data.status === "not_found") throw new Error(`No ArcNS record for "${name}"`);
     throw new Error(data.hint ?? `ArcNS lookup failed (${res.status})`);
+}
+
+/** Reverse lookup: verified primary ArcNS name for an address, or null if none. */
+export async function resolveArcNsReverse(address: string): Promise<string | null> {
+    const res = await fetch(`https://arcname.services/api/v1/resolve/address/${encodeURIComponent(address)}`);
+    const data = (await res.json().catch(() => ({}))) as ArcNsReverseResponse;
+    if (data.status === "ok" && data.verified && data.name) return data.name;
+    return null;
 }
 
 async function resolveEns(name: string): Promise<string> {
