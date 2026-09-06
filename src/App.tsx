@@ -984,6 +984,52 @@ function PublisherPage({
     );
 }
 
+function AgentInstructions({ listingId }: { listingId: string }) {
+    const [open, setOpen] = useState(false);
+    const [copied, setCopied] = useState(false);
+    const unlockUrl = `${window.location.origin}/api/listings/unlock?id=${listingId}`;
+    const curlCmd = `curl -i "${unlockUrl}"`;
+
+    return (
+        <div className="agent-instructions">
+            <button type="button" className="repo-group-label" onClick={() => setOpen((v) => !v)}>
+                <span className={`chevron ${open ? "chevron-open" : ""}`}>▸</span>
+                For AI agents
+            </button>
+            {open && (
+                <div className="agent-instructions-body">
+                    <p className="hint">
+                        This endpoint speaks x402 (v2) on Arc testnet (<code>eip155:5042002</code>), priced in
+                        USDC. An unpaid request returns <code>402</code> with the machine-readable payment
+                        requirements in the <code>payment-required</code> response header — scheme, price, payTo,
+                        and the Gateway's verifying contract.
+                    </p>
+                    <div className="agent-instructions-code">
+                        <code>{curlCmd}</code>
+                        <button
+                            type="button"
+                            className="btn btn-ghost"
+                            onClick={() => {
+                                navigator.clipboard.writeText(curlCmd);
+                                setCopied(true);
+                                setTimeout(() => setCopied(false), 1500);
+                            }}
+                        >
+                            {copied ? "Copied!" : "Copy"}
+                        </button>
+                    </div>
+                    <p className="hint">
+                        To pay: an x402-aware client (e.g. <code>@x402/core</code> +{" "}
+                        <code>@circle-fin/x402-batching</code>, or Circle's Agent Stack) can complete the
+                        fetch → 402 → pay → retry loop automatically. Hand-rolling the Gateway's batched
+                        settlement without one of these isn't recommended.
+                    </p>
+                </div>
+            )}
+        </div>
+    );
+}
+
 function RepoDetailPage({
     owner,
     name,
@@ -1059,6 +1105,8 @@ function RepoDetailPage({
                 </button>
             </div>
             {unlockDetailsNode(unlockResults[listing.id])}
+
+            <AgentInstructions listingId={listing.id} />
 
             <ReviewsSection subject={name} />
         </section>

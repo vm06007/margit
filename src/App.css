@@ -754,3 +754,34 @@
     border-radius: 8px;
     border: 1px solid var(--border);
 }
+
+/* Agent instructions */
+
+.agent-instructions {
+    margin-top: 1.25rem;
+}
+
+.agent-instructions-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding-top: 0.4rem;
+}
+
+.agent-instructions-code {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.6rem 0.75rem;
+    overflow-x: auto;
+}
+
+.agent-instructions-code code {
+    background: none;
+    padding: 0;
+    white-space: nowrap;
+    flex: 1;
+}
