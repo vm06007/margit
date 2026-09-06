@@ -18,7 +18,17 @@ import {
 } from "./listings.js";
 import { resolveArcNsReverse, resolvePayoutAddress } from "./names.js";
 import { priceToAtomicUnits, verifyDirectPayment, type PaymentToken } from "./payments.js";
-import { getAgentSettings, getAgentWalletBalance, listAgentModels, runAgentTurn, updateAgentSettings } from "./agent.js";
+import {
+    createListingForUser,
+    getAgentSettings,
+    getAgentWalletBalance,
+    listAgentModels,
+    listMyRepos,
+    runAgentTurn,
+    unlistRepoForUser,
+    updateAgentSettings,
+} from "./agent.js";
+import { createApiKey, resolveApiKey } from "./api-keys.js";
 
 const {
     GITHUB_CLIENT_ID,
@@ -179,11 +189,12 @@ app.get("/api/agent/wallet", async (c) => {
 
 app.post("/api/agent/chat", async (c) => {
     const sessionId = getOrCreateAgentSessionId(c);
+    const githubSession = await getSession(getCookie(c, SESSION_COOKIE));
 
     const { message } = await c.req.json<{ message?: string }>();
     if (!message || !message.trim()) return c.json({ error: "message is required" }, 400);
 
-    const result = await runAgentTurn(sessionId, message.trim());
+    const result = await runAgentTurn(sessionId, message.trim(), githubSession);
     return c.json(result);
 });
 
@@ -470,6 +481,68 @@ app.delete("/api/listings/:id", async (c) => {
     const ok = await deleteListing(c.req.param("id"), session.login);
     if (!ok) return c.json({ error: "Listing not found or not yours" }, 404);
     return c.body(null, 204);
+});
+
+// Issues a margit API key for the signed-in user (browser-session authenticated).
+app.post("/api/keys", async (c) => {
+    const session = await getSession(getCookie(c, SESSION_COOKIE));
+    if (!session) return c.json({ error: "Not authenticated" }, 401);
+    const apiKey = await createApiKey(session.login, session.githubAccessToken);
+    return c.json({ apiKey });
+});
+
+// External-agent-facing REST API — authenticated by a margit API key (not the
+// browser session cookie), so any agent — including one calling through a
+// Bazantic Gateway — can manage a seller's own listings on their behalf,
+// given a key that seller generated and controls.
+app.get("/api/agent-api/repos", async (c) => {
+    const apiKey = c.req.query("apiKey");
+    if (!apiKey) return c.json({ error: "apiKey query param is required" }, 401);
+    const owner = await resolveApiKey(apiKey);
+    if (!owner) return c.json({ error: "Invalid or revoked API key" }, 401);
+    return c.json(await listMyRepos(owner.githubAccessToken));
+});
+
+app.post("/api/agent-api/repos/list", async (c) => {
+    const body = await c.req.json<{
+        apiKey?: string;
+        repoFullName?: string;
+        price?: string;
+        payoutAddress?: string;
+        sellerDescription?: string;
+    }>();
+    if (!body.apiKey) return c.json({ error: "apiKey is required" }, 401);
+    const owner = await resolveApiKey(body.apiKey);
+    if (!owner) return c.json({ error: "Invalid or revoked API key" }, 401);
+    if (!body.repoFullName || !body.price || !body.payoutAddress) {
+        return c.json({ error: "repoFullName, price, and payoutAddress are required" }, 400);
+    }
+
+    const result = await createListingForUser(
+        { login: owner.login, githubAccessToken: owner.githubAccessToken, name: null, avatarUrl: "" },
+        {
+            repoFullName: body.repoFullName,
+            price: body.price,
+            payoutAddress: body.payoutAddress,
+            sellerDescription: body.sellerDescription,
+        },
+    );
+    if (!result.ok) return c.json({ error: result.reason ?? "Failed to list repo" }, 400);
+    return c.json(result.listing, 201);
+});
+
+app.post("/api/agent-api/repos/unlist", async (c) => {
+    const body = await c.req.json<{ apiKey?: string; id?: string; repoFullName?: string }>();
+    if (!body.apiKey) return c.json({ error: "apiKey is required" }, 401);
+    const owner = await resolveApiKey(body.apiKey);
+    if (!owner) return c.json({ error: "Invalid or revoked API key" }, 401);
+
+    const result = await unlistRepoForUser(
+        { login: owner.login, githubAccessToken: owner.githubAccessToken, name: null, avatarUrl: "" },
+        { id: body.id, repoFullName: body.repoFullName },
+    );
+    if (!result.ok) return c.json({ error: result.reason ?? "Failed to unlist" }, 400);
+    return c.json({ ok: true });
 });
 
 app.get("/api/resolve-name", async (c) => {

@@ -4,7 +4,10 @@ import { createPublicClient, createWalletClient, formatUnits, http, parseAbiItem
 import { privateKeyToAccount } from "viem/accounts";
 import { redis } from "./redis.js";
 import { decryptToken, encryptToken } from "./crypto.js";
-import { getListing, getOwnerTokenForListing, listListings } from "./listings.js";
+import { createApiKey } from "./api-keys.js";
+import { createListing, deleteListing, getListing, getOwnerTokenForListing, listListings, type Listing } from "./listings.js";
+import { resolvePayoutAddress } from "./names.js";
+import type { SessionData } from "./session.js";
 import { ARC_TOKEN_ADDRESSES, arcTestnet, priceToAtomicUnits, verifyDirectPayment, type PaymentToken } from "./payments.js";
 
 const HISTORY_PREFIX = "margit:agent-chat:";
@@ -12,6 +15,8 @@ const HISTORY_TTL_SECONDS = 60 * 60 * 24;
 const MAX_HISTORY_MESSAGES = 20;
 const SETTINGS_PREFIX = "margit:agent-settings:";
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+const PRICE_PATTERN = /^\$\d+(\.\d{1,2})?$/;
+const MAX_DESCRIPTION_LENGTH = 4000;
 
 // OpenRouter's own maintained router — auto-selects a free, currently-available model
 // per request, so this default never goes stale even as individual free models are
@@ -125,6 +130,119 @@ async function buyListing(listingId: string, token: PaymentToken): Promise<BuyRe
     };
 }
 
+export interface GithubRepoSummary {
+    id: number;
+    name: string;
+    fullName: string;
+    private: boolean;
+    description: string | null;
+    stars: number;
+    language: string | null;
+    isOrgOwned: boolean;
+}
+
+export async function listMyRepos(githubAccessToken: string): Promise<GithubRepoSummary[] | { error: string }> {
+    const res = await fetch(
+        "https://api.github.com/user/repos?sort=updated&per_page=100&affiliation=owner,collaborator",
+        { headers: { Authorization: `Bearer ${githubAccessToken}`, Accept: "application/vnd.github+json" } },
+    );
+    if (!res.ok) return { error: "Failed to fetch repos from GitHub" };
+    const repos = (await res.json()) as Array<{
+        id: number;
+        name: string;
+        full_name: string;
+        private: boolean;
+        description: string | null;
+        stargazers_count: number;
+        language: string | null;
+        owner: { login: string; type: string };
+    }>;
+    return repos.map((r) => ({
+        id: r.id,
+        name: r.name,
+        fullName: r.full_name,
+        private: r.private,
+        description: r.description,
+        stars: r.stargazers_count,
+        language: r.language,
+        isOrgOwned: r.owner.type === "Organization",
+    }));
+}
+
+export interface CreateListingResult {
+    ok: boolean;
+    reason?: string;
+    listing?: Listing;
+}
+
+// Mirrors POST /api/listings' validation exactly, just invoked by the agent
+// on behalf of the signed-in user instead of a direct HTTP request.
+export async function createListingForUser(
+    session: SessionData,
+    input: { repoFullName: string; price: string; payoutAddress: string; sellerDescription?: string },
+): Promise<CreateListingResult> {
+    if (!PRICE_PATTERN.test(input.price)) {
+        return { ok: false, reason: 'price must look like "$1.50"' };
+    }
+    if (input.sellerDescription && input.sellerDescription.length > MAX_DESCRIPTION_LENGTH) {
+        return { ok: false, reason: `description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer` };
+    }
+
+    let resolvedPayoutAddress: string;
+    try {
+        resolvedPayoutAddress = await resolvePayoutAddress(input.payoutAddress);
+    } catch (err) {
+        return { ok: false, reason: err instanceof Error ? err.message : "Could not resolve payoutAddress" };
+    }
+
+    const repoRes = await fetch(`https://api.github.com/repos/${input.repoFullName}`, {
+        headers: { Authorization: `Bearer ${session.githubAccessToken}`, Accept: "application/vnd.github+json" },
+    });
+    if (!repoRes.ok) return { ok: false, reason: "Repo not found or not accessible with your GitHub token" };
+    const repo = (await repoRes.json()) as {
+        owner: { login: string };
+        description: string | null;
+        language: string | null;
+        stargazers_count: number;
+    };
+    if (repo.owner.login.toLowerCase() !== session.login.toLowerCase()) {
+        return { ok: false, reason: "You can only list repos you own" };
+    }
+
+    const listing = await createListing({
+        repoFullName: input.repoFullName,
+        ownerLogin: session.login,
+        ownerGithubToken: session.githubAccessToken,
+        price: input.price,
+        payoutAddress: resolvedPayoutAddress,
+        description: repo.description,
+        language: repo.language,
+        stargazersCount: repo.stargazers_count,
+        sellerDescription: input.sellerDescription ?? null,
+        screenshots: [],
+    });
+    return { ok: true, listing };
+}
+
+export async function unlistRepoForUser(
+    session: SessionData,
+    input: { id?: string; repoFullName?: string },
+): Promise<{ ok: boolean; reason?: string }> {
+    let id = input.id;
+    if (!id && input.repoFullName) {
+        const all = await listListings();
+        const match = all.find(
+            (l) =>
+                l.repoFullName.toLowerCase() === input.repoFullName?.toLowerCase() &&
+                l.ownerLogin.toLowerCase() === session.login.toLowerCase(),
+        );
+        id = match?.id;
+    }
+    if (!id) return { ok: false, reason: "Could not find a listing for that repo owned by you" };
+    const ok = await deleteListing(id, session.login);
+    return ok ? { ok: true } : { ok: false, reason: "Listing not found or not yours" };
+}
+
 const TOOLS: ChatCompletionTool[] = [
     {
         type: "function",
@@ -173,16 +291,74 @@ const TOOLS: ChatCompletionTool[] = [
             },
         },
     },
+    {
+        type: "function",
+        function: {
+            name: "list_my_repos",
+            description:
+                "List the signed-in user's own GitHub repos (which the agent can then list for sale on their behalf). Requires the user to be signed in with GitHub in this browser — if it errors, tell them to connect GitHub first.",
+            parameters: { type: "object", properties: {} },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "create_listing",
+            description:
+                "List one of the signed-in user's own repos for sale on margit. Only call this when the user has clearly asked you to list a specific repo — confirm the repo name, price, and payout address with them first if any are ambiguous.",
+            parameters: {
+                type: "object",
+                properties: {
+                    repoFullName: { type: "string", description: 'e.g. "octocat/my-repo" — must be a repo the signed-in user owns' },
+                    price: { type: "string", description: 'e.g. "$0.05" — dollar sign, up to 2 decimal places' },
+                    payoutAddress: { type: "string", description: "0x address, .eth (ENS), or .arc/.circle (ArcNS) name" },
+                    sellerDescription: { type: "string", description: "Optional short description shown to buyers" },
+                },
+                required: ["repoFullName", "price", "payoutAddress"],
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "unlist_repo",
+            description: "Remove one of the signed-in user's own listings from the catalog. Identify it by repoFullName or listing id.",
+            parameters: {
+                type: "object",
+                properties: {
+                    id: { type: "string", description: "Listing id, if known" },
+                    repoFullName: { type: "string", description: 'e.g. "octocat/my-repo" — used to look up the listing id if not given' },
+                },
+            },
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "generate_api_key",
+            description:
+                "Generate a margit API key for the signed-in user. This key lets external tools/agents (e.g. one calling through a Bazantic Gateway) list or unlist that user's own repos on their behalf, without needing their browser session. Only call this when the user explicitly asks for an API key.",
+            parameters: { type: "object", properties: {} },
+        },
+    },
 ];
 
-function systemPrompt(): string {
+function systemPrompt(githubSession: SessionData | undefined): string {
     const address = agentAccount?.address ?? "(not configured)";
+    const identity = githubSession
+        ? `The user is signed in to margit as GitHub user "${githubSession.login}" — list_my_repos/create_listing/unlist_repo act on their behalf.`
+        : "The user is NOT signed in with GitHub in this browser — list_my_repos/create_listing/unlist_repo will fail until they connect GitHub (top-right of the page).";
     return (
-        "You are the margit shopping agent — an autonomous buyer with your own funded Arc-testnet wallet " +
-        `(${address}). margit is a marketplace where developers list private GitHub repos for sale; buyers pay ` +
-        "USDC or EURC on Arc and receive a one-time authenticated clone URL. " +
-        "Use list_listings/get_listing to help the user find repos, get_wallet_balance to check funds, and " +
-        "buy_listing to actually execute a purchase when the user clearly asks you to buy something. " +
+        "You are the margit shopping agent. margit is a marketplace where developers list private GitHub repos " +
+        "for sale; buyers pay USDC or EURC on Arc and receive a one-time authenticated clone URL. " +
+        `You have two separate roles: (1) an autonomous BUYER with your own funded Arc-testnet wallet (${address}) — ` +
+        "use get_wallet_balance and buy_listing to actually pay for listings when clearly asked; and " +
+        "(2) a SELLER assistant acting on behalf of whichever human is chatting with you — use list_my_repos, " +
+        "create_listing, and unlist_repo to manage their own repos. If they want an *external* tool or another " +
+        "agent (e.g. one running through a Bazantic Gateway) to manage their listings without going through this " +
+        "chat, use generate_api_key to issue them a margit API key — only when they explicitly ask for one. " +
+        identity + " " +
+        "Use list_listings/get_listing to browse the catalog for anyone. " +
         "Be concise. If a purchase succeeds, tell the user the clone URL is shown below your reply — don't repeat the raw URL in your text."
     );
 }
@@ -204,6 +380,7 @@ function safeParseArgs(text: string): Record<string, unknown> {
 async function executeTool(
     name: string,
     input: Record<string, unknown>,
+    githubSession: SessionData | undefined,
 ): Promise<{ output: unknown; purchase?: AgentTurnResult["purchase"] }> {
     switch (name) {
         case "list_listings": {
@@ -264,6 +441,47 @@ async function executeTool(
                 };
             }
             return { output: result };
+        }
+        case "list_my_repos": {
+            if (!githubSession) {
+                return { output: { error: "Not signed in — the user needs to connect GitHub in this browser first." } };
+            }
+            return { output: await listMyRepos(githubSession.githubAccessToken) };
+        }
+        case "create_listing": {
+            if (!githubSession) {
+                return { output: { error: "Not signed in — the user needs to connect GitHub in this browser first." } };
+            }
+            const repoFullName = typeof input.repoFullName === "string" ? input.repoFullName : undefined;
+            const price = typeof input.price === "string" ? input.price : undefined;
+            const payoutAddress = typeof input.payoutAddress === "string" ? input.payoutAddress : undefined;
+            const sellerDescription = typeof input.sellerDescription === "string" ? input.sellerDescription : undefined;
+            if (!repoFullName || !price || !payoutAddress) {
+                return { output: { ok: false, reason: "repoFullName, price, and payoutAddress are required" } };
+            }
+            return {
+                output: await createListingForUser(githubSession, { repoFullName, price, payoutAddress, sellerDescription }),
+            };
+        }
+        case "unlist_repo": {
+            if (!githubSession) {
+                return { output: { error: "Not signed in — the user needs to connect GitHub in this browser first." } };
+            }
+            const id = typeof input.id === "string" ? input.id : undefined;
+            const repoFullName = typeof input.repoFullName === "string" ? input.repoFullName : undefined;
+            return { output: await unlistRepoForUser(githubSession, { id, repoFullName }) };
+        }
+        case "generate_api_key": {
+            if (!githubSession) {
+                return { output: { error: "Not signed in — the user needs to connect GitHub in this browser first." } };
+            }
+            const apiKey = await createApiKey(githubSession.login, githubSession.githubAccessToken);
+            return {
+                output: {
+                    apiKey,
+                    note: "Keep this secret — it lets anyone holding it list or unlist your repos on margit.",
+                },
+            };
         }
         default:
             return { output: { error: `Unknown tool ${name}` } };
@@ -375,7 +593,11 @@ export async function listAgentModels(): Promise<OpenRouterModelSummary[]> {
     }
 }
 
-export async function runAgentTurn(sessionId: string, userMessage: string): Promise<AgentTurnResult> {
+export async function runAgentTurn(
+    sessionId: string,
+    userMessage: string,
+    githubSession: SessionData | undefined,
+): Promise<AgentTurnResult> {
     const credentials = await resolveCredentials(sessionId);
     if ("error" in credentials) return { reply: credentials.error };
 
@@ -390,7 +612,7 @@ export async function runAgentTurn(sessionId: string, userMessage: string): Prom
 
     const history = (await redis.get<ChatCompletionMessageParam[]>(HISTORY_PREFIX + sessionId)) ?? [];
     const messages: ChatCompletionMessageParam[] = [
-        { role: "system", content: systemPrompt() },
+        { role: "system", content: systemPrompt(githubSession) },
         ...history,
         { role: "user", content: userMessage },
     ];
@@ -418,7 +640,7 @@ export async function runAgentTurn(sessionId: string, userMessage: string): Prom
             for (const call of calls) {
                 if (call.type !== "function") continue;
                 const args = safeParseArgs(call.function.arguments);
-                const { output, purchase: madePurchase } = await executeTool(call.function.name, args);
+                const { output, purchase: madePurchase } = await executeTool(call.function.name, args, githubSession);
                 if (madePurchase) purchase = madePurchase;
                 messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(output) });
             }

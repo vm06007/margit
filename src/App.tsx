@@ -1282,7 +1282,13 @@ function AgentSidebar({ open, onClose }: { open: boolean; onClose: () => void })
                         )}
                         {settings && (
                             <p className="hint agent-model-line">
-                                Model: {settings.model} ({settings.hasCustomKey ? "your key" : "shared key"})
+                                Model: {settings.model} (
+                                {settings.hasCustomKey
+                                    ? "your key"
+                                    : settings.hasSharedDefault
+                                      ? "shared key"
+                                      : "no key configured"}
+                                )
                             </p>
                         )}
                     </div>
