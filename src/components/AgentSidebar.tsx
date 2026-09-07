@@ -1,3 +1,4 @@
+import Markdown from "react-markdown";
 import { useEffect, useRef, useState } from "react";
 import { shortenAddress } from "thirdweb/utils";
 import {
@@ -209,13 +210,13 @@ export function AgentSidebar({
                 <div className="agent-messages" ref={scrollRef}>
                     {messages.map((m, i) => (
                         <div key={i} className={`agent-message agent-message-${m.role}`}>
-                            <p>{m.text}</p>
+                            {m.role === "assistant" ? <div className="agent-markdown"><Markdown skipHtml components={{a: ({children, href}) => <a href={href} target={href?.startsWith('/') ? undefined : "_blank"} rel="noopener noreferrer">{children}</a>}}>{m.text}</Markdown></div> : <p>{m.text}</p>}
                             {m.purchase && (
                                 <CloneResult cloneUrl={m.purchase.cloneUrl} repoFullName={m.purchase.repoFullName} />
                             )}
                         </div>
                     ))}
-                    {sending && <p className="hint agent-typing">Thinking…</p>}
+                    {sending && <p className="hint agent-typing" role="status"><span className="agent-thinking-spinner" aria-hidden="true" />Thinking…</p>}
                 </div>
                 {error && <p className="error agent-error">{error}</p>}
                 <form

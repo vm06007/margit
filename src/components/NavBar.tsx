@@ -67,6 +67,16 @@ export function NavBar({
 export function ProfileDropdown({ me, onLogout }: { me: Me; onLogout: () => void }) {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
+    const revokeDialog = useRef<HTMLDialogElement>(null);
+    const [revoking, setRevoking] = useState(false);
+    const [revokeError, setRevokeError] = useState<string | null>(null);
+    const closeRevoke = () => {
+        if (revoking) return;
+        revokeDialog.current?.close();
+        if (revokeError) onLogout();
+        else ref.current?.querySelector<HTMLButtonElement>(".profile-trigger")?.focus();
+    };
+
     const account = useActiveAccount();
     const [arcName, setArcName] = useState<string | null>(null);
     const connectModal = useConnectModal();
@@ -93,20 +103,18 @@ export function ProfileDropdown({ me, onLogout }: { me: Me; onLogout: () => void
     }, []);
 
     const revoke = async () => {
-        if (
-            !confirm(
-                "This revokes margit's GitHub access entirely — you'll need to re-approve on next sign-in. Continue?",
-            )
-        ) {
-            return;
-        }
+        if (revoking) return;
+        setRevoking(true);
+        setRevokeError(null);
         try {
             await revokeGithubAccess();
-        } catch {
-            // Session is destroyed server-side either way; fall through to local logout.
+            revokeDialog.current?.close();
+            onLogout();
+        } catch (error) {
+            setRevokeError(error instanceof Error ? error.message : "Could not revoke GitHub access.");
+        } finally {
+            setRevoking(false);
         }
-        setOpen(false);
-        onLogout();
     };
 
     const handleWalletClick = () => {
@@ -177,7 +185,11 @@ export function ProfileDropdown({ me, onLogout }: { me: Me; onLogout: () => void
                             <button
                                 type="button"
                                 className="profile-menu-item profile-menu-danger btn-icon"
-                                onClick={revoke}
+                                onClick={() => {
+                                    setOpen(false);
+                                    setRevokeError(null);
+                                    revokeDialog.current?.showModal();
+                                }}
                             >
                                 <TrashIcon /> Revoke GitHub access
                             </button>
@@ -185,6 +197,16 @@ export function ProfileDropdown({ me, onLogout }: { me: Me; onLogout: () => void
                     )}
                 </div>
             )}
+            <dialog ref={revokeDialog} className="revoke-dialog" aria-labelledby="revoke-title" aria-describedby="revoke-description"
+                onCancel={event => { event.preventDefault(); closeRevoke(); }}>
+                <h2 id="revoke-title">Revoke GitHub access?</h2>
+                <p id="revoke-description">This removes Margit’s access to your GitHub account and signs you out. You’ll need to approve access again the next time you connect.</p>
+                {revokeError && <p className="revoke-dialog-error" role="alert">{revokeError} Revocation could not be confirmed. Close this dialog to sign out.</p>}
+                <div className="revoke-dialog-actions">
+                    <button type="button" className="btn btn-default btn-outline" autoFocus disabled={revoking} onClick={closeRevoke}>{revokeError ? "Close" : "Cancel"}</button>
+                    {!revokeError && <button type="button" className="btn btn-default revoke-dialog-confirm" disabled={revoking} onClick={revoke}>{revoking ? "Revoking…" : "Revoke access"}</button>}
+                </div>
+            </dialog>
         </div>
     );
 }
