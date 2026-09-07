@@ -420,6 +420,24 @@ export function ListModal({
         }
     };
 
+    const formActions = (
+                        <div className="modal-footer">
+                            <button type="button" className="btn btn-anim btn-default btn-outline btn-small" onClick={onClose}>
+                                <span className="btn-caption">Cancel</span>
+                            </button>
+                            <button
+                                type="button"
+                                className="btn btn-anim btn-default btn-accent btn-small"
+                                disabled={submitting || resolved === "loading"}
+                                onClick={submit}
+                            >
+                                <span className="btn-caption">
+                                    {submitting ? (isEdit ? "Saving…" : "Listing…") : isEdit ? "Save changes" : "Confirm"}
+                                </span>
+                            </button>
+                        </div>
+    );
+
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
@@ -561,7 +579,7 @@ export function ListModal({
                             <label className="modal-label" htmlFor="listing-demo-url">Live preview / Demo link</label>
                             <input id="listing-demo-url" className="agent-input" type="url" placeholder="https://your-demo.com" value={demoUrl} onChange={event => setDemoUrl(event.target.value)} disabled={submitting} />
                         </div>
-                        <ScreenshotPicker screenshots={screenshots} setScreenshots={setScreenshots} />
+                        <ScreenshotPicker screenshots={screenshots} setScreenshots={setScreenshots} actions={formActions} />
                         </div>
                         <div role="tabpanel" id="listing-access-panel" aria-labelledby="listing-access-tab" hidden={detailsTab !== "access"}>
                         <div className="modal-field modal-delivery-terms">
@@ -579,21 +597,7 @@ export function ListModal({
                         </div>
                         {error && <p className="error" role="alert" style={{ color: "#ff6b6b", fontSize: "1.6rem" }}>{error}</p>}
 
-                        <div className="modal-footer">
-                            <button type="button" className="btn btn-anim btn-default btn-outline btn-small" onClick={onClose}>
-                                <span className="btn-caption">Cancel</span>
-                            </button>
-                            <button
-                                type="button"
-                                className="btn btn-anim btn-default btn-accent btn-small"
-                                disabled={submitting || resolved === "loading"}
-                                onClick={submit}
-                            >
-                                <span className="btn-caption">
-                                    {submitting ? (isEdit ? "Saving…" : "Listing…") : isEdit ? "Save changes" : "Confirm"}
-                                </span>
-                            </button>
-                        </div>
+                        {detailsTab === "access" && formActions}
                     </div>
                 </div>
             </div>
