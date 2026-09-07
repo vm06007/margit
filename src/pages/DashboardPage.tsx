@@ -161,6 +161,7 @@ export function DashboardStyle() {
             .modal-delivery-terms { min-width: 0; }
             .modal-delivery-terms .agent-input { width: 100%; min-width: 0; }
             .listing-details-tabs { display: flex; gap: .5rem; padding: .5rem; border: 1px solid var(--t-muted); border-radius: 4rem; margin-bottom: 2.4rem; }
+            .modal-repo-details .listing-details-tabs { flex-direction: column; border-radius: 2.4rem; margin-top: 2rem; }
             .listing-details-tabs button { flex: 1; padding: 1.2rem; border: 0; border-radius: 3rem; background: transparent; color: var(--t-medium); font: inherit; font-size: 1.7rem; }
             .listing-details-tabs button[aria-selected="true"] { background: var(--t-bright); color: var(--base); }
             .listing-details-tabs button:focus-visible { outline: 2px solid var(--t-bright); outline-offset: 3px; }
@@ -446,12 +447,20 @@ export function ListModal({
                             <i className="ph ph-text-align-left" aria-hidden="true" />
                             <span>{repo.description || "No description on GitHub."}</span>
                         </p>
-                        {normalizeDemoUrl(repo.homepage) && <a className="modal-repo-website" href={normalizeDemoUrl(repo.homepage)!} target="_blank" rel="noopener noreferrer">GitHub website ↗</a>}
                         {repo.updatedAt && <p className="hint modal-repo-detail-line" style={{ fontSize: "1.4rem", marginTop: "2.4rem" }}><i className="ph ph-calendar-blank" aria-hidden="true" /><span>Updated {new Date(repo.updatedAt).toLocaleDateString()}</span></p>}
                         <div
                             className="modal-repo-thumb"
                             style={{ marginTop: "1.6rem", backgroundImage: `url(${thumbFor(repo, listing)})` }}
                         />
+                        <div className="listing-details-tabs" role="tablist" aria-label="Listing details">
+                            {(["general", "access"] as const).map(tab => <button key={tab} type="button" role="tab" id={`listing-${tab}-tab`} aria-controls={`listing-${tab}-panel`} aria-selected={detailsTab === tab} tabIndex={detailsTab === tab ? 0 : -1} onClick={() => setDetailsTab(tab)} onKeyDown={event => {
+                                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+                                event.preventDefault();
+                                const next = event.key === "Home" ? "general" : event.key === "End" ? "access" : tab === "general" ? "access" : "general";
+                                setDetailsTab(next);
+                                document.getElementById(`listing-${next}-tab`)?.focus();
+                            }}>{tab === "general" ? "General Details" : "Access Details"}</button>)}
+                        </div>
                         {isEdit && (
                             <div style={{ marginTop: "auto", paddingTop: "2rem", borderTop: "1px solid var(--st-muted)" }}>
                                 {!confirmingUnlist ? (
@@ -499,15 +508,6 @@ export function ListModal({
                         <h2 style={{ margin: "0 0 1.6rem", fontSize: "2.4rem", color: "var(--t-bright)" }}>
                             {isEdit ? "Edit listing" : "List for sale"}
                         </h2>
-                        <div className="listing-details-tabs" role="tablist" aria-label="Listing details">
-                            {(["general", "access"] as const).map(tab => <button key={tab} type="button" role="tab" id={`listing-${tab}-tab`} aria-controls={`listing-${tab}-panel`} aria-selected={detailsTab === tab} tabIndex={detailsTab === tab ? 0 : -1} onClick={() => setDetailsTab(tab)} onKeyDown={event => {
-                                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-                                event.preventDefault();
-                                const next = event.key === "Home" ? "general" : event.key === "End" ? "access" : tab === "general" ? "access" : "general";
-                                setDetailsTab(next);
-                                document.getElementById(`listing-${next}-tab`)?.focus();
-                            }}>{tab === "general" ? "General Details" : "Access Details"}</button>)}
-                        </div>
                         <div role="tabpanel" id="listing-general-panel" aria-labelledby="listing-general-tab" hidden={detailsTab !== "general"}>
                         <label className="modal-field">
                             <span className="modal-label">Price</span>
