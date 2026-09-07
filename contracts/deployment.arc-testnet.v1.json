@@ -1,10 +1,8 @@
 {
-  "admin": "0x4d2A622F53a2ac4D3Ee1c06bCeB4641a8a6fE6aa",
-  "version": 3,
   "chainId": 5042002,
-  "address": "0x2deb736ea29f140eb77919380b28d34b854e7ab2",
-  "transactionHash": "0xe7c6294ef8bc0ecd6f918f32a1950c166af2c64d0881f5c182471d1a287164bb",
-  "startBlock": 60955382,
+  "address": "0x3adc0cce0f7a5c7b543a09bc3b783f8317c9108b",
+  "transactionHash": "0xfd3a75dfe1d56b635d7fc3163ee17a80b90961b117187bb5fd0dba27c6005971",
+  "startBlock": 60950495,
   "deployer": "0x4d2A622F53a2ac4D3Ee1c06bCeB4641a8a6fE6aa",
   "quoteSigner": "0x9548A6c29885D8a52170ec6D249c31065e3318A0",
   "tokens": {

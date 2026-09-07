@@ -1,0 +1,27 @@
+import fs from 'node:fs';
+import solc from 'solc';
+import {encodeAbiParameters,parseAbiParameters} from 'viem';
+const deployment=JSON.parse(fs.readFileSync('contracts/deployment.arc-testnet.json','utf8'));
+const input={language:'Solidity',sources:{'MargitCheckout.sol':{content:fs.readFileSync('contracts/MargitCheckout.sol','utf8')}},settings:{evmVersion:'paris',optimizer:{enabled:true,runs:200},outputSelection:{'*':{'*':['abi','evm.bytecode.object']}}}};
+const compilerVersion=`v${solc.version().split('.Emscripten')[0]}`;
+if(compilerVersion!=='v0.8.36+commit.8a079791')throw new Error('Use the deployment compiler: solc 0.8.36+commit.8a079791');
+const compiled=JSON.parse(solc.compile(JSON.stringify(input)));
+if(compiled.errors?.some(e=>e.severity==='error'))throw new Error('Compilation failed');
+const bytecode=compiled.contracts['MargitCheckout.sol'].MargitCheckout.evm.bytecode.object;
+const args=encodeAbiParameters(parseAbiParameters('address,address,address'),[deployment.tokens.USDC,deployment.tokens.EURC,deployment.quoteSigner]).slice(2);
+const endpoint=`https://testnet.arcscan.app/api/v2/smart-contracts/${deployment.address}`;
+const current=await fetch(endpoint).then(r=>{if(!r.ok)throw new Error('Explorer unavailable');return r.json()});
+if(current.creation_bytecode?.toLowerCase()!==`0x${bytecode}${args}`.toLowerCase())throw new Error('Local source/settings do not match deployed creation bytecode');
+fs.writeFileSync('contracts/artifacts/MargitCheckout.standard-input.json',JSON.stringify(input,null,2)+'\n');
+console.log('Exact deployed creation bytecode match confirmed');
+if(current.source_code){console.log('Source is already published');process.exit(0);}
+const form=new FormData();
+form.set('compiler_version',compilerVersion);
+form.set('contract_name','MargitCheckout');
+form.set('license_type','mit');
+form.set('autodetect_constructor_args','false');
+form.set('constructor_args',args);
+form.set('files[0]',new Blob([JSON.stringify(input)],{type:'application/json'}),'MargitCheckout.standard-input.json');
+const response=await fetch(`${endpoint}/verification/via/standard-input`,{method:'POST',body:form});
+console.log(JSON.stringify({status:response.status,result:await response.text()}));
+if(!response.ok)process.exitCode=1;

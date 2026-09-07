@@ -1,0 +1,7 @@
+{
+  "purpose": "Deployment smoke test: 0.01 USDC self-transfer, not a repository purchase",
+  "contract": "0x2deb736ea29f140eb77919380b28d34b854e7ab2",
+  "transactionHash": "0xa26fac8f426c32cde2ac498ddfd36bba5e444af5d6b4bd74285fecec033a4327",
+  "purchaseId": "0xebd043be6b81db1d7f159b4b37cfa917e4994250435a6e7eadf400f7a710925e",
+  "blockNumber": 60955447
+}

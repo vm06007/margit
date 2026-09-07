@@ -10,7 +10,7 @@ const client = createPublicClient({chain:arcTestnet,transport:http()});
 const wallet = createWalletClient({account,chain:arcTestnet,transport:http()});
 if(await client.getChainId()!==5042002)throw new Error('Wrong chain');
 const metadataPath='contracts/deployment.arc-testnet.json';
-const pendingPath='contracts/deployment.pending.local';
+const pendingPath='contracts/deployment.admin.pending.local';
 function setEnv(name:string,value:string){
  let env=fs.readFileSync('.env','utf8');const line=`${name}=${value}`;const pattern=new RegExp(`^${name}=.*$`,'m');
  env=pattern.test(env)?env.replace(pattern,line):`${env.trimEnd()}\n${line}\n`;
@@ -25,7 +25,15 @@ for(const token of Object.values(ARC_TOKEN_ADDRESSES)){
 }
 const balance=await client.getBalance({address:account.address});
 console.log(JSON.stringify({chainId:arcTestnet.id,deployer:account.address,quoteSigner:signer.address,balanceUSDC:formatEther(balance)}));
-if(fs.existsSync(metadataPath)){
+if(fs.existsSync(metadataPath) && process.argv.includes('--admin')){
+ const prior=JSON.parse(fs.readFileSync(metadataPath,'utf8'));
+ if(prior.version!==3){
+  const archive='contracts/deployment.arc-testnet.v2.json';
+  if(fs.existsSync(archive) && JSON.parse(fs.readFileSync(archive,'utf8')).address!==prior.address)throw new Error('Archive mismatch');
+  fs.copyFileSync(metadataPath,archive);
+ }
+}
+if(fs.existsSync(metadataPath) && (!process.argv.includes('--admin') || JSON.parse(fs.readFileSync(metadataPath,'utf8')).version===3)){
  const deployment=JSON.parse(fs.readFileSync(metadataPath,'utf8'));
  const configured=await client.readContract({address:deployment.address,abi:checkoutAbi,functionName:'quoteSigner'});
  if(configured.toLowerCase()!==signer.address.toLowerCase())throw new Error('Existing deployment signer mismatch');
@@ -51,7 +59,9 @@ if(receipt.status!=='success'||!receipt.contractAddress)throw new Error('Deploym
 const address=receipt.contractAddress;
 const deployedSigner=await client.readContract({address,abi:checkoutAbi,functionName:'quoteSigner'});
 if(deployedSigner.toLowerCase()!==signer.address.toLowerCase())throw new Error('Deployed signer mismatch');
-const metadata={chainId:arcTestnet.id,address,transactionHash:hash,startBlock:Number(receipt.blockNumber),deployer:account.address,quoteSigner:signer.address,tokens:ARC_TOKEN_ADDRESSES};
+const deployedAdmin=await client.readContract({address,abi:checkoutAbi,functionName:'admin'});
+if(deployedAdmin.toLowerCase()!==account.address.toLowerCase())throw new Error('Deployed admin mismatch');
+const metadata={admin:deployedAdmin,version:3,chainId:arcTestnet.id,address,transactionHash:hash,startBlock:Number(receipt.blockNumber),deployer:account.address,quoteSigner:signer.address,tokens:ARC_TOKEN_ADDRESSES};
 fs.writeFileSync(metadataPath,JSON.stringify(metadata,null,2)+'\n');
 setEnv('CHECKOUT_CONTRACT_ADDRESS',address);
 console.log(JSON.stringify(metadata));
