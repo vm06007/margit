@@ -1,3 +1,4 @@
+import { ACCESS_WINDOWS, DEFAULT_ACCESS_POLICY, accessPolicyLabel, accessWindowLabel, type AccessPolicy } from "../../shared/accessPolicy";
 import { MakePrivateModal } from "../components/MakePrivateModal";
 import { RepoVisibilitySelect } from "../components/RepoVisibilitySelect";
 import { normalizeDemoUrl } from "../../shared/demoUrl";
@@ -299,6 +300,7 @@ export function ListModal({
     const [price, setPrice] = useState(listing?.price ?? "$0.05");
     const [payoutAddress, setPayoutAddress] = useState(listing?.payoutAddress ?? "");
     const [resolved, setResolved] = useState<string | "loading" | "error" | null>(null);
+    const [accessPolicy, setAccessPolicy] = useState<AccessPolicy>(listing?.accessPolicy ?? DEFAULT_ACCESS_POLICY);
     const [description, setDescription] = useState(listing?.sellerDescription ?? "");
     const [demoUrl, setDemoUrl] = useState(listing ? listing.demoUrl ?? "" : normalizeDemoUrl(repo.homepage) ?? "");
     const [screenshots, setScreenshots] = useState<string[]>(listing?.screenshots ?? []);
@@ -379,6 +381,7 @@ export function ListModal({
             const saved = await createListing({
                 repoFullName: repo.fullName,
                 demoUrl: normalizedDemoUrl ?? "",
+                accessPolicy,
                 price,
                 payoutAddress,
                 sellerDescription: description.trim() || undefined,
@@ -544,6 +547,18 @@ export function ListModal({
                         <div className="modal-field">
                             <label className="modal-label" htmlFor="listing-demo-url">Live preview / Demo link</label>
                             <input id="listing-demo-url" className="agent-input" type="url" placeholder="https://your-demo.com" value={demoUrl} onChange={event => setDemoUrl(event.target.value)} disabled={submitting} />
+                        </div>
+                        <div className="modal-field">
+                            <label className="modal-label" htmlFor="delivery-mode">Delivery terms</label>
+                            <select id="delivery-mode" className="agent-input" value={accessPolicy.mode} disabled={submitting} onChange={event => setAccessPolicy({ ...accessPolicy, mode: event.target.value as AccessPolicy["mode"] })}>
+                                <option value="window">Timed access · clone and ZIP with retries</option>
+                                <option value="single_download">One-time ZIP download</option>
+                            </select>
+                            <label className="modal-label" htmlFor="delivery-window">Access expires after purchase</label>
+                            <select id="delivery-window" className="agent-input" value={accessPolicy.minutes} disabled={submitting} onChange={event => setAccessPolicy({ ...accessPolicy, minutes: Number(event.target.value) })}>
+                                {ACCESS_WINDOWS.map(minutes => <option key={minutes} value={minutes}>{accessWindowLabel(minutes)}</option>)}
+                            </select>
+                            <p className="hint">{accessPolicyLabel(accessPolicy)} Files already downloaded remain with the buyer. Changing these terms only affects new purchases.</p>
                         </div>
                         <ScreenshotPicker screenshots={screenshots} setScreenshots={setScreenshots} actions={
                         <div className="modal-footer">

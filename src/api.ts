@@ -1,3 +1,4 @@
+import type { AccessPolicy } from "../shared/accessPolicy";
 export interface Me {
     authenticated: boolean;
     login?: string;
@@ -33,6 +34,7 @@ export interface Listing {
     sellerDescription: string | null;
     screenshots: string[];
     demoUrl?: string | null;
+    accessPolicy?: AccessPolicy;
 }
 
 export interface UnlockRequirement {
@@ -140,6 +142,7 @@ export async function createListing(input: {
     sellerDescription?: string;
     screenshots?: string[];
     demoUrl?: string;
+    accessPolicy?: AccessPolicy;
 }): Promise<Listing> {
     const res = await fetch("/api/listings", {
         method: "POST",
@@ -167,11 +170,10 @@ export async function deleteListing(id: string): Promise<void> {
 
 /** Downloads a purchased repo as a zip via our server (proxies GitHub's zipball API). */
 export async function downloadZip(cloneUrl: string, repoName: string): Promise<void> {
-    const res = await fetch("/api/download-zip", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cloneUrl }),
-    });
+    const accessUrl = new URL(cloneUrl, window.location.origin);
+    if (accessUrl.origin !== window.location.origin || !/^\/api\/access\/[a-f0-9]{64}\/(repo\.git|download\.zip)$/.test(accessUrl.pathname)) throw new Error("This legacy link is no longer supported.");
+    accessUrl.pathname = accessUrl.pathname.replace(/repo\.git$/, "download.zip");
+    const res = await fetch(accessUrl, { cache: "no-store", referrerPolicy: "no-referrer" });
     if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? `Download failed (${res.status})`);

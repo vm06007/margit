@@ -1,3 +1,5 @@
+import { accessRoutes, mintCloneResponse } from "./purchase-access.js";
+import { parseAccessPolicy } from "../../shared/accessPolicy.js";
 import { normalizeDemoUrl } from "../../shared/demoUrl.js";
 import { randomBytes } from "node:crypto";
 import { serve } from "@hono/node-server";
@@ -13,7 +15,6 @@ import {
     createListing,
     deleteListing,
     getListing,
-    getOwnerTokenForListing,
     listListings,
     type Listing,
 } from "./listings.js";
@@ -90,15 +91,7 @@ app.use(
     ),
 );
 
-async function mintCloneResponse(listing: Listing) {
-    const ownerToken = await getOwnerTokenForListing(listing.id);
-    if (!ownerToken) return null;
-    return {
-        repoFullName: listing.repoFullName,
-        cloneUrl: `https://x-access-token:${ownerToken}@github.com/${listing.repoFullName}.git`,
-        note: "This URL embeds a live credential — clone it now. It is not re-issued; pay again to get a fresh one.",
-    };
-}
+app.route("/api/access", accessRoutes);
 
 app.get("/api/listings/unlock", async (c) => {
     const id = c.req.query("id");
@@ -135,35 +128,8 @@ app.post("/api/listings/:id/verify-payment", async (c) => {
     return c.json(response);
 });
 
-// Convenience for buyers who don't want to use `git clone` — proxies a zip
-// download through our server (GitHub's codeload response doesn't send CORS
-// headers our origin can read, so the browser can't fetch it directly).
-// Only usable with a clone URL the buyer already legitimately holds — this
-// grants no access beyond what that URL's embedded token already allows.
-const CLONE_URL_PATTERN = /^https:\/\/x-access-token:([^@]+)@github\.com\/([\w.-]+\/[\w.-]+)\.git$/;
-
-app.post("/api/download-zip", async (c) => {
-    const { cloneUrl } = await c.req.json<{ cloneUrl?: string }>();
-    const match = cloneUrl ? CLONE_URL_PATTERN.exec(cloneUrl) : null;
-    if (!match) return c.json({ error: "Invalid clone URL" }, 400);
-    const [, token, repoFullName] = match;
-
-    const ghRes = await fetch(`https://api.github.com/repos/${repoFullName}/zipball`, {
-        headers: { Authorization: `token ${token}`, "User-Agent": "margit" },
-    });
-    if (!ghRes.ok || !ghRes.body) {
-        return c.json({ error: `GitHub declined the download (${ghRes.status})` }, 502);
-    }
-
-    const repoName = repoFullName.split("/")[1];
-    return new Response(ghRes.body, {
-        status: 200,
-        headers: {
-            "Content-Type": "application/zip",
-            "Content-Disposition": `attachment; filename="${repoName}.zip"`,
-        },
-    });
-});
+// Old credential-bearing URLs are no longer accepted by the delivery endpoint.
+app.post("/api/download-zip", c => c.json({ error: "Use the scoped access link from your purchase." }, 410));
 
 // Agent sidebar: a chat-driven shopping assistant with its own funded Arc-testnet
 // wallet, independent of any human buyer's connected wallet. Conversation history
@@ -485,8 +451,12 @@ app.post("/api/listings", async (c) => {
         sellerDescription?: string;
         screenshots?: string[];
         demoUrl?: string;
+        accessPolicy?: unknown;
     }>();
     const { repoFullName, price, payoutAddress, sellerDescription, screenshots } = body;
+    let accessPolicy;
+    try { accessPolicy = parseAccessPolicy(body.accessPolicy); }
+    catch { return c.json({ error: "Choose valid delivery terms." }, 400); }
     const demoUrl = normalizeDemoUrl(body.demoUrl);
     if (body.demoUrl && !demoUrl) return c.json({ error: "Enter a valid HTTP or HTTPS demo URL." }, 400);
 
@@ -547,6 +517,7 @@ app.post("/api/listings", async (c) => {
         sellerDescription: sellerDescription ?? null,
         screenshots: screenshots ?? [],
         demoUrl,
+        accessPolicy,
     });
     return c.json(listing, 201);
 });
@@ -587,6 +558,7 @@ app.post("/api/agent-api/repos/list", async (c) => {
         price?: string;
         payoutAddress?: string;
         sellerDescription?: string;
+        accessPolicy?: import("../../shared/accessPolicy.js").AccessPolicy;
     }>();
     if (!body.apiKey) return c.json({ error: "apiKey is required" }, 401);
     const owner = await resolveApiKey(body.apiKey);
@@ -602,6 +574,7 @@ app.post("/api/agent-api/repos/list", async (c) => {
             price: body.price,
             payoutAddress: body.payoutAddress,
             sellerDescription: body.sellerDescription,
+            accessPolicy: body.accessPolicy,
         },
     );
     if (!result.ok) return c.json({ error: result.reason ?? "Failed to list repo" }, 400);

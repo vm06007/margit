@@ -53,7 +53,7 @@ export async function verifyDirectPayment(
         return { ok: false, reason: "Not a valid transaction hash" };
     }
 
-    const alreadyUsed = await redis.get(USED_TX_PREFIX + txHash);
+    const alreadyUsed = await redis.get(USED_TX_PREFIX + txHash.toLowerCase());
     if (alreadyUsed) {
         return { ok: false, reason: "This transaction was already used to unlock a listing" };
     }
@@ -88,6 +88,7 @@ export async function verifyDirectPayment(
         };
     }
 
-    await redis.set(USED_TX_PREFIX + txHash, "1");
+    const claimed = await redis.set(USED_TX_PREFIX + txHash.toLowerCase(), "1", { nx: true });
+    if (!claimed) return { ok: false, reason: "This transaction was already used to unlock a listing" };
     return { ok: true };
 }

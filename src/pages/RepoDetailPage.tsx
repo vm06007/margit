@@ -1,3 +1,4 @@
+import { accessPolicyLabel } from "../../shared/accessPolicy";
 import { normalizeDemoUrl } from "../../shared/demoUrl";
 import { useState } from "react";
 import { getContract, prepareContractCall, readContract, sendTransaction, waitForReceipt } from "thirdweb";
@@ -194,7 +195,7 @@ function DirectBuyButton({ listing, onPurchased }: { listing: Listing; onPurchas
                 throw new Error(body.error ?? `Verification failed (${res.status})`);
             }
             const data = (await res.json()) as { cloneUrl: string };
-            onPurchased({ cloneUrl: data.cloneUrl, transactionHash, currency: token, method: "wallet" });
+            onPurchased({ cloneUrl: data.cloneUrl, transactionHash, currency: token, method: "wallet", expiresAt: (data as { expiresAt?: string }).expiresAt });
             setStatus("done");
         } catch (err) {
             setError(err instanceof Error ? err.message : "Purchase failed");
@@ -287,7 +288,7 @@ function BuyButton({ listingId, onPurchased }: { listingId: string; onPurchased:
             const data = (await paidRes.json()) as { cloneUrl: string };
             let transactionHash: string | undefined;
             try { transactionHash = http.getPaymentSettleResponse((name) => paidRes.headers.get(name)).transaction; } catch { /* Some batched settlements do not return a transaction yet. */ }
-            onPurchased({ cloneUrl: data.cloneUrl, transactionHash, currency: "USDC", method: "x402" });
+            onPurchased({ cloneUrl: data.cloneUrl, transactionHash, currency: "USDC", method: "x402", expiresAt: (data as { expiresAt?: string }).expiresAt });
             setStatus("done");
         } catch (err) {
             setError(err instanceof Error ? err.message : "Purchase failed");
@@ -342,7 +343,7 @@ export function RepoDetailPage({ owner, name, listings, navigate }: {
                 </article>
                 <aside className="repository-purchase" aria-label="Unlock repository">
                     {purchase ? <PurchaseSuccess receipt={purchase} listing={listing} /> : <>
-                    <p className="repository-eyebrow">Make it yours</p><div className="repository-price">{listing.price}</div><p>Pay once. Get the code.</p>
+                    <p className="repository-eyebrow">Make it yours</p><div className="repository-price">{listing.price}</div><p>Pay once. Get the code.</p><p className="hint">{accessPolicyLabel(listing.accessPolicy)}</p>
                     <div className="repository-payment-tabs" role="group" aria-label="Purchase method"><button type="button" aria-pressed={payment === "wallet"} onClick={() => setPayment("wallet")}>Your wallet</button><button type="button" aria-pressed={payment === "agent"} onClick={() => setPayment("agent")}>x402 / Agent</button></div>
                     <div hidden={payment !== "wallet"}><h3>Pay directly</h3><p className="hint">Send USDC or EURC on Arc directly to the publisher.</p><DirectBuyButton listing={listing} onPurchased={setPurchase} /></div>
                     <div hidden={payment !== "agent"}><h3>Buy with x402</h3><p className="hint">Fund Circle Gateway with USDC, then authorize an x402 payment.</p><DepositButton /><BuyButton listingId={listing.id} onPurchased={setPurchase} /><AgentInstructions listingId={listing.id} /></div>

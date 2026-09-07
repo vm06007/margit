@@ -1,3 +1,4 @@
+import type { AccessPolicy } from "../../shared/accessPolicy.js";
 import { randomBytes } from "node:crypto";
 import { redis } from "./redis.js";
 import { decryptToken, encryptToken } from "./crypto.js";
@@ -20,6 +21,7 @@ export interface Listing {
     // approach the reference project used.
     screenshots: string[];
     demoUrl?: string | null;
+    accessPolicy?: AccessPolicy;
 }
 
 interface StoredListing extends Listing {
@@ -41,6 +43,7 @@ export async function createListing(input: {
     sellerDescription: string | null;
     screenshots: string[];
     demoUrl?: string | null;
+    accessPolicy?: AccessPolicy;
 }): Promise<Listing> {
     const id = randomBytes(8).toString("hex");
     const stored: StoredListing = {
@@ -56,6 +59,7 @@ export async function createListing(input: {
         sellerDescription: input.sellerDescription,
         screenshots: input.screenshots,
         demoUrl: input.demoUrl ?? null,
+        accessPolicy: input.accessPolicy ?? { mode: "window", minutes: 10 },
         encryptedOwnerToken: encryptToken(input.ownerGithubToken),
     };
     await redis.set(LISTING_PREFIX + id, stored);

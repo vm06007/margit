@@ -1,3 +1,5 @@
+import { mintCloneResponse } from "./purchase-access.js";
+import { parseAccessPolicy, type AccessPolicy } from "../../shared/accessPolicy.js";
 import OpenAI from "openai";
 import type { ChatCompletionMessageParam, ChatCompletionTool } from "openai/resources/chat/completions";
 import { createPublicClient, createWalletClient, formatUnits, http, parseAbiItem } from "viem";
@@ -5,7 +7,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { redis } from "./redis.js";
 import { decryptToken, encryptToken } from "./crypto.js";
 import { createApiKey } from "./api-keys.js";
-import { createListing, deleteListing, getListing, getOwnerTokenForListing, listListings, type Listing } from "./listings.js";
+import { createListing, deleteListing, getListing, listListings, type Listing } from "./listings.js";
 import { resolvePayoutAddress } from "./names.js";
 import type { SessionData } from "./session.js";
 import { ARC_TOKEN_ADDRESSES, arcTestnet, priceToAtomicUnits, verifyDirectPayment, type PaymentToken } from "./payments.js";
@@ -120,14 +122,9 @@ async function buyListing(listingId: string, token: PaymentToken): Promise<BuyRe
     const verification = await verifyDirectPayment(txHash, listing.payoutAddress, amount, token);
     if (!verification.ok) return { ok: false, reason: verification.reason };
 
-    const ownerToken = await getOwnerTokenForListing(listing.id);
-    if (!ownerToken) return { ok: false, reason: "Listing has no stored credentials" };
-
-    return {
-        ok: true,
-        txHash,
-        cloneUrl: `https://x-access-token:${ownerToken}@github.com/${listing.repoFullName}.git`,
-    };
+    const access = await mintCloneResponse(listing);
+    if (!access) return { ok: false, reason: "Listing has no stored credentials" };
+    return { ok: true, txHash, ...access };
 }
 
 export interface GithubRepoSummary {
@@ -179,8 +176,11 @@ export interface CreateListingResult {
 // on behalf of the signed-in user instead of a direct HTTP request.
 export async function createListingForUser(
     session: SessionData,
-    input: { repoFullName: string; price: string; payoutAddress: string; sellerDescription?: string },
+    input: { repoFullName: string; price: string; payoutAddress: string; sellerDescription?: string; accessPolicy?: AccessPolicy },
 ): Promise<CreateListingResult> {
+    let accessPolicy: AccessPolicy;
+    try { accessPolicy = parseAccessPolicy(input.accessPolicy); }
+    catch { return { ok: false, reason: "Choose valid delivery terms." }; }
     if (!PRICE_PATTERN.test(input.price)) {
         return { ok: false, reason: 'price must look like "$1.50"' };
     }
@@ -220,6 +220,7 @@ export async function createListingForUser(
         stargazersCount: repo.stargazers_count,
         sellerDescription: input.sellerDescription ?? null,
         screenshots: [],
+        accessPolicy,
     });
     return { ok: true, listing };
 }
@@ -317,6 +318,7 @@ const TOOLS: ChatCompletionTool[] = [
                     repoFullName: { type: "string", description: 'e.g. "octocat/my-repo" — must be a repo the signed-in user owns' },
                     price: { type: "string", description: 'e.g. "$0.05" — dollar sign, up to 2 decimal places' },
                     payoutAddress: { type: "string", description: "0x address, .eth (ENS), or .arc/.circle (ArcNS) name" },
+                    accessPolicy: { type: "object", description: "Seller delivery terms. Defaults to 10 minutes with retries. Single download is ZIP only and consumed when transfer starts.", properties: { mode: { type: "string", enum: ["window", "single_download"] }, minutes: { type: "integer", enum: [10, 60, 1440, 10080] } } },
                     sellerDescription: { type: "string", description: "Optional short description shown to buyers" },
                 },
                 required: ["repoFullName", "price", "payoutAddress"],
@@ -470,6 +472,7 @@ async function executeTool(
                 price,
                 payoutAddress,
                 sellerDescription,
+                accessPolicy: input.accessPolicy as AccessPolicy | undefined,
             });
             if (createResult.ok && createResult.listing) {
                 return {
