@@ -1,3 +1,4 @@
+import { PortfolioPage } from "./pages/PortfolioPage";
 import { useEffect, useMemo, useState } from "react";
 import { fetchListings, fetchMe, fetchRepos, logout, type AgentListingChange, type Listing, type Me, type Repo } from "./api";
 import { SiteHeader } from "./components/layout/SiteHeader";
@@ -99,7 +100,7 @@ function App() {
                     onToggleAgent={() => setAgentOpen((v) => !v)}
                 />
                 <main id="mxd-page-content" className={`mxd-page-content ${home ? "" : "inner-page-content"}`}>
-                {publisherMatch ? (
+                {path === "/portfolio" ? <PortfolioPage /> : publisherMatch ? (
                     <PublisherPage login={publisherMatch[1]} listings={listings} navigate={navigate} />
                 ) : path === "/catalog" ? (
                     <CatalogPage me={viewer} onEdit={setEditingListing} listings={listings} listingsError={listingsError} navigate={navigate} />
@@ -124,7 +125,7 @@ function App() {
                 )}
                 {path === "/catalog" && <CatalogCTA />}
                 </main>
-                {path !== "/works" && path !== "/profile" && !(repoMatch && !publisherMatch) && <SiteFooter variant={home ? "home" : path === "/catalog" ? "catalog" : "works"} />}
+                {path !== "/portfolio" && path !== "/works" && path !== "/profile" && !(repoMatch && !publisherMatch) && <SiteFooter variant={home ? "home" : path === "/catalog" ? "catalog" : "works"} />}
             </div>
             <AgentSidebar
                 open={!home && agentOpen}

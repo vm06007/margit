@@ -9,6 +9,7 @@ import { CloneResult } from "./CloneResult";
 
 export interface PurchaseReceipt {
     cloneUrl: string;
+    checkoutContract?: string;
     expiresAt?: string;
     transactionHash?: string;
     currency: string;
@@ -51,6 +52,7 @@ export function PurchaseSuccess({ receipt, listing }: { receipt: PurchaseReceipt
         <h3>You’ve purchased this</h3>
         <p className="hint">{receipt.cloneUrl.endsWith("download.zip") ? "Your repository is ready to download." : "Your repository is ready to clone or download."}</p>
         <button ref={reopen} type="button" className="btn btn-primary repository-connect-wallet" onClick={() => dialog.current?.showModal()}>View purchase details</button>
+        <a className="btn btn-outline repository-connect-wallet" href="/portfolio" style={{marginTop:"1rem"}}>My Portfolio</a>
         <dialog ref={dialog} className="purchase-success-dialog" aria-labelledby="purchase-success-title" onCancel={event => {event.preventDefault(); close()}}>
             <canvas ref={canvas} className="purchase-confetti" aria-hidden="true" />
             <FireExplosionBurst replay={explosionReplay} />
@@ -66,17 +68,20 @@ export function PurchaseSuccess({ receipt, listing }: { receipt: PurchaseReceipt
                     <h3 id="purchase-summary-title">Purchase details</h3>
                     <dl className="purchase-receipt">
                         <div><dt>Repository</dt><dd>{listing.repoFullName}</dd></div>
-                        <div><dt>Access terms</dt><dd>{accessPolicyLabel(listing.accessPolicy)}</dd></div>
                         {receipt.expiresAt && <div><dt>Expires</dt><dd>{new Date(receipt.expiresAt).toLocaleString()}</dd></div>}
                         <div><dt>Amount</dt><dd>{listing.price.replace("$", "")} {receipt.currency}</dd></div>
-                        <div><dt>Payment</dt><dd>{receipt.method === "wallet" ? "Direct transfer" : "x402 / Circle Gateway"} · Arc testnet</dd></div>
+                        <div><dt>Payment</dt><dd>{receipt.method === "wallet" ? (receipt.checkoutContract ? "Margit checkout" : "Direct transfer") : "x402 / Circle Gateway"} · Arc testnet</dd></div>
                         <div><dt>Transaction</dt><dd>{hash ? (explorer ? <a href={`${explorer}/tx/${hash}`} target="_blank" rel="noopener noreferrer" title={hash}>{shortHash} ↗</a> : <span title={hash}>{shortHash}</span>) : "No transaction hash was returned for this settlement."}</dd></div>
                     </dl>
                 </section>
                 <section className="purchase-access" aria-labelledby="purchase-access-title">
                     <h3 id="purchase-access-title">Get your code</h3>
                     <p className="hint">{receipt.cloneUrl.endsWith("download.zip") ? "Download your repository as a ZIP. This link allows one download start." : "Run this command in your terminal to clone the repository, or download a ZIP before access expires."}</p>
-                    <CloneResult cloneUrl={receipt.cloneUrl} repoFullName={listing.repoFullName} />
+                    <CloneResult cloneUrl={receipt.cloneUrl} repoFullName={listing.repoFullName} accessTerms={
+                        <dl className="purchase-receipt purchase-access-terms">
+                            <div><dt>Access terms</dt><dd>{accessPolicyLabel(listing.accessPolicy)}</dd></div>
+                        </dl>
+                    } />
                 </section>
             </div>
         </dialog>

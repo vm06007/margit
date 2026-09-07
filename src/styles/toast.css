@@ -1,0 +1,23 @@
+.error-toast {
+    position: fixed;
+    inset: auto 2rem 2rem auto;
+    margin: 0;
+    width: min(48rem, calc(100vw - 4rem));
+    box-sizing: border-box;
+    padding: 1.6rem 2rem;
+    background: var(--base, #161616);
+    color: var(--t-bright, #fff);
+    border: 1px solid #ff7373;
+    border-radius: 1.6rem;
+    box-shadow: 0 1rem 4rem #0006;
+    font-size: 1.6rem;
+    line-height: 1.5;
+    gap: 1.2rem;
+    align-items: flex-start;
+    z-index: 10000;
+}
+.error-toast:popover-open { display: flex; }
+.error-toast > i { color: #ff7373; font-size: 2.4rem; }
+.error-toast > span { flex: 1; overflow-wrap: anywhere; }
+.error-toast > button { background: transparent; border: 0; color: inherit; cursor: pointer; font-size: 2.4rem; line-height: 1; padding: .2rem; }
+@supports not selector(:popover-open) { .error-toast { display: flex; } }

@@ -96,3 +96,14 @@
 .purchase-success-dialog .purchase-access .buy-result { display: flex; flex-direction: column; flex: 1; }
 .purchase-success-dialog .purchase-access .clone-actions { margin-top: auto; }
 .purchase-receipt > div:last-child { margin-bottom: 0; }
+.purchase-access-terms { margin: 2rem 0 2.4rem; }
+
+.repository-description-row { display: flex; align-items: center; flex-wrap: wrap; gap: 1rem 2rem; margin-bottom: 2rem; }
+.repository-page .repository-description-row .repository-description { margin-bottom: 0; min-width: 0; overflow-wrap: anywhere; }
+.repository-description-row .repository-tags { margin-bottom: 0; flex-shrink: 0; }
+
+.repository-loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 1.6rem; width: min(32rem, calc(100vw - 4rem)); text-align: center; color: var(--t-medium); }
+.repository-loading p { margin: 0; }
+.repository-loading-spinner { width: 4rem; height: 4rem; border: 3px solid var(--t-muted); border-top-color: var(--accent, #a18be8); border-radius: 50%; animation: repository-loading-spin .8s linear infinite; }
+@keyframes repository-loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .repository-loading-spinner { animation: none; } }

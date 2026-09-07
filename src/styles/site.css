@@ -199,7 +199,7 @@
 .site-inner .dashboard-section { padding-bottom: 2rem; }
 
 .repo-visibility-select { position: relative; z-index: 45; }
-.repo-visibility-trigger { display: inline-flex; align-items: center; gap: 1.2rem; padding-right: 1.6rem; }
+.repo-visibility-trigger.pill-select { display: inline-flex; align-items: center; gap: 1.4rem; height: 5rem; padding: 0 2rem; border-radius: 3rem; font-size: 1.8rem; }
 .site-app .repo-visibility-menu { min-width: 24rem; top: calc(100% + 1rem); overflow: hidden; }
 .repo-visibility-menu .profile-menu-item { white-space: nowrap; }
 .repo-visibility-menu .profile-menu-item:focus-visible { background: var(--base-tint); outline: 2px solid var(--t-bright); outline-offset: -3px; }

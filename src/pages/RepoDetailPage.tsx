@@ -1,4 +1,5 @@
-import { accessPolicyLabel } from "../../shared/accessPolicy";
+import { pendingCheckout, purchaseWithContract } from "../lib/checkout";
+import { allowsCheckout, checkoutLabel, accessPolicyLabel } from "../../shared/accessPolicy";
 import { normalizeDemoUrl } from "../../shared/demoUrl";
 import { useState } from "react";
 import { getContract, prepareContractCall, readContract, sendTransaction, waitForReceipt } from "thirdweb";
@@ -8,7 +9,7 @@ import { x402Client, x402HTTPClient } from "@x402/core/client";
 import { BatchEvmScheme } from "@circle-fin/x402-batching/client";
 import type { Listing } from "../api";
 import { arcTestnet, thirdwebClient, thirdwebWallets, thirdwebTheme, thirdwebAppMetadata } from "../lib/thirdweb";
-import { ARC_TOKEN_ADDRESSES, ARC_USDC_ADDRESS, type PaymentToken } from "../lib/constants";
+import { ARC_USDC_ADDRESS, type PaymentToken } from "../lib/constants";
 import { useUnlockPreview, unlockDetailsNode } from "../hooks/useUnlockPreview";
 import { WalletIcon } from "../components/icons";
 import { PurchaseSuccess, type PurchaseReceipt } from "../components/PurchaseSuccess.tsx";
@@ -159,7 +160,7 @@ function DepositButton() {
 function DirectBuyButton({ listing, onPurchased }: { listing: Listing; onPurchased: (receipt: PurchaseReceipt) => void }) {
     const account = useActiveAccount();
     const [token, setToken] = useState<PaymentToken>("USDC");
-    const [status, setStatus] = useState<"idle" | "sending" | "verifying" | "done" | "error">("idle");
+    const [status, setStatus] = useState<"idle" | "checking" | "sending" | "verifying" | "done" | "error">("idle");
     const [error, setError] = useState<string | null>(null);
 
     if (!account) {
@@ -168,34 +169,10 @@ function DirectBuyButton({ listing, onPurchased }: { listing: Listing; onPurchas
 
     const buy = async () => {
         setError(null);
-        setStatus("sending");
+        setStatus("checking");
         try {
-            const amount = toUnits(listing.price.replace("$", ""), 6);
-            const tokenContract = getContract({
-                client: thirdwebClient,
-                chain: arcTestnet,
-                address: ARC_TOKEN_ADDRESSES[token],
-            });
-            const transferTx = prepareContractCall({
-                contract: tokenContract,
-                method: "function transfer(address to, uint256 value) returns (bool)",
-                params: [listing.payoutAddress, amount],
-            });
-            const { transactionHash } = await sendTransaction({ transaction: transferTx, account });
-            await waitForReceipt({ client: thirdwebClient, chain: arcTestnet, transactionHash });
-
-            setStatus("verifying");
-            const res = await fetch(`/api/listings/${listing.id}/verify-payment`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ txHash: transactionHash, token }),
-            });
-            if (!res.ok) {
-                const body = (await res.json().catch(() => ({}))) as { error?: string };
-                throw new Error(body.error ?? `Verification failed (${res.status})`);
-            }
-            const data = (await res.json()) as { cloneUrl: string };
-            onPurchased({ cloneUrl: data.cloneUrl, transactionHash, currency: token, method: "wallet", expiresAt: (data as { expiresAt?: string }).expiresAt });
+            const data = await purchaseWithContract(listing, token, account, setStatus);
+            onPurchased({ cloneUrl: data.cloneUrl, transactionHash: data.transactionHash, currency: data.currency, method: "wallet", expiresAt: data.expiresAt, checkoutContract: data.checkoutContract });
             setStatus("done");
         } catch (err) {
             setError(err instanceof Error ? err.message : "Purchase failed");
@@ -203,9 +180,9 @@ function DirectBuyButton({ listing, onPurchased }: { listing: Listing; onPurchas
         }
     };
 
-    const busy = status === "sending" || status === "verifying";
+    const busy = status === "checking" || status === "sending" || status === "verifying";
     const label =
-        status === "sending" ? "Confirm in wallet…" : status === "verifying" ? "Verifying…" : `Pay ${token}`;
+        status === "checking" ? "Checking delivery…" : status === "sending" ? "Confirm in wallet…" : status === "verifying" ? "Verifying…" : pendingCheckout(listing.id, account.address) ? "Recover purchase" : `Pay ${token}`;
 
     return (
         <div className="buy-button-wrap">
@@ -325,29 +302,35 @@ export function RepoDetailPage({ owner, name, listings, navigate }: {
     const account = useActiveAccount();
     const connectModal = useConnectModal();
     const listing = listings?.find(l => l.repoFullName.toLowerCase() === `${owner}/${name}`.toLowerCase());
-    if (!listing) return <section className="repository-page"><a href="/catalog">← Catalog</a><p>{listings === null ? "Loading repository…" : "This repository is no longer listed."}</p></section>;
+    if (listings === null) return <section className="repository-page" aria-busy="true">
+        <div className="repository-loading" role="status">
+            <span className="repository-loading-spinner" aria-hidden="true" />
+            <p>Loading repository…</p>
+        </div>
+    </section>;
+    if (!listing) return <section className="repository-page"><a href="/catalog">← Catalog</a><p>This repository is no longer listed.</p></section>;
     const publisher = `/publisher/${encodeURIComponent(listing.ownerLogin)}`;
+    const selectedPayment = !allowsCheckout(listing.accessPolicy, "wallet") ? "agent" : !allowsCheckout(listing.accessPolicy, "x402") ? "wallet" : payment;
     return (
         <section className="repository-page">
             <header className="repository-headline">
                 <h1 className="repository-breadcrumb-title"><span className="repository-title-parent"><a href="/catalog">Catalog</a> <span aria-hidden="true">/</span></span>{" "}{name}</h1>
-                {listing.language && <div className="repository-tags"><span>{listing.language}</span></div>}
             </header>
             <div className="repository-columns">
                 <article className="repository-article">
                     <div className="repository-cover listing-media" role="img" aria-label={listing.screenshots.length ? `Screenshot ${selectedImage + 1} of ${name}` : `${name} repository cover`} style={listingMediaStyle(listing.screenshots[selectedImage], "#9f8be7")} />
                     {listing.screenshots.length > 1 && <div className="repository-thumbnails">{listing.screenshots.map((src, i) => <button type="button" key={src} aria-label={`Show screenshot ${i+1}`} aria-pressed={i === selectedImage} onClick={() => setSelectedImage(i)}><img src={src} alt="" /></button>)}</div>}
-                    <section className="repository-about">{normalizeDemoUrl(listing.demoUrl) && <a className="btn btn-outline" href={normalizeDemoUrl(listing.demoUrl)!} target="_blank" rel="noopener noreferrer">Live preview ↗</a>}<p className="repository-eyebrow">About the repository</p><h2>Inside {name}</h2><p className="repository-description">{listing.sellerDescription || listing.description || "The publisher hasn’t added a description yet."}</p><p className="hint">Source code stays private until you unlock it. A successful purchase gives you an authenticated clone command and a ZIP download.</p></section>
+                    <section className="repository-about">{normalizeDemoUrl(listing.demoUrl) && <a className="btn btn-outline" href={normalizeDemoUrl(listing.demoUrl)!} target="_blank" rel="noopener noreferrer">Live preview ↗</a>}<p className="repository-eyebrow">About the repository</p><h2>Inside {name}</h2><div className="repository-description-row"><p className="repository-description">{listing.sellerDescription || listing.description || "The publisher hasn’t added a description yet."}</p>{listing.language && <div className="repository-tags"><span>{listing.language}</span></div>}</div><p className="hint">Source code stays private until you unlock it. A successful purchase gives you an authenticated clone command and a ZIP download.</p></section>
                     <a className="repository-author" href={publisher} onClick={e => {e.preventDefault(); navigate(publisher)}}><img src={`https://github.com/${listing.ownerLogin}.png?size=160`} alt="" /><div><p className="repository-eyebrow">Published by</p><h3>{listing.ownerLogin}</h3><p>Explore all repositories by this publisher ↗</p></div></a>
                     <ReviewsSection subject={name} />
                 </article>
                 <aside className="repository-purchase" aria-label="Unlock repository">
                     {purchase ? <PurchaseSuccess receipt={purchase} listing={listing} /> : <>
-                    <p className="repository-eyebrow">Make it yours</p><div className="repository-price">{listing.price}</div><p>Pay once. Get the code.</p><p className="hint">{accessPolicyLabel(listing.accessPolicy)}</p>
-                    <div className="repository-payment-tabs" role="group" aria-label="Purchase method"><button type="button" aria-pressed={payment === "wallet"} onClick={() => setPayment("wallet")}>Your wallet</button><button type="button" aria-pressed={payment === "agent"} onClick={() => setPayment("agent")}>x402 / Agent</button></div>
-                    <div hidden={payment !== "wallet"}><h3>Pay directly</h3><p className="hint">Send USDC or EURC on Arc directly to the publisher.</p><DirectBuyButton listing={listing} onPurchased={setPurchase} /></div>
-                    <div hidden={payment !== "agent"}><h3>Buy with x402</h3><p className="hint">Fund Circle Gateway with USDC, then authorize an x402 payment.</p><DepositButton /><BuyButton listingId={listing.id} onPurchased={setPurchase} /><AgentInstructions listingId={listing.id} /></div>
-                    {payment === "wallet" ? (!account && <div className="repository-requirements">{!account && <button className="btn btn-primary repository-connect-wallet" type="button" onClick={() => {void connectModal.connect({client:thirdwebClient, wallets:thirdwebWallets, chain:arcTestnet, theme:thirdwebTheme, appMetadata:thirdwebAppMetadata}).catch(() => undefined)}}><WalletIcon /> Connect Wallet</button>}</div>) : <div className="repository-requirements"><button className="btn btn-outline" type="button" disabled={unlockResults[listing.id] === "loading"} onClick={() => previewUnlock(listing.id)}>{unlockResults[listing.id] === "loading" ? "Checking…" : "Preview requirements"}</button>{unlockDetailsNode(unlockResults[listing.id])}</div>}
+                    <p className="repository-eyebrow">Make it yours</p><div className="repository-price">{listing.price}</div><p>Pay once. Get the code.</p><p className="hint">{checkoutLabel(listing.accessPolicy)}. {accessPolicyLabel(listing.accessPolicy)}</p>
+                    <div className="repository-payment-tabs" role="group" aria-label="Purchase method"><button type="button" disabled={!allowsCheckout(listing.accessPolicy, "wallet")} aria-pressed={selectedPayment === "wallet"} onClick={() => setPayment("wallet")}>Your wallet</button><button type="button" disabled={!allowsCheckout(listing.accessPolicy, "x402")} aria-pressed={selectedPayment === "agent"} onClick={() => setPayment("agent")}>x402 / Agent</button></div>
+                    <div hidden={selectedPayment !== "wallet"}><h3>Pay directly</h3><p className="hint">Send USDC or EURC on Arc directly to the publisher.</p><DirectBuyButton listing={listing} onPurchased={setPurchase} /></div>
+                    <div hidden={selectedPayment !== "agent"}><h3>Buy with x402</h3><p className="hint">Fund Circle Gateway with USDC, then authorize an x402 payment.</p><DepositButton /><BuyButton listingId={listing.id} onPurchased={setPurchase} /><AgentInstructions listingId={listing.id} /></div>
+                    {selectedPayment === "wallet" ? (!account && <div className="repository-requirements">{!account && <button className="btn btn-primary repository-connect-wallet" type="button" onClick={() => {void connectModal.connect({client:thirdwebClient, wallets:thirdwebWallets, chain:arcTestnet, theme:thirdwebTheme, appMetadata:thirdwebAppMetadata}).catch(() => undefined)}}><WalletIcon /> Connect Wallet</button>}</div>) : <div className="repository-requirements"><button className="btn btn-outline" type="button" disabled={unlockResults[listing.id] === "loading"} onClick={() => previewUnlock(listing.id)}>{unlockResults[listing.id] === "loading" ? "Checking…" : "Preview requirements"}</button>{unlockDetailsNode(unlockResults[listing.id])}</div>}
                     </>}
                 </aside>
             </div>

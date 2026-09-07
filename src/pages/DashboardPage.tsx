@@ -155,13 +155,16 @@ export function DashboardStyle() {
             .modal-delivery-terms .agent-input { width: 100%; min-width: 0; }
             .listing-details-tabs { display: flex; gap: .5rem; padding: .5rem; border: 1px solid var(--t-muted); border-radius: 4rem; margin-bottom: 2.4rem; }
             .modal-repo-details .listing-details-tabs { flex-direction: column; border-radius: 2.4rem; margin-top: 0; }
-            .listing-sidebar-navigation { margin-top: 0; padding-top: 0; }
+            .listing-sidebar-navigation { margin-top: auto; padding-top: 2.4rem; }
             .listing-sidebar-navigation .listing-details-tabs { margin-bottom: 0; }
             .listing-sidebar-divider { width: 100%; border: 0; border-top: 1px solid var(--st-muted); margin: 1rem 0 2.4rem; }
             .listing-details-tabs button { display: flex; align-items: center; justify-content: flex-start; gap: 1rem; text-align: left; flex: 1; padding: 1.2rem 1.8rem; border: 0; border-radius: 3rem; background: transparent; color: var(--t-medium); font: inherit; font-size: 1.7rem; }
             .listing-details-tabs button i { flex-shrink: 0; font-size: 2rem; }
             .listing-details-tabs button[aria-selected="true"] { background: var(--t-bright); color: var(--base); }
             .listing-details-tabs button:focus-visible { outline: 2px solid var(--t-bright); outline-offset: 3px; }
+            .listing-details-panels { display: grid; }
+            .listing-details-panels > [role="tabpanel"] { grid-area: 1 / 1; min-width: 0; }
+            .listing-details-panels > [role="tabpanel"][hidden] { display: block; visibility: hidden; pointer-events: none; }
             .listing-price-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
             .listing-price-presets { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; margin-left: auto; }
             .listing-price-presets button { padding: .3rem .7rem; border: 1px solid var(--t-muted); border-radius: 3rem; background: transparent; color: var(--t-bright); font: inherit; font-size: 1.25rem; }
@@ -213,10 +216,19 @@ export function DashboardStyle() {
                 line-height: 1;
             }
             .repos-row-clickable { cursor: pointer; }
-            .mxd-projects-list__item.repo-flash { animation: repo-row-flash 1.8s ease-out; }
+            .mxd-projects-list__item.repo-flash { position: relative; isolation: isolate; animation: none; }
+            .mxd-projects-list__item.repo-flash::after {
+                content: "";
+                position: absolute;
+                inset: 0 1.5rem;
+                z-index: -1;
+                pointer-events: none;
+                background: color-mix(in srgb, var(--accent) 25%, transparent);
+                animation: repo-row-flash 1.8s ease-out forwards;
+            }
             @keyframes repo-row-flash {
-                0% { background: color-mix(in srgb, var(--accent) 25%, transparent); }
-                100% { background: transparent; }
+                0% { opacity: 1; }
+                100% { opacity: 0; }
             }
             .dashboard-pagination-row {
                 display: flex;
@@ -531,6 +543,7 @@ export function ListModal({
                         <h2 style={{ margin: "0 0 1.6rem", fontSize: "2.4rem", color: "var(--t-bright)" }}>
                             {isEdit ? "Edit listing" : "List for sale"}
                         </h2>
+                        <div className="listing-details-panels">
                         <div role="tabpanel" id="listing-general-panel" aria-labelledby="listing-general-tab" hidden={detailsTab !== "general"}>
                         <div className="modal-field">
                             <div className="listing-price-heading">
@@ -603,6 +616,13 @@ export function ListModal({
                         </div>
                         <div role="tabpanel" id="listing-access-panel" aria-labelledby="listing-access-tab" hidden={detailsTab !== "access"}>
                         <div className="modal-field modal-delivery-terms">
+                            <label className="modal-label" htmlFor="purchase-channel">Purchase channels</label>
+                            <select id="purchase-channel" className="agent-input" value={accessPolicy.checkout ?? "both"} disabled={submitting} onChange={event => setAccessPolicy({ ...accessPolicy, checkout: event.target.value as AccessPolicy["checkout"] })}>
+                                <option value="both">Both · wallet and x402</option>
+                                <option value="x402">x402 only · agent checkout</option>
+                                <option value="wallet">Wallet only · direct checkout</option>
+                            </select>
+                            <p className="hint">Controls the payment method. Wallet checkout does not verify that the buyer is human, and people can also use x402.</p>
                             <label className="modal-label" htmlFor="delivery-mode">Delivery terms</label>
                             <select id="delivery-mode" className="agent-input" value={accessPolicy.mode} disabled={submitting} onChange={event => setAccessPolicy({ ...accessPolicy, mode: event.target.value as AccessPolicy["mode"] })}>
                                 <option value="window">Timed access · clone and ZIP with retries</option>
@@ -614,10 +634,11 @@ export function ListModal({
                             </select>
                             <p className="hint">{accessPolicyLabel(accessPolicy)} Files already downloaded remain with the buyer. Changing these terms only affects new purchases.</p>
                         </div>
+                        {formActions}
+                        </div>
                         </div>
                         {error && <p className="error" role="alert" style={{ color: "#ff6b6b", fontSize: "1.6rem" }}>{error}</p>}
 
-                        {detailsTab === "access" && formActions}
                     </div>
                 </div>
             </div>
