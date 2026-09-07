@@ -1,16 +1,19 @@
+import { normalizeDemoUrl } from "../../shared/demoUrl";
 import { useState } from "react";
 import { getContract, prepareContractCall, readContract, sendTransaction, waitForReceipt } from "thirdweb";
-import { useActiveAccount } from "thirdweb/react";
+import { useActiveAccount, useConnectModal } from "thirdweb/react";
 import { toUnits } from "thirdweb/utils";
 import { x402Client, x402HTTPClient } from "@x402/core/client";
 import { BatchEvmScheme } from "@circle-fin/x402-batching/client";
 import type { Listing } from "../api";
-import { arcTestnet, thirdwebClient } from "../lib/thirdweb";
+import { arcTestnet, thirdwebClient, thirdwebWallets, thirdwebTheme, thirdwebAppMetadata } from "../lib/thirdweb";
 import { ARC_TOKEN_ADDRESSES, ARC_USDC_ADDRESS, type PaymentToken } from "../lib/constants";
 import { useUnlockPreview, unlockDetailsNode } from "../hooks/useUnlockPreview";
-import { CloneResult } from "../components/CloneResult";
-import { PublisherLink } from "../components/ListingCard";
-import { StarRating } from "../components/StarRating";
+import { WalletIcon } from "../components/icons";
+import { PurchaseSuccess, type PurchaseReceipt } from "../components/PurchaseSuccess.tsx";
+import { listingMediaStyle } from "../components/listingMedia";
+import "../styles/repository.css";
+
 import { ReviewsSection } from "../components/ReviewsSection";
 
 function AgentInstructions({ listingId }: { listingId: string }) {
@@ -152,15 +155,14 @@ function DepositButton() {
     );
 }
 
-function DirectBuyButton({ listing }: { listing: Listing }) {
+function DirectBuyButton({ listing, onPurchased }: { listing: Listing; onPurchased: (receipt: PurchaseReceipt) => void }) {
     const account = useActiveAccount();
     const [token, setToken] = useState<PaymentToken>("USDC");
     const [status, setStatus] = useState<"idle" | "sending" | "verifying" | "done" | "error">("idle");
     const [error, setError] = useState<string | null>(null);
-    const [cloneUrl, setCloneUrl] = useState<string | null>(null);
 
     if (!account) {
-        return <p className="hint">Connect a wallet above to pay directly.</p>;
+        return null;
     }
 
     const buy = async () => {
@@ -192,7 +194,7 @@ function DirectBuyButton({ listing }: { listing: Listing }) {
                 throw new Error(body.error ?? `Verification failed (${res.status})`);
             }
             const data = (await res.json()) as { cloneUrl: string };
-            setCloneUrl(data.cloneUrl);
+            onPurchased({ cloneUrl: data.cloneUrl, transactionHash, currency: token, method: "wallet" });
             setStatus("done");
         } catch (err) {
             setError(err instanceof Error ? err.message : "Purchase failed");
@@ -219,20 +221,19 @@ function DirectBuyButton({ listing }: { listing: Listing }) {
                     </button>
                 ))}
             </div>
-            <button type="button" className="btn btn-primary" disabled={busy} onClick={buy}>
+            <button type="button" className="btn btn-primary payment-submit" disabled={busy} aria-busy={busy} onClick={buy}>
+                {status === "verifying" && <span className="payment-spinner" aria-hidden="true" />}
                 {label}
             </button>
             {error && <p className="error">{error}</p>}
-            {cloneUrl && <CloneResult cloneUrl={cloneUrl} repoFullName={listing.repoFullName} />}
         </div>
     );
 }
 
-function BuyButton({ listingId, repoFullName }: { listingId: string; repoFullName: string }) {
+function BuyButton({ listingId, onPurchased }: { listingId: string; onPurchased: (receipt: PurchaseReceipt) => void }) {
     const account = useActiveAccount();
     const [status, setStatus] = useState<"idle" | "signing" | "settling" | "done" | "error">("idle");
     const [error, setError] = useState<string | null>(null);
-    const [cloneUrl, setCloneUrl] = useState<string | null>(null);
 
     const buy = async () => {
         if (!account) return;
@@ -284,7 +285,9 @@ function BuyButton({ listingId, repoFullName }: { listingId: string; repoFullNam
                 throw new Error(detail ?? `Payment failed (${paidRes.status})`);
             }
             const data = (await paidRes.json()) as { cloneUrl: string };
-            setCloneUrl(data.cloneUrl);
+            let transactionHash: string | undefined;
+            try { transactionHash = http.getPaymentSettleResponse((name) => paidRes.headers.get(name)).transaction; } catch { /* Some batched settlements do not return a transaction yet. */ }
+            onPurchased({ cloneUrl: data.cloneUrl, transactionHash, currency: "USDC", method: "x402" });
             setStatus("done");
         } catch (err) {
             setError(err instanceof Error ? err.message : "Purchase failed");
@@ -293,7 +296,7 @@ function BuyButton({ listingId, repoFullName }: { listingId: string; repoFullNam
     };
 
     if (!account) {
-        return <p className="hint">Connect a wallet above to buy directly.</p>;
+        return null;
     }
 
     return (
@@ -307,108 +310,46 @@ function BuyButton({ listingId, repoFullName }: { listingId: string; repoFullNam
                 {status === "signing" ? "Confirm in wallet…" : status === "settling" ? "Settling…" : "Buy Now"}
             </button>
             {error && <p className="error">{error}</p>}
-            {cloneUrl && <CloneResult cloneUrl={cloneUrl} repoFullName={repoFullName} />}
         </div>
     );
 }
 
-export function RepoDetailPage({
-    owner,
-    name,
-    listings,
-    navigate,
-}: {
-    owner: string;
-    name: string;
-    listings: Listing[] | null;
-    navigate: (p: string) => void;
+export function RepoDetailPage({ owner, name, listings, navigate }: {
+    owner: string; name: string; listings: Listing[] | null; navigate: (p: string) => void;
 }) {
     const [unlockResults, previewUnlock] = useUnlockPreview();
-    const fullName = `${owner}/${name}`;
-    const listing = listings?.find((l) => l.repoFullName.toLowerCase() === fullName.toLowerCase());
-
-    if (listings === null) {
-        return <p className="hint">Loading…</p>;
-    }
-
-    if (!listing) {
-        return (
-            <section>
-                <button type="button" className="btn btn-ghost back-link" onClick={() => navigate("/catalog")}>
-                    ← Back to catalog
-                </button>
-                <p className="hint">No listing found for "{fullName}" — it may have been unlisted.</p>
-            </section>
-        );
-    }
-
+    const [purchase, setPurchase] = useState<PurchaseReceipt | null>(null);
+    const [payment, setPayment] = useState<"wallet" | "agent">("wallet");
+    const [selectedImage, setSelectedImage] = useState(0);
+    const account = useActiveAccount();
+    const connectModal = useConnectModal();
+    const listing = listings?.find(l => l.repoFullName.toLowerCase() === `${owner}/${name}`.toLowerCase());
+    if (!listing) return <section className="repository-page"><a href="/catalog">← Catalog</a><p>{listings === null ? "Loading repository…" : "This repository is no longer listed."}</p></section>;
+    const publisher = `/publisher/${encodeURIComponent(listing.ownerLogin)}`;
     return (
-        <section>
-            <button type="button" className="btn btn-ghost back-link" onClick={() => navigate("/catalog")}>
-                ← Back to catalog
-            </button>
-
-            <div className="repo-detail-header">
-                <h1>{name}</h1>
-                <p className="hint">
-                    by <PublisherLink login={listing.ownerLogin} navigate={navigate} />
-                </p>
-                <StarRating average={0} count={0} />
+        <section className="repository-page">
+            <header className="repository-headline">
+                <h1 className="repository-breadcrumb-title"><span className="repository-title-parent"><a href="/catalog">Catalog</a> <span aria-hidden="true">/</span></span>{" "}{name}</h1>
+                {listing.language && <div className="repository-tags"><span>{listing.language}</span></div>}
+            </header>
+            <div className="repository-columns">
+                <article className="repository-article">
+                    <div className="repository-cover listing-media" role="img" aria-label={listing.screenshots.length ? `Screenshot ${selectedImage + 1} of ${name}` : `${name} repository cover`} style={listingMediaStyle(listing.screenshots[selectedImage], "#9f8be7")} />
+                    {listing.screenshots.length > 1 && <div className="repository-thumbnails">{listing.screenshots.map((src, i) => <button type="button" key={src} aria-label={`Show screenshot ${i+1}`} aria-pressed={i === selectedImage} onClick={() => setSelectedImage(i)}><img src={src} alt="" /></button>)}</div>}
+                    <section className="repository-about">{normalizeDemoUrl(listing.demoUrl) && <a className="btn btn-outline" href={normalizeDemoUrl(listing.demoUrl)!} target="_blank" rel="noopener noreferrer">Live preview ↗</a>}<p className="repository-eyebrow">About the repository</p><h2>Inside {name}</h2><p className="repository-description">{listing.sellerDescription || listing.description || "The publisher hasn’t added a description yet."}</p><p className="hint">Source code stays private until you unlock it. A successful purchase gives you an authenticated clone command and a ZIP download.</p></section>
+                    <a className="repository-author" href={publisher} onClick={e => {e.preventDefault(); navigate(publisher)}}><img src={`https://github.com/${listing.ownerLogin}.png?size=160`} alt="" /><div><p className="repository-eyebrow">Published by</p><h3>{listing.ownerLogin}</h3><p>Explore all repositories by this publisher ↗</p></div></a>
+                    <ReviewsSection subject={name} />
+                </article>
+                <aside className="repository-purchase" aria-label="Unlock repository">
+                    {purchase ? <PurchaseSuccess receipt={purchase} listing={listing} /> : <>
+                    <p className="repository-eyebrow">Make it yours</p><div className="repository-price">{listing.price}</div><p>Pay once. Get the code.</p>
+                    <div className="repository-payment-tabs" role="group" aria-label="Purchase method"><button type="button" aria-pressed={payment === "wallet"} onClick={() => setPayment("wallet")}>Your wallet</button><button type="button" aria-pressed={payment === "agent"} onClick={() => setPayment("agent")}>x402 / Agent</button></div>
+                    <div hidden={payment !== "wallet"}><h3>Pay directly</h3><p className="hint">Send USDC or EURC on Arc directly to the publisher.</p><DirectBuyButton listing={listing} onPurchased={setPurchase} /></div>
+                    <div hidden={payment !== "agent"}><h3>Buy with x402</h3><p className="hint">Fund Circle Gateway with USDC, then authorize an x402 payment.</p><DepositButton /><BuyButton listingId={listing.id} onPurchased={setPurchase} /><AgentInstructions listingId={listing.id} /></div>
+                    {payment === "wallet" ? (!account && <div className="repository-requirements">{!account && <button className="btn btn-primary repository-connect-wallet" type="button" onClick={() => {void connectModal.connect({client:thirdwebClient, wallets:thirdwebWallets, chain:arcTestnet, theme:thirdwebTheme, appMetadata:thirdwebAppMetadata}).catch(() => undefined)}}><WalletIcon /> Connect Wallet</button>}</div>) : <div className="repository-requirements"><button className="btn btn-outline" type="button" disabled={unlockResults[listing.id] === "loading"} onClick={() => previewUnlock(listing.id)}>{unlockResults[listing.id] === "loading" ? "Checking…" : "Preview requirements"}</button>{unlockDetailsNode(unlockResults[listing.id])}</div>}
+                    </>}
+                </aside>
             </div>
-
-            <p>{listing.sellerDescription ?? listing.description ?? "No description provided."}</p>
-
-            {listing.screenshots?.length > 0 && (
-                <div className="repo-detail-screenshots">
-                    {listing.screenshots.map((src, i) => (
-                        <img key={i} src={src} alt="" />
-                    ))}
-                </div>
-            )}
-
-            <div className="listing-card-tags">
-                {listing.language && <span className="tag">{listing.language}</span>}
-                {listing.stargazersCount > 0 && <span className="tag tag-muted">★ {listing.stargazersCount}</span>}
-            </div>
-
-            <p className="hint repo-detail-note">
-                This repo is private — the listing above is all that's publicly visible until you unlock it.
-            </p>
-
-            <div className="repo-detail-footer">
-                <span className="listing-card-price">{listing.price}</span>
-                <button
-                    type="button"
-                    className="btn btn-outline"
-                    disabled={unlockResults[listing.id] === "loading"}
-                    onClick={() => previewUnlock(listing.id)}
-                >
-                    {unlockResults[listing.id] === "loading" ? "Checking…" : "Preview requirements"}
-                </button>
-            </div>
-            {unlockDetailsNode(unlockResults[listing.id])}
-
-            <div className="payment-options">
-                <div className="payment-option">
-                    <h3>Pay directly</h3>
-                    <p className="hint">
-                        One on-chain USDC transfer straight to the seller. No pre-funding, no facilitator.
-                    </p>
-                    <DirectBuyButton listing={listing} />
-                </div>
-                <div className="payment-option">
-                    <h3>Pay via x402 (built for agents)</h3>
-                    <p className="hint">
-                        Deposit once into Circle Gateway, then any agent can pay repeatedly and gaslessly.
-                    </p>
-                    <DepositButton />
-                    <BuyButton listingId={listing.id} repoFullName={listing.repoFullName} />
-                </div>
-            </div>
-
-            <AgentInstructions listingId={listing.id} />
-
-            <ReviewsSection subject={name} />
         </section>
     );
 }

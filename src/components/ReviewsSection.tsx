@@ -19,7 +19,7 @@ export function ReviewsSection({ subject }: { subject: string }) {
                 <button type="button" className="btn btn-outline" disabled>
                     Leave a review
                 </button>
-                <span className="hint">Only buyers who've unlocked can review — not wired up yet.</span>
+                <span className="hint">Verified buyer reviews are coming soon.</span>
             </div>
         </div>
     );

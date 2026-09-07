@@ -30,8 +30,7 @@ export function unlockDetailsNode(result: UnlockRequirement | string | "loading"
             ) : (
                 <span>
                     Real x402 challenge: pay {formatUsdc(result.amount)} to <code>{result.payTo}</code> on{" "}
-                    <code>{result.network}</code>. Wallet payment isn't wired up yet — this previews the actual
-                    on-chain requirements.
+                    <code>{result.network}</code>. This preview does not initiate a payment.
                 </span>
             )}
         </div>

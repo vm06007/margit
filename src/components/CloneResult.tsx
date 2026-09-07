@@ -29,8 +29,10 @@ export function CloneResult({ cloneUrl, repoFullName }: { cloneUrl: string; repo
 
     return (
         <div className="buy-result">
-            <p className="hint">Purchased — clone URL:</p>
-            <code>{cloneUrl}</code>
+            <div className="clone-code">
+                <div className="clone-code-label">Terminal</div>
+                <pre tabIndex={0} aria-label="Git clone command"><code>git clone {cloneUrl}</code></pre>
+            </div>
             <div className="clone-actions">
                 <button type="button" className="btn btn-primary btn-small" disabled={downloading} onClick={download}>
                     <DownloadIcon /> {downloading ? "Downloading…" : "Download ZIP"}
