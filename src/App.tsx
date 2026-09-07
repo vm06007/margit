@@ -9,7 +9,7 @@ import type { MouseEvent } from "react";
 import { AgentSidebar } from "./components/AgentSidebar";
 import { useRoute } from "./hooks/useRoute";
 import { WelcomePage } from "./pages/WelcomePage";
-import { DashboardPage } from "./pages/DashboardPage";
+import { DashboardPage, DashboardStyle, ListModal } from "./pages/DashboardPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { PublisherPage } from "./pages/PublisherPage";
 import { RepoDetailPage } from "./pages/RepoDetailPage";
@@ -20,6 +20,7 @@ const AGENT_OPEN_STORAGE_KEY = "margit:agent-open";
 function App() {
     const [path, navigate] = useRoute();
     const [me, setMe] = useState<Me | null>(null);
+    const [editingListing, setEditingListing] = useState<Listing | null>(null);
     const [repos, setRepos] = useState<Repo[] | null>(null);
     const [reposError, setReposError] = useState<string | null>(null);
     const [listings, setListings] = useState<Listing[] | null>(null);
@@ -74,6 +75,8 @@ function App() {
     // below so those reserved single-segment paths keep winning over a same-shaped repo URL.
     const repoMatch = path.match(/^\/([^/]+)\/([^/]+)$/);
 
+    const editingRepo = repos?.find(repo => repo.fullName.toLowerCase() === editingListing?.repoFullName.toLowerCase());
+    const saveListing = (listing: Listing) => setListings(prev => [...(prev ?? []).filter(item => item.repoFullName.toLowerCase() !== listing.repoFullName.toLowerCase()), listing]);
     const home = path === "/";
     const viewer = me ?? { authenticated: false };
     const routeClick = (event: MouseEvent<HTMLDivElement>) => {
@@ -99,7 +102,7 @@ function App() {
                 {publisherMatch ? (
                     <PublisherPage login={publisherMatch[1]} listings={listings} navigate={navigate} />
                 ) : path === "/catalog" ? (
-                    <CatalogPage listings={listings} listingsError={listingsError} navigate={navigate} />
+                    <CatalogPage me={viewer} onEdit={setEditingListing} listings={listings} listingsError={listingsError} navigate={navigate} />
                 ) : (path === "/works" || path === "/profile") ? (
                     <DashboardPage
                         me={viewer}
@@ -107,7 +110,7 @@ function App() {
                         reposError={reposError}
                         listingByRepo={listingByRepo}
                         navigate={navigate}
-                        onListed={(listing) => setListings((prev) => [...(prev ?? []), listing])}
+                        onListed={saveListing}
                         onUnlisted={(id) => setListings((prev) => prev?.filter((l) => l.id !== id) ?? null)}
                         onMadePrivate={(repoId) =>
                             setRepos((prev) => prev?.map((r) => (r.id === repoId ? { ...r, private: true } : r)) ?? null)
@@ -115,13 +118,13 @@ function App() {
                         highlightedRepo={highlightedRepo}
                     />
                 ) : repoMatch ? (
-                    <RepoDetailPage owner={repoMatch[1]} name={repoMatch[2]} listings={listings} navigate={navigate} />
+                    <RepoDetailPage key={path} owner={repoMatch[1]} name={repoMatch[2]} listings={listings} navigate={navigate} />
                 ) : (
                     <WelcomePage me={viewer} navigate={navigate} listings={listings} listingsError={listingsError} />
                 )}
                 {path === "/catalog" && <CatalogCTA />}
                 </main>
-                <SiteFooter variant={home ? "home" : path === "/catalog" ? "catalog" : "works"} />
+                {path !== "/works" && path !== "/profile" && <SiteFooter variant={home ? "home" : path === "/catalog" ? "catalog" : "works"} />}
             </div>
             <AgentSidebar
                 open={!home && agentOpen}
@@ -129,6 +132,22 @@ function App() {
                 onListingChange={handleAgentListingChange}
             />
             <BackToTop path={path} />
+            {editingListing && viewer.authenticated && <>
+                <DashboardStyle />
+                {editingRepo ? <ListModal
+                    key={editingListing.id}
+                    repo={editingRepo}
+                    listing={editingListing}
+                    onClose={() => setEditingListing(null)}
+                    onSaved={saveListing}
+                    onUnlisted={id => setListings(prev => prev?.filter(item => item.id !== id) ?? null)}
+                /> : <div className="modal-overlay" onClick={() => setEditingListing(null)}>
+                    <div className="modal" role="dialog" aria-modal="true" aria-label="Edit listing" onClick={event => event.stopPropagation()}>
+                        <button className="modal-close" aria-label="Close" onClick={() => setEditingListing(null)}>×</button>
+                        <p role="status">{reposError || (repos ? 'This repository is no longer available to your GitHub account.' : 'Loading your repository…')}</p>
+                    </div>
+                </div>}
+            </>}
         </div>
     );
 }

@@ -1,3 +1,4 @@
+import { normalizeDemoUrl } from "../../shared/demoUrl.js";
 import { randomBytes } from "node:crypto";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
@@ -277,7 +278,7 @@ app.get("/api/auth/github/callback", async (c) => {
         maxAge: 60 * 60 * 8,
     });
 
-    return c.redirect(APP_URL);
+    return c.redirect(new URL("/works", APP_URL).toString());
 });
 
 app.post("/api/auth/logout", async (c) => {
@@ -349,6 +350,7 @@ app.get("/api/repos", async (c) => {
         private: boolean;
         description: string | null;
         html_url: string;
+        homepage?: string | null;
         stargazers_count: number;
         language: string | null;
         updated_at: string;
@@ -362,6 +364,7 @@ app.get("/api/repos", async (c) => {
             private: r.private,
             description: r.description,
             htmlUrl: r.html_url,
+            homepage: normalizeDemoUrl(r.homepage),
             stargazersCount: r.stargazers_count,
             language: r.language,
             updatedAt: r.updated_at,
@@ -481,8 +484,11 @@ app.post("/api/listings", async (c) => {
         payoutAddress?: string;
         sellerDescription?: string;
         screenshots?: string[];
+        demoUrl?: string;
     }>();
     const { repoFullName, price, payoutAddress, sellerDescription, screenshots } = body;
+    const demoUrl = normalizeDemoUrl(body.demoUrl);
+    if (body.demoUrl && !demoUrl) return c.json({ error: "Enter a valid HTTP or HTTPS demo URL." }, 400);
 
     if (!repoFullName || !price || !payoutAddress) {
         return c.json({ error: "repoFullName, price, and payoutAddress are required" }, 400);
@@ -540,6 +546,7 @@ app.post("/api/listings", async (c) => {
         stargazersCount: repo.stargazers_count,
         sellerDescription: sellerDescription ?? null,
         screenshots: screenshots ?? [],
+        demoUrl,
     });
     return c.json(listing, 201);
 });

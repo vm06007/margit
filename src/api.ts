@@ -12,6 +12,7 @@ export interface Repo {
     private: boolean;
     description: string | null;
     htmlUrl: string;
+    homepage?: string | null;
     stargazersCount: number;
     language: string | null;
     updatedAt: string;
@@ -31,6 +32,7 @@ export interface Listing {
     stargazersCount: number;
     sellerDescription: string | null;
     screenshots: string[];
+    demoUrl?: string | null;
 }
 
 export interface UnlockRequirement {
@@ -137,6 +139,7 @@ export async function createListing(input: {
     payoutAddress: string;
     sellerDescription?: string;
     screenshots?: string[];
+    demoUrl?: string;
 }): Promise<Listing> {
     const res = await fetch("/api/listings", {
         method: "POST",

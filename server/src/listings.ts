@@ -19,6 +19,7 @@ export interface Listing {
     // Data URLs (base64) — no external storage wired up, matches the simple
     // approach the reference project used.
     screenshots: string[];
+    demoUrl?: string | null;
 }
 
 interface StoredListing extends Listing {
@@ -39,6 +40,7 @@ export async function createListing(input: {
     stargazersCount: number;
     sellerDescription: string | null;
     screenshots: string[];
+    demoUrl?: string | null;
 }): Promise<Listing> {
     const id = randomBytes(8).toString("hex");
     const stored: StoredListing = {
@@ -53,6 +55,7 @@ export async function createListing(input: {
         stargazersCount: input.stargazersCount,
         sellerDescription: input.sellerDescription,
         screenshots: input.screenshots,
+        demoUrl: input.demoUrl ?? null,
         encryptedOwnerToken: encryptToken(input.ownerGithubToken),
     };
     await redis.set(LISTING_PREFIX + id, stored);
@@ -93,5 +96,6 @@ function toPublicListing(stored: StoredListing): Listing {
         ...pub,
         sellerDescription: pub.sellerDescription ?? null,
         screenshots: pub.screenshots ?? [],
+        demoUrl: pub.demoUrl ?? null,
     };
 }

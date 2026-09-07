@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
-import type { Listing } from "../api";
+import type { Listing, Me } from "../api";
 import { listingMediaStyle } from "../components/listingMedia";
 
 function formatListedDate(iso: string): string {
@@ -80,9 +80,7 @@ function AuthorMeta({ listing }: { listing: Listing }) {
     return (
         <span className="meta-tag author-meta-tag">
             <a
-                href={`https://github.com/${listing.ownerLogin}`}
-                target="_blank"
-                rel="noreferrer"
+                href={`/publisher/${encodeURIComponent(listing.ownerLogin)}`}
                 style={{ display: "inline-flex", alignItems: "center", gap: "0.7rem" }}
             >
                 <img
@@ -96,11 +94,17 @@ function AuthorMeta({ listing }: { listing: Listing }) {
     );
 }
 
+function EditListingButton({ onClick, name }: { onClick: () => void; name: string }) {
+    return <button type="button" className="btn btn-default btn-outline listing-edit-button" aria-label={`Edit ${name}`} title="Edit listing" onClick={onClick}><i className="ph ph-pencil-simple" /></button>;
+}
+
 function FeaturedPost({
     listing,
     goTo,
+    onEdit,
 }: {
     listing: Listing;
+    onEdit?: () => void;
     goTo: (path: string) => (e: ReactMouseEvent) => void;
 }) {
     const href = `/${listing.repoFullName}`;
@@ -117,11 +121,6 @@ function FeaturedPost({
                         </a>
                     </span>
                 )}
-                <span className="tag tag-default tag-outline-permanent tag-link-outline-premanent">
-                    <a href="#0" onClick={(e) => e.preventDefault()}>
-                        {listing.price}
-                    </a>
-                </span>
             </div>
             <div className="post-featured__content">
                 <div className="post-featured__meta">
@@ -136,17 +135,23 @@ function FeaturedPost({
                 <div className="post-featured__excerpt">
                     <p>{listing.sellerDescription || listing.description || "No description"}</p>
                 </div>
+                <div className="listing-card-actions">
+                    <span className="tag tag-default tag-outline-permanent featured-listing-price">{listing.price}</span>
+                    {onEdit && <EditListingButton onClick={onEdit} name={repoName(listing)} />}
+                </div>
             </div>
         </article>
     );
 }
 
-function SimplePost({
+export function SimplePost({
     listing,
     altIndex,
     goTo,
+    onEdit,
 }: {
     listing: Listing;
+    onEdit?: () => void;
     altIndex: number;
     goTo: (path: string) => (e: ReactMouseEvent) => void;
 }) {
@@ -181,12 +186,16 @@ function SimplePost({
                             </a>
                         </h3>
                     </div>
+                    {(listing.sellerDescription || listing.description) && (
+                        <p className="listing-card-description">{listing.sellerDescription || listing.description}</p>
+                    )}
                 </div>
-                <div className="post-simple__btn">
+                <div className="post-simple__btn listing-card-actions">
                     <a className="btn btn-anim btn-default btn-outline slide-right-up" href={href} onClick={goTo(href)}>
                         <span className="btn-caption">Unlock — {listing.price}</span>
                         <i className="ph ph-arrow-up-right" />
                     </a>
+                    {onEdit && <EditListingButton onClick={onEdit} name={repoName(listing)} />}
                 </div>
             </div>
         </article>
@@ -251,14 +260,19 @@ function Pagination({
 }
 
 export function CatalogPage({
+    me,
+    onEdit,
     listings,
     listingsError,
     navigate,
 }: {
+    me: Me;
+    onEdit: (listing: Listing) => void;
     listings: Listing[] | null;
     listingsError: string | null;
     navigate: (p: string) => void;
 }) {
+    const editAction = (listing: Listing) => me.authenticated && me.login?.toLowerCase() === listing.ownerLogin.toLowerCase() ? () => onEdit(listing) : undefined;
     const [activeLanguages, setActiveLanguages] = useState<string[]>([]);
     const [query, setQuery] = useState("");
     const [page, setPage] = useState(1);
@@ -272,7 +286,6 @@ export function CatalogPage({
     );
     const [featured, ...rest] = filtered;
     const pageCount = Math.max(1, Math.ceil(rest.length / POSTS_PER_PAGE));
-    const recentThree = allListings.slice(0, 3);
 
     // Clamp the current page if a narrower filter shrank the result set below it.
     useEffect(() => {
@@ -409,9 +422,9 @@ export function CatalogPage({
                                 </p>
                             ) : (
                                 <>
-                                    {featured && <FeaturedPost listing={featured} goTo={goTo} />}
+                                    {featured && <FeaturedPost listing={featured} goTo={goTo} onEdit={editAction(featured)} />}
                                     {pageItems.map((listing, i) => (
-                                        <SimplePost key={listing.id} listing={listing} altIndex={i} goTo={goTo} />
+                                        <SimplePost key={listing.id} listing={listing} altIndex={i} goTo={goTo} onEdit={editAction(listing)} />
                                     ))}
                                     {filtered.length === 0 && (
                                         <p className="hint" style={{ opacity: 0.6 }}>
@@ -482,47 +495,6 @@ export function CatalogPage({
                                             </a>
                                         </li>
                                     ))}
-                                </ul>
-                            </div>
-
-                            <div className="mxd-sidebar__widget bg-base-tint radius-m">
-                                <div className="widget__title">
-                                    <p>Latest posts</p>
-                                </div>
-                                <ul className="widget__recent-posts">
-                                    {recentThree.map((listing, i) => {
-                                        const href = `/${listing.repoFullName}`;
-                                        return (
-                                            <li key={listing.id} className="recent-post__item">
-                                                <div className="recent-post__thumb">
-                                                    <a href={href} onClick={goTo(href)}>
-                                                        <div
-                                                            className="listing-media"
-                                                            style={{
-                                                                width: "100%",
-                                                                height: "100%",
-                                                                ...mediaStyle(listing, i),
-                                                            }}
-                                                        />
-                                                    </a>
-                                                </div>
-                                                <div className="recent-post__content">
-                                                    <div className="recent-post__meta">
-                                                        <span className="meta-tag">
-                                                            <a href="#0" onClick={(e) => e.preventDefault()}>
-                                                                {listing.language || "Repo"}
-                                                            </a>
-                                                        </span>
-                                                    </div>
-                                                    <div className="recent-post__title">
-                                                        <a href={href} onClick={goTo(href)}>
-                                                            {repoName(listing)}
-                                                        </a>
-                                                    </div>
-                                                </div>
-                                            </li>
-                                        );
-                                    })}
                                 </ul>
                             </div>
 

@@ -1,10 +1,12 @@
+import { MakePrivateModal } from "../components/MakePrivateModal";
+import { RepoVisibilitySelect } from "../components/RepoVisibilitySelect";
+import { normalizeDemoUrl } from "../../shared/demoUrl";
 import { useEffect, useMemo, useState } from "react";
 import {
     createListing,
     deleteListing,
     fetchRepoReadme,
     generateRepoDescription,
-    makeRepoPrivate,
     resolveName,
     type Listing,
     type Me,
@@ -57,7 +59,7 @@ function thumbFor(repo: Repo, listing: Listing | undefined): string {
 /** Page-scoped CSS not covered by the vendor stylesheet — ported near-verbatim from
     works2.html's own <style> block (pill-select, wide two-column modal, plain-text-link
     description-helper buttons, pagination disabled state). */
-function DashboardStyle() {
+export function DashboardStyle() {
     return (
         <style>{`
             .pill-select-wrap { position: relative; display: inline-flex; }
@@ -179,7 +181,7 @@ function DashboardStyle() {
                 border-top: 1px solid var(--st-muted);
             }
             .screenshot-upload-btn { display: inline-flex; width: fit-content; cursor: pointer; }
-            .screenshot-thumbs { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-top: 0.8rem; }
+            .screenshot-thumbs { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-bottom: 1.6rem; }
             .screenshot-thumb { position: relative; width: 7rem; height: 7rem; border-radius: 8px; overflow: hidden; }
             .screenshot-thumb img { width: 100%; height: 100%; object-fit: cover; }
             .screenshot-remove {
@@ -211,7 +213,7 @@ function DashboardStyle() {
                 padding: 2rem 0;
             }
             .dashboard-pagination { display: flex; align-items: center; gap: 1rem; }
-            .dashboard-per-page { display: flex; align-items: center; gap: 0.8rem; font-size: 1.4rem; color: var(--t-medium); }
+            .dashboard-per-page { display: flex; align-items: center; gap: 0.8rem; font-size: 1.8rem; color: var(--t-medium); }
         `}</style>
     );
 }
@@ -219,9 +221,11 @@ function DashboardStyle() {
 function ScreenshotPicker({
     screenshots,
     setScreenshots,
+    actions,
 }: {
     screenshots: string[];
     setScreenshots: (update: (prev: string[]) => string[]) => void;
+    actions?: import('react').ReactNode;
 }) {
     const addScreenshots = (files: FileList | null) => {
         for (const file of Array.from(files ?? []).slice(0, MAX_SCREENSHOTS - screenshots.length)) {
@@ -235,25 +239,7 @@ function ScreenshotPicker({
     };
 
     return (
-        <div className="modal-field">
-            <span className="modal-label">
-                Screenshots <span className="hint" style={{ fontSize: "1.4rem" }}>({screenshots.length}/{MAX_SCREENSHOTS})</span>
-            </span>
-            {screenshots.length < MAX_SCREENSHOTS && (
-                <label className="btn btn-anim btn-default btn-outline btn-small screenshot-upload-btn">
-                    <span className="btn-caption">+ Add images</span>
-                    <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        style={{ display: "none" }}
-                        onChange={(e) => {
-                            addScreenshots(e.target.files);
-                            e.target.value = "";
-                        }}
-                    />
-                </label>
-            )}
+        <div className="modal-field modal-screenshot-field">
             {screenshots.length > 0 && (
                 <div className="screenshot-thumbs">
                     {screenshots.map((src, i) => (
@@ -270,11 +256,33 @@ function ScreenshotPicker({
                     ))}
                 </div>
             )}
+            <span className="modal-label">
+                Screenshots <span className="hint" style={{ fontSize: "1.4rem" }}>({screenshots.length}/{MAX_SCREENSHOTS})</span>
+            </span>
+            <div className="screenshot-action-row">
+            {screenshots.length < MAX_SCREENSHOTS && (
+                <label className="btn btn-anim btn-default btn-outline btn-small screenshot-upload-btn">
+                    <span className="btn-caption">+ Add images</span>
+                    <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                            addScreenshots(e.target.files);
+                            e.target.value = "";
+                        }}
+                    />
+                </label>
+            )}
+            {actions}
+            </div>
+
         </div>
     );
 }
 
-function ListModal({
+export function ListModal({
     repo,
     listing,
     onClose,
@@ -292,6 +300,7 @@ function ListModal({
     const [payoutAddress, setPayoutAddress] = useState(listing?.payoutAddress ?? "");
     const [resolved, setResolved] = useState<string | "loading" | "error" | null>(null);
     const [description, setDescription] = useState(listing?.sellerDescription ?? "");
+    const [demoUrl, setDemoUrl] = useState(listing ? listing.demoUrl ?? "" : normalizeDemoUrl(repo.homepage) ?? "");
     const [screenshots, setScreenshots] = useState<string[]>(listing?.screenshots ?? []);
     const [error, setError] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
@@ -362,11 +371,14 @@ function ListModal({
         setSubmitting(true);
         setError(null);
         try {
+            const normalizedDemoUrl = normalizeDemoUrl(demoUrl);
+            if (demoUrl.trim() && !normalizedDemoUrl) throw new Error("Enter a valid HTTP or HTTPS demo URL.");
             // No PATCH endpoint exists server-side — "editing" is delete-then-recreate under
             // the same repoFullName, which is functionally equivalent from the seller's POV.
             if (isEdit && listing) await deleteListing(listing.id);
             const saved = await createListing({
                 repoFullName: repo.fullName,
+                demoUrl: normalizedDemoUrl ?? "",
                 price,
                 payoutAddress,
                 sellerDescription: description.trim() || undefined,
@@ -409,11 +421,23 @@ function ListModal({
                         <h2 style={{ margin: "0.2rem 0 1rem" }}>{repo.name}</h2>
                         <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", marginBottom: "1.4rem" }}>
                             {repo.language && <span className="tag tag-default tag-outline">{repo.language}</span>}
-                            <span className="tag tag-default tag-outline">{repo.private ? "Private" : "Public"}</span>
+                            <a
+                                className="tag tag-default tag-outline repo-github-pill"
+                                href={repo.htmlUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label={`Open ${repo.fullName} on GitHub`}
+                                title="Open repository on GitHub"
+                            >
+                                {repo.private ? "Private" : "Public"}
+                            </a>
                         </div>
-                        <p className="hint" style={{ fontSize: "1.5rem", lineHeight: 1.5 }}>
-                            {repo.description || "No description on GitHub."}
+                        <p className="hint modal-repo-detail-line" style={{ fontSize: "1.5rem", lineHeight: 1.5, marginTop: "1.6rem" }}>
+                            <i className="ph ph-text-align-left" aria-hidden="true" />
+                            <span>{repo.description || "No description on GitHub."}</span>
                         </p>
+                        {normalizeDemoUrl(repo.homepage) && <a className="modal-repo-website" href={normalizeDemoUrl(repo.homepage)!} target="_blank" rel="noopener noreferrer">GitHub website ↗</a>}
+                        {repo.updatedAt && <p className="hint modal-repo-detail-line" style={{ fontSize: "1.4rem", marginTop: "2.4rem" }}><i className="ph ph-calendar-blank" aria-hidden="true" /><span>Updated {new Date(repo.updatedAt).toLocaleDateString()}</span></p>}
                         <div
                             className="modal-repo-thumb"
                             style={{ marginTop: "1.6rem", backgroundImage: `url(${thumbFor(repo, listing)})` }}
@@ -516,10 +540,12 @@ function ListModal({
                             {descStatus && <p className="hint" style={{ fontSize: "1.4rem" }}>{descStatus}</p>}
                         </label>
 
-                        <ScreenshotPicker screenshots={screenshots} setScreenshots={setScreenshots} />
-
                         {error && <p className="error" style={{ color: "#ff6b6b", fontSize: "1.6rem" }}>{error}</p>}
-
+                        <div className="modal-field">
+                            <label className="modal-label" htmlFor="listing-demo-url">Live preview / Demo link</label>
+                            <input id="listing-demo-url" className="agent-input" type="url" placeholder="https://your-demo.com" value={demoUrl} onChange={event => setDemoUrl(event.target.value)} disabled={submitting} />
+                        </div>
+                        <ScreenshotPicker screenshots={screenshots} setScreenshots={setScreenshots} actions={
                         <div className="modal-footer">
                             <button type="button" className="btn btn-anim btn-default btn-outline btn-small" onClick={onClose}>
                                 <span className="btn-caption">Cancel</span>
@@ -535,6 +561,7 @@ function ListModal({
                                 </span>
                             </button>
                         </div>
+                        } />
                     </div>
                 </div>
             </div>
@@ -557,19 +584,17 @@ function Pagination({
             <button
                 type="button"
                 className="btn btn-anim btn-default btn-outline btn-small"
-                disabled={page <= 1}
-                onClick={() => onGoToPage(page - 1)}
+                onClick={() => onGoToPage(page <= 1 ? pageCount : page - 1)}
             >
                 <span className="btn-caption">Prev</span>
             </button>
-            <span className="hint" style={{ fontSize: "1.4rem" }}>
+            <span className="hint" style={{ fontSize: "1.8rem" }}>
                 Page {page} of {pageCount}
             </span>
             <button
                 type="button"
                 className="btn btn-anim btn-default btn-outline btn-small"
-                disabled={page >= pageCount}
-                onClick={() => onGoToPage(page + 1)}
+                onClick={() => onGoToPage(page >= pageCount ? 1 : page + 1)}
             >
                 <span className="btn-caption">Next</span>
             </button>
@@ -622,11 +647,11 @@ function PrivateRepoRow({
                         </div>
                         <TagsColumn repo={repo} />
                         <div className="col-6 col-md-6 col-xl-2 mxd-grid-item no-margin">
-                            <div className="mxd-projects-list__date">
+                            <div className="mxd-projects-list__date repo-row-price">
                                 {listing ? (
                                     <span className="tag tag-default tag-permanent">{listing.price}</span>
                                 ) : (
-                                    <span className="hint">–</span>
+                                    <span className="repo-row-price-empty" aria-label="Not listed">—</span>
                                 )}
                             </div>
                         </div>
@@ -654,28 +679,13 @@ function PrivateRepoRow({
 function PublicRepoRow({
     repo,
     highlighted,
-    onMadePrivate,
+    onOpen,
 }: {
     repo: Repo;
     highlighted?: boolean;
-    onMadePrivate: (repoId: number) => void;
+    onOpen: () => void;
 }) {
-    const [converting, setConverting] = useState(false);
-    const [convertError, setConvertError] = useState<string | null>(null);
     const thumb = thumbFor(repo, undefined);
-
-    const convert = async () => {
-        setConverting(true);
-        setConvertError(null);
-        try {
-            await makeRepoPrivate(repo.fullName);
-            onMadePrivate(repo.id);
-        } catch (err) {
-            setConvertError(err instanceof Error ? err.message : "Failed to convert");
-        } finally {
-            setConverting(false);
-        }
-    };
 
     return (
         <div className={`mxd-projects-list__item ${highlighted ? "repo-flash" : ""}`}>
@@ -698,19 +708,15 @@ function PublicRepoRow({
                                 <button
                                     type="button"
                                     className="btn btn-anim btn-default btn-outline"
-                                    disabled={converting}
-                                    onClick={convert}
+                                    onClick={onOpen}
                                 >
-                                    <span className="btn-caption">{converting ? "Converting…" : "Make private"}</span>
+                                    <span className="btn-caption">Make private</span>
                                 </button>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-            {convertError && (
-                <p className="error" style={{ fontSize: "1.3rem", padding: "0 0 1rem" }}>{convertError}</p>
-            )}
             <div className="mxd-projects-list__border" />
         </div>
     );
@@ -739,6 +745,7 @@ export function DashboardPage({
     const [view, setView] = useState<"private" | "public">("private");
     const [pageSize, setPageSize] = useState(10);
     const [page, setPage] = useState(1);
+    const [privacyRepo, setPrivacyRepo] = useState<Repo | null>(null);
     const [modalRepo, setModalRepo] = useState<Repo | null>(null);
 
     // Org-owned repos aren't the signed-in account's to sell — the server already asks
@@ -759,32 +766,20 @@ export function DashboardPage({
 
 
     return (
-        <div className="mxd-section overflow-hidden padding-grid-pre-mtext"><div className="mxd-container grid-container">
+        <div className="mxd-section overflow-hidden dashboard-section"><div className="mxd-container grid-container">
             <DashboardStyle /><div className="mxd-block">
 
-            <div className="mxd-section-title">
+            <div className="mxd-section-title dashboard-heading">
                 <div className="container-fluid p-0">
-                    <div className="row g-0">
+                    <div className="row g-0 dashboard-heading-row">
                         <div className="col-12 col-xl-8 mxd-grid-item no-margin">
                             <div className="mxd-section-title__hrtitle">
-                                <h1 style={{ whiteSpace: "nowrap" }}>Your repositories</h1>
+                                <h1>Your repositories</h1>
                             </div>
                         </div>
                         <div className="col-12 col-xl-4 mxd-grid-item no-margin">
                             <div className="mxd-section-title__hrcontrols pre-title">
-                                <span className="pill-select-wrap">
-                                    <select
-                                        className="pill-select"
-                                        value={view}
-                                        onChange={(e) => {
-                                            setView(e.target.value as "private" | "public");
-                                            setPage(1);
-                                        }}
-                                    >
-                                        <option value="private">Private repos</option>
-                                        <option value="public">Public repos</option>
-                                    </select>
-                                </span>
+                                <RepoVisibilitySelect value={view} onChange={value => {setView(value); setPage(1)}} />
                             </div>
                         </div>
                     </div>
@@ -831,10 +826,7 @@ export function DashboardPage({
                                             key={repo.id}
                                             repo={repo}
                                             highlighted={highlightedRepo?.toLowerCase() === repo.fullName.toLowerCase()}
-                                            onMadePrivate={(repoId) => {
-                                                onMadePrivate(repoId);
-                                                setPage(1);
-                                            }}
+                                            onOpen={() => setPrivacyRepo(repo)}
                                         />
                                     ))
                                 )}
@@ -867,6 +859,7 @@ export function DashboardPage({
 
             {!me.authenticated && <div className="dashboard-pagination-row"><div /><label className="dashboard-per-page">Per page <span className="pill-select-wrap"><select aria-label="Per page" className="pill-select" value={pageSize} onChange={e => setPageSize(Number(e.target.value))}><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option></select></span></label></div>}
             </div>
+            {privacyRepo && <MakePrivateModal repo={privacyRepo} onClose={() => setPrivacyRepo(null)} onSuccess={() => {onMadePrivate(privacyRepo.id); setPage(1)}} />}
             {modalRepo && (
                 <ListModal
                     repo={modalRepo}
