@@ -14,18 +14,19 @@ const other = mnemonicToAccount(mnemonic,{addressIndex:3});
 const transport = http('http://127.0.0.1:18545');
 const publicClient = createPublicClient({chain:foundry,transport});
 const wallet = createWalletClient({account:signer,chain:foundry,transport});
-const tokenAbi = parseAbi(['function approve(address,uint256) returns(bool)','function balanceOf(address) view returns(uint256)','function setFail(bool)','function setCallback(address,bytes)']);
+const tokenAbi = parseAbi(['function approve(address,uint256) returns(bool)','function balanceOf(address) view returns(uint256)','function setFail(bool)','function setCallback(address,bytes)','function setRejectAddress(address)']);
 let token:`0x${string}`, contract:`0x${string}`, otherContract:`0x${string}`;
 const mock = `pragma solidity ^0.8.24;
 contract Token {
  mapping(address=>uint) public balanceOf; mapping(address=>mapping(address=>uint)) public allowance;
- bool public fail; address target; bytes payload;
+ bool public fail; address target; bytes payload; address rejected;
  constructor(address buyer){balanceOf[buyer]=1000000000;}
  function approve(address to,uint amount) external returns(bool){allowance[msg.sender][to]=amount;return true;}
  function setFail(bool value) external {fail=value;}
+ function setRejectAddress(address value) external {rejected=value;}
  function setCallback(address to,bytes calldata data) external {target=to;payload=data;}
  function transferFrom(address from,address to,uint amount) external returns(bool){
- if(fail)return false;
+ if(fail || to==rejected)return false;
  if(target!=address(0)){(bool success,)=target.call(payload);require(!success,"reentered");}
  require(allowance[from][msg.sender]>=amount && balanceOf[from]>=amount,"funds");allowance[from][msg.sender]-=amount;balanceOf[from]-=amount;balanceOf[to]+=amount;return true;
  }
@@ -52,8 +53,8 @@ before(async()=>{
 test('payment goes to seller; receipt is emitted; order cannot be reused',async()=>{
  const o=await order();const before=await publicClient.readContract({address:token,abi:tokenAbi,functionName:'balanceOf',args:[seller.address]});
  const result=await send({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args});
- assert.equal(result.logs.filter(log=>log.address.toLowerCase()===contract.toLowerCase()).length,1);
- assert.equal(await publicClient.readContract({address:token,abi:tokenAbi,functionName:'balanceOf',args:[seller.address]}),before+o.value.amount);
+ assert.equal(result.logs.filter(log=>log.address.toLowerCase()===contract.toLowerCase()).length,2);
+ assert.equal(await publicClient.readContract({address:token,abi:tokenAbi,functionName:'balanceOf',args:[seller.address]}),before+o.value.amount-o.value.amount/200n);
  await assert.rejects(publicClient.simulateContract({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args}),/OrderUsed/);
 });
 test('rejects another buyer, changed price, expired quote, unsupported token and cross-domain signatures',async()=>{
@@ -91,9 +92,9 @@ test('native USDC pays seller in one transaction, keeps six-decimal receipts and
   await assert.rejects(publicClient.simulateContract({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args,value:incorrect}),/InvalidNativeValue/);
  }
  const receipt=await send({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args,value});
- assert.equal(await publicClient.getBalance({address:seller.address}),before+value);
+ assert.equal(await publicClient.getBalance({address:seller.address}),before+value-value/200n);
  const {decodeEventLog}=await import('viem');
- const event=decodeEventLog({abi:checkoutAbi,data:receipt.logs[0].data,topics:receipt.logs[0].topics,eventName:'PurchaseCompleted'});
+ const event=decodeEventLog({abi:checkoutAbi,data:receipt.logs[1].data,topics:receipt.logs[1].topics,eventName:'PurchaseCompleted'});
  assert.equal(event.args.amount,1000000n);
  await assert.rejects(publicClient.simulateContract({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args,value}),/OrderUsed/);
  const erc=await order();
@@ -134,4 +135,39 @@ test('admin transfer requires nominee acceptance and can be cancelled',async()=>
  await send({account:buyer,address:contract,abi:checkoutAbi,functionName:'transferAdmin',args:[signer.address]});
  await send({account:signer,address:contract,abi:checkoutAbi,functionName:'acceptAdmin'});
  assert.equal(await publicClient.readContract({address:contract,abi:checkoutAbi,functionName:'pendingAdmin'}),zeroAddress);
+});
+
+test('fees are rounded down and emitted with net proceeds',async()=>{
+ const {decodeEventLog}=await import('viem');
+ const before=await publicClient.readContract({address:token,abi:tokenAbi,functionName:'balanceOf',args:[signer.address]});
+ const o=await order({amount:1000001n});
+ const receipt=await send({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args});
+ const event=decodeEventLog({abi:checkoutAbi,eventName:'PurchaseFeeCollected',data:receipt.logs[0].data,topics:receipt.logs[0].topics});
+ assert.equal(event.args.feeAmount,5000n);
+ assert.equal(event.args.sellerAmount,995001n);
+ assert.equal(await publicClient.readContract({address:token,abi:tokenAbi,functionName:'balanceOf',args:[signer.address]}),before+5000n);
+ const tiny=await order({amount:199n});
+ const tinyReceipt=await send({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:tiny.args});
+ assert.equal(decodeEventLog({abi:checkoutAbi,eventName:'PurchaseFeeCollected',data:tinyReceipt.logs[0].data,topics:tinyReceipt.logs[0].topics}).args.feeAmount,0n);
+});
+test('deferred fees reach treasury and emit publisher-bound six-decimal receipts',async()=>{
+ const {decodeEventLog}=await import('viem');
+ const id=keccak256(stringToHex('margit:seller:test'));
+ const before=await publicClient.getBalance({address:signer.address});
+ const result=await send({account:buyer,address:contract,abi:checkoutAbi,functionName:'payDeferredFees',args:[id],value:5000n*10n**12n});
+ const event=decodeEventLog({abi:checkoutAbi,eventName:'DeferredFeesPaid',data:result.logs[0].data,topics:result.logs[0].topics});
+ assert.equal(event.args.sellerId,id);assert.equal(event.args.amount,5000n);
+ assert.equal(await publicClient.getBalance({address:signer.address}),before+5000n*10n**12n);
+ for(const value of [0n,1n])await assert.rejects(publicClient.simulateContract({account:buyer,address:contract,abi:checkoutAbi,functionName:'payDeferredFees',args:[id],value}),/InvalidNativeValue/);
+});
+
+test('a failed treasury transfer rolls back seller payment and order consumption',async()=>{
+ const o=await order();
+ const before=await publicClient.readContract({address:token,abi:tokenAbi,functionName:'balanceOf',args:[seller.address]});
+ await send({address:token,abi:tokenAbi,functionName:'setRejectAddress',args:[signer.address]});
+ await assert.rejects(publicClient.simulateContract({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args}),/TransferFailed/);
+ assert.equal(await publicClient.readContract({address:token,abi:tokenAbi,functionName:'balanceOf',args:[seller.address]}),before);
+ assert.equal(await publicClient.readContract({address:contract,abi:checkoutAbi,functionName:'usedOrders',args:[o.value.orderId]}),false);
+ await send({address:token,abi:tokenAbi,functionName:'setRejectAddress',args:[zeroAddress]});
+ await send({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args});
 });

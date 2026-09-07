@@ -66,3 +66,40 @@ test('public transaction hash cannot unlock without its private claim; mismatche
  receipt=receiptFor(q);receipt.status='0x0';await assert.rejects(completeCheckout(q.claimSecret,hash),/did not succeed/);
  assert.equal((await listPurchaseHistory('buyer',buyer)).length,0);
 });
+
+test('contract fees are recorded once and never accrue as deferred debt',async()=>{
+ const {sellerFees}=await import('../src/fees.js');
+ const q=await createCheckoutQuote('test',buyer,'USDC');receipt=receiptFor(q);
+ receipt.logs.push({...receipt.logs[0],logIndex:'0x1',topics:encodeEventTopics({abi:checkoutAbi,eventName:'PurchaseFeeCollected',args:{purchaseId:q.order.orderId,token:q.order.token,treasury:signer.address}}),data:encodeAbiParameters(parseAbiParameters('uint256,uint256'),[5000n,995000n])});
+ await completeCheckout(q.claimSecret,hash);await completeCheckout(q.claimSecret,hash);
+ const sales=await listPurchaseHistory('seller','seller');
+ assert.equal(sales.length,1);assert.equal(sales[0].platformFee,'0.005');assert.equal(sales[0].sellerNet,'0.995');
+ const summary=await sellerFees('seller',sales);
+ assert.equal(summary[0].collected,'0.005');assert.equal(summary[0].owed,'0');
+});
+
+test('x402 fees accrue once after launch, settlement credits are publisher-bound and idempotent',async()=>{
+ const {recordPurchase}=await import('../src/purchases.js');
+ const {sellerFees,confirmFeePayment}=await import('../src/fees.js');
+ const {sellerFeeId}=await import('../../shared/fees.js');
+ process.env.PLATFORM_FEES_STARTED_AT=new Date(timestamp*1000).toISOString();
+ process.env.FEE_CONTRACT_ADDRESS=process.env.CHECKOUT_CONTRACT_ADDRESS;
+ const listing=data.get('margit:listing:test');
+ const access={cloneUrl:'https://margit.example/access',expiresAt:new Date(Date.now()+600000).toISOString()};
+ const payment={reference:'x402:fee-test',buyerWallet:buyer,currency:'USDC' as const,channel:'x402' as const,purchasedAt:timestamp*1000};
+ await recordPurchase(listing,payment,access);await recordPurchase(listing,payment,access);
+ await recordPurchase(listing,{...payment,reference:'x402:old',purchasedAt:timestamp*1000-1000},access);
+ const sales=await listPurchaseHistory('seller','seller');
+ assert.equal(sales.length,2);
+ assert.equal((await sellerFees('seller',sales))[0].owed,'0.005');
+ const q=await createCheckoutQuote('test',buyer,'USDC');receipt=receiptFor(q);
+ receipt.logs=[{...receipt.logs[0],topics:encodeEventTopics({abi:checkoutAbi,eventName:'DeferredFeesPaid',args:{sellerId:sellerFeeId('seller'),payer:buyer}}),data:encodeAbiParameters(parseAbiParameters('uint256'),[5000n])}];
+ await assert.rejects(confirmFeePayment('someone-else',hash),/No fee payment/);
+ receipt.status='0x0';await assert.rejects(confirmFeePayment('seller',hash),/failed/);receipt.status='0x1';
+ const originalAddress=receipt.logs[0].address;receipt.logs[0].address=buyer;
+ await assert.rejects(confirmFeePayment('seller',hash),/No fee payment/);receipt.logs[0].address=originalAddress;
+ await confirmFeePayment('seller',hash);await confirmFeePayment('seller',hash);
+ const summary=(await sellerFees('seller',sales))[0];
+ assert.equal(summary.paid,'0.005');assert.equal(summary.owed,'0');assert.equal(summary.collected,'0');
+ delete process.env.PLATFORM_FEES_STARTED_AT;
+});

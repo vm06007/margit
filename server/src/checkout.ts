@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { Hono } from 'hono';
-import { createPublicClient, decodeEventLog, getAddress, http, isAddress, keccak256, stringToHex } from 'viem';
+import { createPublicClient, decodeEventLog, getAddress, formatUnits, http, isAddress, keccak256, stringToHex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { checkoutAbi, checkoutDomain, checkoutTermsHash, orderTypes, typedOrder, type CheckoutQuote } from '../../shared/checkout.js';
 import { allowsCheckout } from '../../shared/accessPolicy.js';
@@ -68,11 +68,26 @@ export async function completeCheckout(claimSecret:string, transactionHash:strin
         } catch {return false;}
     });
     if (!matched) throw new Error('Transaction does not match this checkout');
+    let fee: {platformFee?:string;sellerNet?:string;feeTreasury?:string} = {};
+    for (const log of receipt.logs) {
+        if (log.address.toLowerCase() !== quote.contract.toLowerCase()) continue;
+        try {
+            const decoded = decodeEventLog({abi:checkoutAbi,eventName:'PurchaseFeeCollected',data:log.data,topics:log.topics});
+            if (decoded.eventName !== 'PurchaseFeeCollected') continue;
+            const {args} = decoded;
+            if (args.purchaseId !== quote.order.orderId || args.token.toLowerCase() !== quote.order.token.toLowerCase()) continue;
+            const gross = BigInt(quote.order.amount);
+            if (args.feeAmount !== gross/200n || args.sellerAmount !== gross-args.feeAmount) throw new Error('Fee receipt mismatch');
+            fee = {platformFee:formatUnits(args.feeAmount,6),sellerNet:formatUnits(args.sellerAmount,6),feeTreasury:args.treasury};
+        } catch (error) {
+            if (error instanceof Error && error.message === 'Fee receipt mismatch') throw error;
+        }
+    }
     const block = await client.getBlock({blockHash:receipt.blockHash});
     const purchasedAt = Number(block.timestamp)*1000;
     const access = await mintCloneResponse(listing,{token:stored.grantToken,purchasedAt});
     if (!access) throw new Error('Payment confirmed, but delivery credentials are unavailable. Retry receipt recovery; do not pay again.');
-    await recordPurchase(listing,{reference:`checkout:${quote.contract}:${quote.order.orderId}`,buyerWallet:quote.order.buyer,currency,channel:'wallet',transactionHash,operatorSession:stored.operatorSession,checkoutContract:quote.contract,onchainPurchaseId:quote.order.orderId,purchasedAt},access);
+    await recordPurchase(listing,{reference:`checkout:${quote.contract}:${quote.order.orderId}`,buyerWallet:quote.order.buyer,currency,channel:'wallet',transactionHash,operatorSession:stored.operatorSession,checkoutContract:quote.contract,onchainPurchaseId:quote.order.orderId,purchasedAt,...fee},access);
     return {...access,transactionHash,checkoutContract:quote.contract};
 }
 export const checkoutRoutes = new Hono();

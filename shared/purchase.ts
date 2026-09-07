@@ -6,6 +6,10 @@ export interface Purchase {
     seller: string;
     buyerWallet: string;
     amount: string;
+    platformFee?: string;
+    sellerNet?: string;
+    feeCollection?: 'automatic' | 'deferred';
+    feeTreasury?: string;
     currency: 'USDC' | 'EURC';
     channel: 'wallet' | 'x402';
     status: 'confirmed' | 'gateway_accepted';

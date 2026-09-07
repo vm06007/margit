@@ -37,6 +37,9 @@ contract MargitCheckout {
         uint256 amount;
         uint256 deadline;
     }
+    uint256 public constant FEE_BPS = 50;
+    address public immutable treasury;
+
     address public admin;
     address public pendingAdmin;
 
@@ -64,6 +67,20 @@ contract MargitCheckout {
     event TokenAllowed(
         address indexed token,
         bool allowed
+    );
+
+    event PurchaseFeeCollected(
+        bytes32 indexed purchaseId,
+        address indexed token,
+        address indexed treasury,
+        uint256 feeAmount,
+        uint256 sellerAmount
+    );
+
+    event DeferredFeesPaid(
+        bytes32 indexed sellerId,
+        address indexed payer,
+        uint256 amount
     );
 
     event PurchaseCompleted(
@@ -97,6 +114,7 @@ contract MargitCheckout {
             revert InvalidConfiguration();
         }
 
+        treasury = msg.sender;
         admin = msg.sender;
 
         emit AdminTransferred(
@@ -272,6 +290,9 @@ contract MargitCheckout {
         }
 
         usedOrders[_order.orderId] = true;
+        // 50 / 10,000 = 1 / 200. Integer division rounds the fee down.
+        uint256 feeAmount = _order.amount / 200;
+        uint256 sellerAmount = _order.amount - feeAmount;
 
         if (_order.token == nativeUsdc) {
 
@@ -281,11 +302,14 @@ contract MargitCheckout {
             }
 
             (bool success,) = payable(_order.seller).call{
-                value: msg.value
+                value: sellerAmount * 1e12
             }("");
 
             if (success == false) {
                 revert TransferFailed();
+            }
+            if (feeAmount > 0) {
+                _sendNativeFee(feeAmount * 1e12);
             }
 
         } else {
@@ -297,11 +321,27 @@ contract MargitCheckout {
             if (IERC20(_order.token).transferFrom(
                 msg.sender,
                 _order.seller,
-                _order.amount
+                sellerAmount
             ) == false) {
                 revert TransferFailed();
             }
+            if (feeAmount > 0) {
+                if (IERC20(_order.token).transferFrom(
+                    msg.sender,
+                    treasury, feeAmount) == false
+                ) {
+                    revert TransferFailed();
+                }
+            }
         }
+
+        emit PurchaseFeeCollected(
+            _order.orderId,
+            _order.token,
+            treasury,
+            feeAmount,
+            sellerAmount
+        );
 
         emit PurchaseCompleted(
             _order.orderId,
@@ -316,4 +356,48 @@ contract MargitCheckout {
         entered = false;
         return _order.orderId;
     }
+    function payDeferredFees(
+        bytes32 _sellerId
+    )
+        external
+        payable
+    {
+        if (entered) {
+            revert Reentrancy();
+        }
+        if (_sellerId == bytes32(0)) {
+            revert InvalidOrder();
+        }
+        if (msg.value == 0) {
+            revert InvalidNativeValue();
+        }
+        if (msg.value % 1e12 != 0) {
+            revert InvalidNativeValue();
+        }
+
+        entered = true;
+
+        _sendNativeFee(
+            msg.value
+        );
+
+        emit DeferredFeesPaid(
+            _sellerId, msg.sender,
+            msg.value / 1e12
+        );
+
+        entered = false;
+    }
+
+    function _sendNativeFee(
+        uint256 _value
+    )
+        private
+    {
+        (bool success,) = payable(treasury).call{value: _value}("");
+        if (success == false) {
+            revert TransferFailed();
+        }
+    }
+
 }

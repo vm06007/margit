@@ -561,6 +561,7 @@ export function ListModal({
                                 value={price}
                                 onChange={(e) => setPrice(e.target.value)}
                             />
+                            <p className="hint">Publisher fee: 0.5% of each sale. Collected automatically at contract checkout; x402 fees are settled from My Portfolio. Buyers pay your listed price.</p>
 
                         </div>
 

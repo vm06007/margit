@@ -2,6 +2,11 @@ import { parseAbi, keccak256, stringToHex } from 'viem';
 import { parseAccessPolicy, type AccessPolicy } from './accessPolicy.js';
 export const CHECKOUT_CHAIN_ID = 5042002;
 export const checkoutAbi = parseAbi([
+    'function FEE_BPS() view returns (uint256)',
+    'function treasury() view returns (address)',
+    'function payDeferredFees(bytes32 _sellerId) payable',
+    'event PurchaseFeeCollected(bytes32 indexed purchaseId,address indexed token,address indexed treasury,uint256 feeAmount,uint256 sellerAmount)',
+    'event DeferredFeesPaid(bytes32 indexed sellerId,address indexed payer,uint256 amount)',
     'error Unauthorized()',
     'error InvalidAdmin()',
     'error InvalidToken()',

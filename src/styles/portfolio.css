@@ -5,3 +5,10 @@
 
 .portfolio-verify-link { padding: 0; border: 0; background: none; color: var(--t-bright); font: inherit; text-decoration: underline; cursor: pointer; }
 .portfolio-verify-link:disabled { opacity: .5; cursor: wait; }
+
+.portfolio-fees { border: 1px solid var(--t-muted); border-radius: 2rem; padding: 2.4rem; margin: 2.4rem 0; }
+.portfolio-fee-currency { margin: 2rem 0; }
+.portfolio-fee-currency h4 { font-size: 1.8rem; }
+.portfolio-fee-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1.6rem; margin: 1rem 0 2rem; }
+.portfolio-fee-grid dt { font-size: 1.4rem; color: var(--t-medium); }
+.portfolio-fee-grid dd { margin: .4rem 0 0; font-size: 2.2rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
