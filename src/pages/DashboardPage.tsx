@@ -158,6 +158,8 @@ export function DashboardStyle() {
             .modal-field { display: flex; flex-direction: column; gap: 0.7rem; margin-bottom: 1.8rem; }
             .modal-field .agent-input { font-size: 1.8rem; }
             .modal-field .hint { font-size: 1.4rem !important; }
+            .modal-delivery-terms { margin-top: 2.4rem; padding-top: 2.4rem; border-top: 1px solid var(--st-muted); min-width: 0; }
+            .modal-delivery-terms .agent-input { width: 100%; min-width: 0; }
             .modal-label { font-size: 1.8rem; font-weight: 600; color: var(--t-medium); }
             .modal-link-btn {
                 font: inherit;
@@ -445,6 +447,18 @@ export function ListModal({
                             className="modal-repo-thumb"
                             style={{ marginTop: "1.6rem", backgroundImage: `url(${thumbFor(repo, listing)})` }}
                         />
+                        <div className="modal-field modal-delivery-terms">
+                            <label className="modal-label" htmlFor="delivery-mode">Delivery terms</label>
+                            <select id="delivery-mode" className="agent-input" value={accessPolicy.mode} disabled={submitting} onChange={event => setAccessPolicy({ ...accessPolicy, mode: event.target.value as AccessPolicy["mode"] })}>
+                                <option value="window">Timed access · clone and ZIP with retries</option>
+                                <option value="single_download">One-time ZIP download</option>
+                            </select>
+                            <label className="modal-label" htmlFor="delivery-window">Access expires after purchase</label>
+                            <select id="delivery-window" className="agent-input" value={accessPolicy.minutes} disabled={submitting} onChange={event => setAccessPolicy({ ...accessPolicy, minutes: Number(event.target.value) })}>
+                                {ACCESS_WINDOWS.map(minutes => <option key={minutes} value={minutes}>{accessWindowLabel(minutes)}</option>)}
+                            </select>
+                            <p className="hint">{accessPolicyLabel(accessPolicy)} Files already downloaded remain with the buyer. Changing these terms only affects new purchases.</p>
+                        </div>
                         {isEdit && (
                             <div style={{ marginTop: "auto", paddingTop: "2rem", borderTop: "1px solid var(--st-muted)" }}>
                                 {!confirmingUnlist ? (
@@ -547,18 +561,6 @@ export function ListModal({
                         <div className="modal-field">
                             <label className="modal-label" htmlFor="listing-demo-url">Live preview / Demo link</label>
                             <input id="listing-demo-url" className="agent-input" type="url" placeholder="https://your-demo.com" value={demoUrl} onChange={event => setDemoUrl(event.target.value)} disabled={submitting} />
-                        </div>
-                        <div className="modal-field">
-                            <label className="modal-label" htmlFor="delivery-mode">Delivery terms</label>
-                            <select id="delivery-mode" className="agent-input" value={accessPolicy.mode} disabled={submitting} onChange={event => setAccessPolicy({ ...accessPolicy, mode: event.target.value as AccessPolicy["mode"] })}>
-                                <option value="window">Timed access · clone and ZIP with retries</option>
-                                <option value="single_download">One-time ZIP download</option>
-                            </select>
-                            <label className="modal-label" htmlFor="delivery-window">Access expires after purchase</label>
-                            <select id="delivery-window" className="agent-input" value={accessPolicy.minutes} disabled={submitting} onChange={event => setAccessPolicy({ ...accessPolicy, minutes: Number(event.target.value) })}>
-                                {ACCESS_WINDOWS.map(minutes => <option key={minutes} value={minutes}>{accessWindowLabel(minutes)}</option>)}
-                            </select>
-                            <p className="hint">{accessPolicyLabel(accessPolicy)} Files already downloaded remain with the buyer. Changing these terms only affects new purchases.</p>
                         </div>
                         <ScreenshotPicker screenshots={screenshots} setScreenshots={setScreenshots} actions={
                         <div className="modal-footer">
