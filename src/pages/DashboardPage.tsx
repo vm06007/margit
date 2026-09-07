@@ -443,11 +443,6 @@ export function ListModal({
                                 {repo.private ? "Private" : "Public"}
                             </a>
                         </div>
-                        <p className="hint modal-repo-detail-line" style={{ fontSize: "1.5rem", lineHeight: 1.5, marginTop: "1.6rem" }}>
-                            <i className="ph ph-text-align-left" aria-hidden="true" />
-                            <span>{repo.description || "No description on GitHub."}</span>
-                        </p>
-                        {repo.updatedAt && <p className="hint modal-repo-detail-line" style={{ fontSize: "1.4rem", marginTop: "2.4rem" }}><i className="ph ph-calendar-blank" aria-hidden="true" /><span>Updated {new Date(repo.updatedAt).toLocaleDateString()}</span></p>}
                         <div
                             className="modal-repo-thumb"
                             style={{ marginTop: "1.6rem", backgroundImage: `url(${thumbFor(repo, listing)})` }}
