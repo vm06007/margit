@@ -167,6 +167,10 @@ export function DashboardStyle() {
             .listing-price-presets button { padding: .3rem .7rem; border: 1px solid var(--t-muted); border-radius: 3rem; background: transparent; color: var(--t-bright); font: inherit; font-size: 1.25rem; }
             .listing-price-presets button[aria-pressed="true"] { background: var(--t-bright); color: var(--base); border-color: var(--t-bright); }
             .listing-price-presets button:focus-visible { outline: 2px solid var(--t-bright); outline-offset: 3px; }
+            .modal-generate-btn { display: inline-flex; align-items: center; gap: .7rem; }
+            .modal-generate-spinner { width: 1.4rem; height: 1.4rem; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: description-spin .8s linear infinite; }
+            @keyframes description-spin { to { transform: rotate(360deg); } }
+            @media (prefers-reduced-motion: reduce) { .modal-generate-spinner { animation: none; } }
             .modal-label { font-size: 1.8rem; font-weight: 600; color: var(--t-medium); }
             .modal-link-btn {
                 font: inherit;
@@ -366,8 +370,9 @@ export function ListModal({
     }, [payoutAddress]);
 
     const generateWithAi = async () => {
+        if (aiBusy) return;
         setAiBusy(true);
-        setDescStatus("Asking the AI to write one… (reads the README, may take a moment)");
+        setDescStatus(null);
         try {
             setDescription(await generateRepoDescription(repo.fullName));
             setDescStatus(null);
@@ -575,8 +580,8 @@ export function ListModal({
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
                                 <span className="modal-label">Description</span>
                                 <div style={{ display: "flex", gap: "1.2rem", flexShrink: 0 }}>
-                                    <button type="button" className="modal-link-btn" disabled={aiBusy} onClick={generateWithAi}>
-                                        ✨ Generate with AI
+                                    <button type="button" className="modal-link-btn modal-generate-btn" disabled={aiBusy} aria-busy={aiBusy} onClick={generateWithAi}>
+                                        {aiBusy ? <><span className="modal-generate-spinner" aria-hidden="true" />Generating…</> : "✨ Generate with AI"}
                                     </button>
 
                                 </div>
@@ -584,7 +589,7 @@ export function ListModal({
                             <textarea
                                 className="agent-input"
                                 rows={4}
-                                placeholder="Describe what buyers get…"
+                                placeholder={aiBusy ? "Writing your description from the README…" : "Describe what buyers get…"}
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                             />
