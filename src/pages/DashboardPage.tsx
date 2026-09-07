@@ -162,6 +162,8 @@ export function DashboardStyle() {
             .modal-delivery-terms .agent-input { width: 100%; min-width: 0; }
             .listing-details-tabs { display: flex; gap: .5rem; padding: .5rem; border: 1px solid var(--t-muted); border-radius: 4rem; margin-bottom: 2.4rem; }
             .modal-repo-details .listing-details-tabs { flex-direction: column; border-radius: 2.4rem; margin-top: 0; }
+            .listing-sidebar-navigation { margin-top: auto; padding-top: 2.4rem; }
+            .listing-sidebar-navigation .listing-details-tabs { margin-bottom: 0; }
             .listing-sidebar-divider { width: 100%; border: 0; border-top: 1px solid var(--st-muted); margin: 1rem 0 2.4rem; }
             .listing-details-tabs button { flex: 1; padding: 1.2rem; border: 0; border-radius: 3rem; background: transparent; color: var(--t-medium); font: inherit; font-size: 1.7rem; }
             .listing-details-tabs button[aria-selected="true"] { background: var(--t-bright); color: var(--base); }
@@ -462,6 +464,16 @@ export function ListModal({
                                 {repo.private ? "Private" : "Public"}
                             </a>
                         </div>
+                        <p className="hint modal-repo-detail-line" style={{ fontSize: "1.5rem", lineHeight: 1.5, marginTop: "1.6rem" }}>
+                            <i className="ph ph-text-align-left" aria-hidden="true" />
+                            <span>{repo.description || "No description on GitHub."}</span>
+                        </p>
+                        {repo.updatedAt && <p className="hint modal-repo-detail-line" style={{ fontSize: "1.4rem", marginTop: "2.4rem" }}><i className="ph ph-calendar-blank" aria-hidden="true" /><span>Updated {new Date(repo.updatedAt).toLocaleDateString()}</span></p>}
+                        <div
+                            className="modal-repo-thumb"
+                            style={{ marginTop: "1.6rem", backgroundImage: `url(${thumbFor(repo, listing)})` }}
+                        />
+                        <div className="listing-sidebar-navigation">
                         <hr className="listing-sidebar-divider" />
                         <div className="listing-details-tabs" role="tablist" aria-label="Listing details">
                             {(["general", "access"] as const).map(tab => <button key={tab} type="button" role="tab" id={`listing-${tab}-tab`} aria-controls={`listing-${tab}-panel`} aria-selected={detailsTab === tab} tabIndex={detailsTab === tab ? 0 : -1} onClick={() => setDetailsTab(tab)} onKeyDown={event => {
@@ -472,12 +484,9 @@ export function ListModal({
                                 document.getElementById(`listing-${next}-tab`)?.focus();
                             }}>{tab === "general" ? "General Details" : "Access Details"}</button>)}
                         </div>
-                        <div
-                            className="modal-repo-thumb"
-                            style={{ marginTop: "1.6rem", backgroundImage: `url(${thumbFor(repo, listing)})` }}
-                        />
+                        </div>
                         {isEdit && (
-                            <div style={{ marginTop: "auto", paddingTop: "2rem", borderTop: "1px solid var(--st-muted)" }}>
+                            <div style={{ marginTop: "2rem", paddingTop: "2rem", borderTop: "1px solid var(--st-muted)" }}>
                                 {!confirmingUnlist ? (
                                     <button
                                         type="button"
