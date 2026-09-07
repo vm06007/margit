@@ -107,3 +107,13 @@
 .clone-header-copy svg { width: 1.8rem; height: 1.8rem; }
 .clone-header-copy:hover { color: var(--t-bright); }
 .clone-header-copy:focus-visible { outline: 2px solid var(--t-bright); outline-offset: 3px; }
+
+.repository-purchase h3.repository-purchase-title { margin-top: 0; }
+
+.repository-page .agent-instructions-code { margin: 2rem 0 1.2rem; }
+.repository-page .agent-instructions-code pre code { font-size: 1.4rem; line-height: 1.7; }
+.repository-page .agent-code-comment { color: var(--t-muted); }
+.repository-page .agent-instructions-caption { font-size: 1.4rem; margin: 0 0 1.6rem; }
+.agent-instructions-steps { padding-left: 2rem; margin: 0; list-style: decimal; color: var(--t-medium); font-size: 1.5rem; line-height: 1.65; }
+.agent-instructions-steps li { padding-left: .4rem; margin-bottom: .8rem; }
+.repository-page .agent-instructions-steps code { font-size: 1.3rem; }

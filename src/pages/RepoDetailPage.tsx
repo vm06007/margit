@@ -1,8 +1,9 @@
+import { Toast } from "../components/Toast";
 import { PageLoading } from "../components/PageLoading";
 import { pendingCheckout, purchaseWithContract } from "../lib/checkout";
 import { allowsCheckout, checkoutLabel, accessPolicyLabel } from "../../shared/accessPolicy";
 import { normalizeDemoUrl } from "../../shared/demoUrl";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { getContract, prepareContractCall, readContract, sendTransaction, waitForReceipt } from "thirdweb";
 import { useActiveAccount, useConnectModal } from "thirdweb/react";
 import { toUnits } from "thirdweb/utils";
@@ -12,7 +13,7 @@ import type { Listing } from "../api";
 import { arcTestnet, thirdwebClient, thirdwebWallets, thirdwebTheme, thirdwebAppMetadata } from "../lib/thirdweb";
 import { ARC_USDC_ADDRESS, type PaymentToken } from "../lib/constants";
 import { useUnlockPreview, unlockDetailsNode } from "../hooks/useUnlockPreview";
-import { WalletIcon } from "../components/icons";
+import { CopyIcon, WalletIcon } from "../components/icons";
 import { PurchaseSuccess, type PurchaseReceipt } from "../components/PurchaseSuccess.tsx";
 import { listingMediaStyle } from "../components/listingMedia";
 import "../styles/repository.css";
@@ -20,48 +21,36 @@ import "../styles/repository.css";
 import { ReviewsSection } from "../components/ReviewsSection";
 
 function AgentInstructions({ listingId }: { listingId: string }) {
-    const [open, setOpen] = useState(false);
-    const [copied, setCopied] = useState(false);
-    const unlockUrl = `${window.location.origin}/api/listings/unlock?id=${listingId}`;
+    const [notification, setNotification] = useState<{ message: string; tone: "success" | "error"; id: number } | null>(null);
+    const dismiss = useCallback(() => setNotification(null), []);
+    const unlockUrl = `${window.location.origin}/api/listings/unlock?id=${encodeURIComponent(listingId)}`;
     const curlCmd = `curl -i "${unlockUrl}"`;
+    const copy = async () => {
+        try {
+            await navigator.clipboard.writeText(curlCmd);
+            setNotification(previous => ({ message: "Command copied", tone: "success", id: (previous?.id ?? 0) + 1 }));
+        } catch {
+            setNotification(previous => ({ message: "Could not copy. Please select and copy the command manually.", tone: "error", id: (previous?.id ?? 0) + 1 }));
+        }
+    };
 
     return (
-        <div className="agent-instructions">
-            <button type="button" className="repo-group-label" onClick={() => setOpen((v) => !v)}>
-                <span className={`chevron ${open ? "chevron-open" : ""}`}>▸</span>
-                For AI agents
-            </button>
-            {open && (
-                <div className="agent-instructions-body">
-                    <p className="hint">
-                        This endpoint speaks x402 (v2) on Arc testnet (<code>eip155:5042002</code>), priced in
-                        USDC. An unpaid request returns <code>402</code> with the machine-readable payment
-                        requirements in the <code>payment-required</code> response header — scheme, price, payTo,
-                        and the Gateway's verifying contract.
-                    </p>
-                    <div className="agent-instructions-code">
-                        <code>{curlCmd}</code>
-                        <button
-                            type="button"
-                            className="btn btn-ghost"
-                            onClick={() => {
-                                navigator.clipboard.writeText(curlCmd);
-                                setCopied(true);
-                                setTimeout(() => setCopied(false), 1500);
-                            }}
-                        >
-                            {copied ? "Copied!" : "Copy"}
-                        </button>
-                    </div>
-                    <p className="hint">
-                        To pay: an x402-aware client (e.g. <code>@x402/core</code> +{" "}
-                        <code>@circle-fin/x402-batching</code>, or Circle's Agent Stack) can complete the
-                        fetch → 402 → pay → retry loop automatically. Hand-rolling the Gateway's batched
-                        settlement without one of these isn't recommended.
-                    </p>
+        <section className="agent-instructions" aria-label="Agent integration">
+            <div className="clone-code agent-instructions-code">
+                <div className="clone-code-label">
+                    <span>Agent quickstart · Terminal</span>
+                    <button type="button" className="clone-header-copy" onClick={copy} aria-label="Copy x402 request" title="Copy command"><CopyIcon /></button>
                 </div>
-            )}
-        </div>
+                <pre tabIndex={0} aria-label="Preview x402 payment requirements"><code><span className="agent-code-comment"># Preview payment requirements</span>{"\n"}{curlCmd}</code></pre>
+            </div>
+            <p className="hint agent-instructions-caption">This request returns HTTP 402 and payment requirements. It does not make a purchase.</p>
+            <ol className="agent-instructions-steps">
+                <li>Read the price and recipient from the <code>PAYMENT-REQUIRED</code> header.</li>
+                <li>Use a Circle Gateway-compatible x402 client to authorize payment and retry.</li>
+                <li>Use the returned access link before it expires.</li>
+            </ol>
+            {notification && <Toast key={notification.id} message={notification.message} tone={notification.tone} onDismiss={dismiss} />}
+        </section>
     );
 }
 
@@ -324,7 +313,7 @@ export function RepoDetailPage({ owner, name, listings, navigate }: {
                 </article>
                 <aside className="repository-purchase" aria-label="Unlock repository">
                     {purchase ? <PurchaseSuccess receipt={purchase} listing={listing} /> : <>
-                    <p className="repository-eyebrow">Make it yours</p><div className="repository-price">{listing.price}</div><p>Pay once. Get the code.</p><p className="hint">{checkoutLabel(listing.accessPolicy)}. {accessPolicyLabel(listing.accessPolicy)}</p>
+                    <h3 className="repository-purchase-title">Make it yours</h3><div className="repository-price">${Number(listing.price.replace("$", "")).toFixed(2)}</div><p className="hint">{checkoutLabel(listing.accessPolicy)}. {accessPolicyLabel(listing.accessPolicy)}</p>
                     <div className="repository-payment-tabs" role="group" aria-label="Purchase method"><button type="button" disabled={!allowsCheckout(listing.accessPolicy, "wallet")} aria-pressed={selectedPayment === "wallet"} onClick={() => setPayment("wallet")}>Your wallet</button><button type="button" disabled={!allowsCheckout(listing.accessPolicy, "x402")} aria-pressed={selectedPayment === "agent"} onClick={() => setPayment("agent")}>x402 / Agent</button></div>
                     <div hidden={selectedPayment !== "wallet"}><h3>Pay with wallet</h3><p className="hint">Send USDC or EURC on Arc through the Margit contract to the publisher.</p><DirectBuyButton listing={listing} onPurchased={setPurchase} /></div>
                     <div hidden={selectedPayment !== "agent"}><h3>Buy with x402</h3><p className="hint">Fund Circle Gateway with USDC, then authorize an x402 payment.</p><DepositButton /><BuyButton listingId={listing.id} onPurchased={setPurchase} /><AgentInstructions listingId={listing.id} /></div>
