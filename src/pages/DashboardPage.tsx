@@ -6,7 +6,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
     createListing,
     deleteListing,
-    fetchRepoReadme,
     generateRepoDescription,
     resolveName,
     type Listing,
@@ -320,7 +319,6 @@ export function ListModal({
     const [submitting, setSubmitting] = useState(false);
     const [descStatus, setDescStatus] = useState<string | null>(null);
     const [aiBusy, setAiBusy] = useState(false);
-    const [readmeBusy, setReadmeBusy] = useState(false);
     const [confirmingUnlist, setConfirmingUnlist] = useState(false);
     const [unlisting, setUnlisting] = useState(false);
 
@@ -354,19 +352,6 @@ export function ListModal({
             clearTimeout(timer);
         };
     }, [payoutAddress]);
-
-    const useReadme = async () => {
-        setReadmeBusy(true);
-        setDescStatus("Fetching README…");
-        try {
-            setDescription(await fetchRepoReadme(repo.fullName));
-            setDescStatus(null);
-        } catch (err) {
-            setDescStatus(err instanceof Error ? err.message : "Failed to fetch README");
-        } finally {
-            setReadmeBusy(false);
-        }
-    };
 
     const generateWithAi = async () => {
         setAiBusy(true);
@@ -570,9 +555,7 @@ export function ListModal({
                                     <button type="button" className="modal-link-btn" disabled={aiBusy} onClick={generateWithAi}>
                                         ✨ Generate with AI
                                     </button>
-                                    <button type="button" className="modal-link-btn" disabled={readmeBusy} onClick={useReadme}>
-                                        Use README
-                                    </button>
+
                                 </div>
                             </div>
                             <textarea
