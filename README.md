@@ -6,14 +6,27 @@ Sell access to a private repo. Get paid in **USDC** or **EURC** on [Arc](https:/
 
 Built for **ETHGlobal ETHOnline 2026**.
 
-**Deployed checkout contract — Arc Testnet (chain ID 5042002):**
-[0x2deb736ea29f140eb77919380b28d34b854e7ab2](https://testnet.arcscan.app/address/0x2deb736ea29f140eb77919380b28d34b854e7ab2)
+**Current checkout contract — Arc Testnet (chain ID 5042002):**
+[0x72c54ecd669acb19d6e6d5b5160f67d03b4d5b7b](https://testnet.arcscan.app/address/0x72c54ecd669acb19d6e6d5b5160f67d03b4d5b7b?tab=contract)
 
-`MargitCheckout` verifies short-lived, buyer-specific quotes signed by Margit, transfers USDC or EURC directly from the buyer to the seller, and prevents the same order from being paid twice. It emits `PurchaseCompleted` receipts that **The Graph** indexes for purchase history and portfolio analytics. Wallet checkout and the built-in agent use this contract; Circle Gateway x402 remains a separate payment flow.
+`MargitCheckout` verifies buyer-bound quotes, pays the publisher, collects a **0.5% publisher fee**, and emits receipts indexed by **The Graph**. Native-USDC purchases take one transaction. EURC uses approval when needed, then checkout. Admin can manage allowed tokens and transfer administration through nominee acceptance.
 
-Repository delivery and access expiry are enforced by Margit's backend. The contract does not store code, guarantee delivery, hold payments in escrow, or issue refunds.
+**One fee, two collection methods:**
 
-[MargitArc Studio](https://thegraph.com/studio/subgraph/margit-arc) **v0.3.0** indexes v1 from block **60950495**, v2 from block **60954258**, and the current admin-enabled v3 from block **60955382**. See [contract design, deployment, Graph setup and limitations](contracts/README.md) and [portfolio/agent integration](docs/portfolio-and-agent-flow.md).
+| Route | Buyer pays | Publisher receives | Margit fee |
+|---|---|---|---|
+| Wallet / built-in agent | Listed price | 99.5% of price | Collected atomically by the contract |
+| Circle Gateway x402 | Listed price | Full price through Gateway | 0.5% accrues as publisher debt, paid from My Portfolio |
+
+On a **1 USDC** contract purchase, the publisher receives **0.995 USDC** and Margit receives **0.005 USDC**. An x402 sale of the same amount records **0.005 USDC owed**. Fees round down to token units; gas is separate. Contract fees never also become deferred debt.
+
+My Portfolio shows gross sales, net earnings, fees collected, x402 fees accrued, paid and owed. Publishers settle x402 fees with one native-USDC transaction; the backend verifies its publisher-bound receipt and credits it once. New listings disclose the fee. Pre-launch sales remain fee-free. Deferred fees currently rely on publisher settlement; no listing restriction is enabled.
+
+**Admin and treasury:** `0x4d2A622F53a2ac4D3Ee1c06bCeB4641a8a6fE6aa`. The 0.5% rate and treasury are fixed for this deployment; transferring admin does not change the treasury.
+
+[MargitArc Studio](https://thegraph.com/studio/subgraph/margit-arc) indexes purchases, automatic fee splits and deferred fee settlements. Repository delivery and access expiry remain enforced by the backend; the contract provides no code custody, delivery guarantee, escrow or refunds. x402 uses Circle Gateway settlement and does not invoke contract checkout.
+
+See [contract and deployment details](contracts/README.md), [fee accounting](docs/fee-model.md), and [agent integration](docs/portfolio-and-agent-flow.md). Earlier test deployments are retained for historical receipts; the address above is the active contract.
 
 ---
 
