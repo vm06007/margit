@@ -554,8 +554,8 @@ export function ListModal({
                         <div className="modal-field">
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
                                 <label className="modal-label" htmlFor="listing-payout-address">Payout address</label>
-                                <button type="button" className="modal-link-btn" disabled={submitting || connectingWallet} onClick={useConnectedWallet}>
-                                    {connectingWallet ? "Connecting…" : "Use connected wallet"}
+                                <button type="button" className="modal-link-btn modal-generate-btn" disabled={submitting || connectingWallet} onClick={useConnectedWallet}>
+                                    <i className="ph ph-wallet" aria-hidden="true" />{connectingWallet ? "Connecting…" : "Use connected wallet"}
                                 </button>
                             </div>
                             <input
@@ -581,7 +581,7 @@ export function ListModal({
                                 <span className="modal-label">Description</span>
                                 <div style={{ display: "flex", gap: "1.2rem", flexShrink: 0 }}>
                                     <button type="button" className="modal-link-btn modal-generate-btn" disabled={aiBusy} aria-busy={aiBusy} onClick={generateWithAi}>
-                                        {aiBusy ? <><span className="modal-generate-spinner" aria-hidden="true" />Generating…</> : "✨ Generate with AI"}
+                                        {aiBusy ? <><span className="modal-generate-spinner" aria-hidden="true" />Generating…</> : <><i className="ph ph-sparkle" aria-hidden="true" />Generate with AI</>}
                                     </button>
 
                                 </div>
