@@ -29,7 +29,6 @@ const CURATED_LANGUAGES = [
     "Ruby",
     "Swift",
     "C++",
-    "PHP",
     "HTML",
 ];
 
@@ -345,7 +344,7 @@ export function CatalogPage({
                                 <div className="col-12 col-xl-10 mxd-grid-item no-margin">
                                     <div className="mxd-block__content">
                                         <div className="mxd-block__inner-headline">
-                                            <h1 className="inner-headline__title headline-img-before headline-img-06">
+                                            <h1 className="inner-headline__title">
                                                 Catalog
                                             </h1>
                                         </div>

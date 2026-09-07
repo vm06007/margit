@@ -1,10 +1,10 @@
-# 🐙 Margit
+# 😺 Margit
 
 **A marketplace for private GitHub repositories, built for humans and AI agents.**
 
 Sell access to a private repo. Get paid in **USDC** or **EURC** on [Arc](https://arc.io) (Circle's L1). Buyers — human or AI agent — pay once and get an authenticated `git clone` URL instantly. An agent sidebar with its own funded wallet can browse, buy, list, and unlist repos on command.
 
-Built for **ETHGlobal ETHOnline 2026**. Not a continuity-track submission — built from scratch this event.
+Built for **ETHGlobal ETHOnline 2026**.
 
 ---
 
@@ -53,7 +53,7 @@ flowchart LR
         GH[GitHub Account]
     end
 
-    subgraph Platform["🐙 Margit"]
+    subgraph Platform["😺 Margit"]
         direction TB
         Dash[My Repos Dashboard]
         Cat[Public Catalog]
@@ -67,7 +67,7 @@ flowchart LR
     end
 
     subgraph Buyer["🛒 Buyer / Agent"]
-        Wallet[thirdweb Wallet]
+        Wallet[Connected Wallet]
         AgentWallet[Margit Agent<br/>own funded wallet]
     end
 
@@ -126,7 +126,7 @@ flowchart TD
     L --> Direct["🟢 Direct path<br/>plain USDC/EURC ERC-20 transfer<br/>+ POST /api/listings/:id/verify-payment"]
     L --> X402["🔵 x402 path<br/>GET /api/listings/unlock (402-gated)<br/>Circle Gateway facilitator"]
 
-    Direct --> Human["Human with a connected wallet<br/>(thirdweb ConnectButton)<br/>one-shot, no pre-funding"]
+    Direct --> Human["Human with a connected wallet<br/>(wallet connect button)<br/>one-shot, no pre-funding"]
     X402 --> Agent["Any x402-aware agent<br/>repeated, gasless via Gateway<br/>(after a one-time deposit)"]
 ```
 
@@ -217,7 +217,7 @@ flowchart TB
         Pages["Pages: /catalog, /profile,<br/>/repo/:owner/:name, /publisher/:login"]
         Landing["/ — static ported homepage<br/>(public/landing/index.html)"]
         Sidebar["AgentSidebar — chat + settings + voice"]
-        Thirdweb["thirdweb v5 — ConnectButton, wallet details modal"]
+        WalletSDK["Wallet SDK — connect modal, wallet details modal"]
     end
 
     subgraph Server["⚙️ Hono API (Node, tsx)"]
@@ -248,7 +248,7 @@ flowchart TB
         Redis["Upstash Redis"]
     end
 
-    Pages --> Thirdweb
+    Pages --> WalletSDK
     Pages -->|fetch| Server
     Sidebar -->|fetch| AgentChat
     Server --> Libs
@@ -278,7 +278,7 @@ flowchart TB
 | Chain | Arc — Circle's L1, testnet chain ID `5042002`, native-gas-as-USDC |
 | Payments (direct) | Plain ERC-20 transfer, verified server-side via `viem` |
 | Payments (agentic) | x402 standard (`@x402/core`, `@x402/hono`) + `@circle-fin/x402-batching` (Circle Gateway) |
-| Wallet connect | thirdweb v5 (`ConnectButton`, `useWalletDetailsModal`, `useConnectModal`) |
+| Wallet connect | Wallet SDK (connect modal, wallet details modal) |
 | Naming | ENS (`.eth`, via `viem`) + ArcNS (`.arc`/`.circle`, community REST API) |
 | Agent LLM | OpenRouter (`openai` SDK pointed at `openrouter.ai/api/v1`) — any model, default `openrouter/free` |
 | Voice input | Web Speech API (browser-native, no dependency) |
@@ -293,7 +293,6 @@ flowchart TB
 | Sponsor | Status | Detail |
 |---|---|---|
 | **Arc / Circle** | ✅ Built | Native chain for both payment paths; USDC + EURC support; real Circle Gateway facilitator for x402 |
-| **thirdweb** | ✅ Built | Wallet connect, wallet details modal, built-in `arcTestnet` chain definition |
 | **The Graph** | ⏸️ Planned | Confirmed Arc Testnet is a real, supported Subgraph Studio network. Blocked on a Deploy Key for a new subgraph project |
 | **Bazantic** | ⏸️ Planned | Real API confirmed live (`api.bazantic.com`, documented OpenAPI spec). `/api/agent-api/*` built as the target surface. Blocked on a real Bazantic API key (current `BAZANTIC_API_TOKEN` is a webapp session JWT, rejected by the API) |
 | **Hedera** | ❌ Deprioritized | Researched: Circle Gateway doesn't support Hedera at all; USDC there is a native HTS token (needs association, not a plain ERC-20 swap); would need a fully separate direct-payment path with `@hashgraph/sdk`. Set aside by explicit user decision |
@@ -339,7 +338,7 @@ margit/
 │   ├── App.css                  # All app styling
 │   ├── api.ts                   # Typed fetch wrappers for every backend route
 │   ├── speech.d.ts              # Ambient types for the Web Speech API
-│   └── lib/thirdweb.ts          # thirdweb client, chain, wallets, theme
+│   └── lib/thirdweb.ts          # Wallet client, chain, wallet list, theme
 ├── server/src/
 │   ├── index.ts                 # All Hono routes
 │   ├── agent.ts                 # OpenRouter tool-use loop, agent wallet, settings, model catalog
@@ -369,7 +368,7 @@ margit/
 - An [Upstash Redis](https://console.upstash.com) database (free tier is fine)
 - Two Arc-testnet wallets, funded via [faucet.circle.com](https://faucet.circle.com) ("Arc Testnet") — one to receive payments, one for the agent sidebar's own funded wallet
 - A free [OpenRouter](https://openrouter.ai/keys) API key (optional but recommended — powers the agent for every visitor)
-- A [thirdweb](https://thirdweb.com/dashboard) client ID (free)
+- A [wallet SDK client ID](https://thirdweb.com/dashboard) (free)
 
 ### Setup
 
@@ -415,7 +414,7 @@ flowchart LR
 - **GitHub tokens** encrypted with AES-256-GCM before storage; the key lives only in `TOKEN_ENCRYPTION_KEY`.
 - **Clone URLs** embed a live credential — not re-issued once minted, so a fresh payment is required to get a new one.
 - **Direct-payment tx hashes are single-use** (Redis-tracked) — replaying the same hash to unlock twice is rejected.
-- **Wallet keys never touch the server for human buyers** — thirdweb only ever handles signing in-browser.
+- **Wallet keys never touch the server for human buyers** — the wallet SDK only ever handles signing in-browser.
 - **The agent's own wallet key** (`ARC_DEMO_BUYER_PRIVATE_KEY`) is a real private key held server-side — fund it only with what you're willing to let the agent spend.
 - **Bring-your-own OpenRouter keys and margit API keys** are encrypted at rest the same way GitHub tokens are.
 - **Payments are verified independently on-chain** (direct path via `viem` receipt decode; x402 path via the Circle Gateway facilitator) — the server never trusts a client's claim that it paid.

@@ -329,7 +329,7 @@ app.get("/api/repos", async (c) => {
     if (!session) return c.json({ error: "Not authenticated" }, 401);
 
     const reposRes = await fetch(
-        "https://api.github.com/user/repos?sort=updated&per_page=100&affiliation=owner,collaborator",
+        "https://api.github.com/user/repos?sort=updated&per_page=100&affiliation=owner",
         {
             headers: {
                 Authorization: `Bearer ${session.githubAccessToken}`,
