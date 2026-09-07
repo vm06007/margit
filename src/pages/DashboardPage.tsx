@@ -128,14 +128,6 @@ export function DashboardStyle() {
                 border-radius: var(--_radius-m) 0 0 var(--_radius-m);
             }
             .modal-repo-details h2 { font-size: 2.8rem; color: var(--t-bright); word-break: break-word; }
-            .modal-repo-thumb {
-                width: 100%;
-                height: 12rem;
-                border-radius: 8px;
-                margin-bottom: 1.6rem;
-                background-size: cover;
-                background-position: center;
-            }
             .modal-wide .modal-body { padding: 3.2rem 2.8rem; }
             .modal-wide .modal-footer { border-top: none; padding-top: 0.4rem; }
             .modal-header { padding-bottom: 1.6rem; margin-bottom: 1.6rem; border-bottom: 1px solid var(--st-muted); }
@@ -462,10 +454,6 @@ export function ListModal({
                         </p>
                         {repo.updatedAt && <p className="hint modal-repo-detail-line" style={{ fontSize: "1.4rem", marginTop: "2.4rem" }}><i className="ph ph-calendar-blank" aria-hidden="true" /><span>Updated {new Date(repo.updatedAt).toLocaleDateString()}</span></p>}
                         <hr className="listing-sidebar-divider" style={{ marginTop: "2.4rem" }} />
-                        <div
-                            className="modal-repo-thumb"
-                            style={{ marginTop: "1.6rem", backgroundImage: `url(${thumbFor(repo, listing)})` }}
-                        />
                         <div className="listing-sidebar-navigation">
                         <hr className="listing-sidebar-divider" />
                         <div className="listing-details-tabs" role="tablist" aria-label="Listing details">
