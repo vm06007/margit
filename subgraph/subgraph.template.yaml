@@ -22,4 +22,8 @@ dataSources:
       eventHandlers:
         - event: PurchaseCompleted(indexed bytes32,indexed bytes32,indexed address,address,address,uint256,bytes32)
           handler: handlePurchaseCompleted
+        - event: PurchaseFeeCollected(indexed bytes32,indexed address,indexed address,uint256,uint256)
+          handler: handlePurchaseFeeCollected
+        - event: DeferredFeesPaid(indexed bytes32,indexed address,uint256)
+          handler: handleDeferredFeesPaid
       file: ./src/mapping.ts

@@ -21,7 +21,13 @@ const hash=await wallet.writeContract({value:order.amount*10n**12n,address:metad
 fs.writeFileSync(`contracts/smoke.v${metadata.version}.pending.local`,hash);
 const receipt=await client.waitForTransactionReceipt({hash});
 if(receipt.status!=='success')throw new Error('Smoke checkout failed');
-const event=receipt.logs.find(log=>{try{return log.address.toLowerCase()===metadata.address.toLowerCase()&&decodeEventLog({abi:checkoutAbi,eventName:'PurchaseCompleted',topics:log.topics,data:log.data}).args.purchaseId===order.orderId}catch{return false}});
-if(!event)throw new Error('Receipt missing');
-const report={purpose:'Deployment smoke test: 0.01 USDC self-transfer, not a repository purchase',contract:metadata.address,transactionHash:hash,purchaseId:order.orderId,blockNumber:Number(receipt.blockNumber)};
+const events=receipt.logs.filter(log=>log.address.toLowerCase()===metadata.address.toLowerCase()).map(log=>decodeEventLog({abi:checkoutAbi,topics:log.topics,data:log.data}));
+if(!events.some(event=>event.eventName==='PurchaseCompleted' && event.args.purchaseId===order.orderId))throw new Error('Receipt missing');
+const fee=events.find(event=>event.eventName==='PurchaseFeeCollected');
+if(!fee || fee.eventName!=='PurchaseFeeCollected' || fee.args.feeAmount!==order.amount/200n || fee.args.sellerAmount!==order.amount-order.amount/200n)throw new Error('Fee receipt mismatch');
+const sellerId=keccak256(stringToHex('margit:deployment-fee-settlement-test'));
+const deferredHash=await wallet.writeContract({value:5000n*10n**12n,address:metadata.address,abi:checkoutAbi,functionName:'payDeferredFees',args:[sellerId],gas:100000n,maxFeePerGas,maxPriorityFeePerGas:0n});
+const deferredReceipt=await client.waitForTransactionReceipt({hash:deferredHash});
+if(deferredReceipt.status!=='success')throw new Error('Deferred settlement test failed');
+const report={purpose:'Deployment tests only: 0.01 USDC checkout and 0.005 USDC fee settlement, both self-transfers; no repository purchase or publisher debt',contract:metadata.address,transactionHash:hash,purchaseId:order.orderId,feeAmount:fee.args.feeAmount.toString(),sellerAmount:fee.args.sellerAmount.toString(),deferredTransactionHash:deferredHash,deferredSellerId:sellerId,blockNumber:Number(receipt.blockNumber)};
 fs.writeFileSync(reportPath,JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));

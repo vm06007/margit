@@ -1,0 +1,11 @@
+{
+  "purpose": "Deployment tests only: 0.01 USDC checkout and 0.005 USDC fee settlement, both self-transfers; no repository purchase or publisher debt",
+  "contract": "0x72c54ecd669acb19d6e6d5b5160f67d03b4d5b7b",
+  "transactionHash": "0xbcb967fc6c7569267a76ac9726214bf6f58de86a39e5c7643ebed037cf79f843",
+  "purchaseId": "0x7644ed3defb24ba4b77ff3cc34ea2d31817280aab5dbce387567e747a4423398",
+  "feeAmount": "50",
+  "sellerAmount": "9950",
+  "deferredTransactionHash": "0xa10732be73fda00e22e95e48877aa2c380e4aa5dfd7a840e4146174883dcadec",
+  "deferredSellerId": "0x87b1d301c57d49a504ecb9a11feb3e4014407645204abca2a5c950d3e9ed83da",
+  "blockNumber": 60959192
+}

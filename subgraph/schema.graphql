@@ -10,3 +10,23 @@ type Purchase @entity(immutable: true) {
   transactionHash: Bytes!
   timestamp: BigInt!
 }
+
+type PurchaseFee @entity(immutable: true) {
+  id: Bytes!
+  purchaseId: Bytes!
+  token: Bytes!
+  treasury: Bytes!
+  feeAmount: BigInt!
+  sellerAmount: BigInt!
+  transactionHash: Bytes!
+  timestamp: BigInt!
+}
+
+type DeferredFeePayment @entity(immutable: true) {
+  id: Bytes!
+  sellerId: Bytes!
+  payer: Bytes!
+  amount: BigInt!
+  transactionHash: Bytes!
+  timestamp: BigInt!
+}

@@ -1,12 +1,10 @@
 {
-  "treasury": "0x4d2A622F53a2ac4D3Ee1c06bCeB4641a8a6fE6aa",
-  "feeBps": 50,
   "admin": "0x4d2A622F53a2ac4D3Ee1c06bCeB4641a8a6fE6aa",
-  "version": 4,
+  "version": 3,
   "chainId": 5042002,
-  "address": "0x72c54ecd669acb19d6e6d5b5160f67d03b4d5b7b",
-  "transactionHash": "0x569c30764ca20601f1729f239fece8294ad8ed3fd3b221ebc35058e14cc417ef",
-  "startBlock": 60959124,
+  "address": "0x2deb736ea29f140eb77919380b28d34b854e7ab2",
+  "transactionHash": "0xe7c6294ef8bc0ecd6f918f32a1950c166af2c64d0881f5c182471d1a287164bb",
+  "startBlock": 60955382,
   "deployer": "0x4d2A622F53a2ac4D3Ee1c06bCeB4641a8a6fE6aa",
   "quoteSigner": "0x9548A6c29885D8a52170ec6D249c31065e3318A0",
   "tokens": {

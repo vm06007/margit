@@ -7,9 +7,9 @@ dataSources:
     name: MargitCheckout
     network: arc-testnet
     source:
-      address: '0x2deb736ea29f140eb77919380b28d34b854e7ab2'
+      address: '0x72c54ecd669acb19d6e6d5b5160f67d03b4d5b7b'
       abi: MargitCheckout
-      startBlock: 60955382
+      startBlock: 60959124
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.9
@@ -22,6 +22,10 @@ dataSources:
       eventHandlers:
         - event: PurchaseCompleted(indexed bytes32,indexed bytes32,indexed address,address,address,uint256,bytes32)
           handler: handlePurchaseCompleted
+        - event: PurchaseFeeCollected(indexed bytes32,indexed address,indexed address,uint256,uint256)
+          handler: handlePurchaseFeeCollected
+        - event: DeferredFeesPaid(indexed bytes32,indexed address,uint256)
+          handler: handleDeferredFeesPaid
       file: ./src/mapping.ts
   - kind: ethereum/contract
     name: MargitCheckoutLegacyV1
@@ -42,6 +46,10 @@ dataSources:
       eventHandlers:
         - event: PurchaseCompleted(indexed bytes32,indexed bytes32,indexed address,address,address,uint256,bytes32)
           handler: handlePurchaseCompleted
+        - event: PurchaseFeeCollected(indexed bytes32,indexed address,indexed address,uint256,uint256)
+          handler: handlePurchaseFeeCollected
+        - event: DeferredFeesPaid(indexed bytes32,indexed address,uint256)
+          handler: handleDeferredFeesPaid
       file: ./src/mapping.ts
   - kind: ethereum/contract
     name: MargitCheckoutLegacyV2
@@ -62,4 +70,32 @@ dataSources:
       eventHandlers:
         - event: PurchaseCompleted(indexed bytes32,indexed bytes32,indexed address,address,address,uint256,bytes32)
           handler: handlePurchaseCompleted
+        - event: PurchaseFeeCollected(indexed bytes32,indexed address,indexed address,uint256,uint256)
+          handler: handlePurchaseFeeCollected
+        - event: DeferredFeesPaid(indexed bytes32,indexed address,uint256)
+          handler: handleDeferredFeesPaid
+      file: ./src/mapping.ts
+  - kind: ethereum/contract
+    name: MargitCheckoutLegacyV3
+    network: arc-testnet
+    source:
+      address: '0x2deb736ea29f140eb77919380b28d34b854e7ab2'
+      abi: MargitCheckout
+      startBlock: 60955382
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - Purchase
+      abis:
+        - name: MargitCheckout
+          file: ../contracts/artifacts/MargitCheckout.abi.json
+      eventHandlers:
+        - event: PurchaseCompleted(indexed bytes32,indexed bytes32,indexed address,address,address,uint256,bytes32)
+          handler: handlePurchaseCompleted
+        - event: PurchaseFeeCollected(indexed bytes32,indexed address,indexed address,uint256,uint256)
+          handler: handlePurchaseFeeCollected
+        - event: DeferredFeesPaid(indexed bytes32,indexed address,uint256)
+          handler: handleDeferredFeesPaid
       file: ./src/mapping.ts
