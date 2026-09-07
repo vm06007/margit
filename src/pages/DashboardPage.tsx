@@ -161,8 +161,9 @@ export function DashboardStyle() {
             .listing-details-tabs button i { flex-shrink: 0; font-size: 2rem; }
             .listing-details-tabs button[aria-selected="true"] { background: var(--t-bright); color: var(--base); }
             .listing-details-tabs button:focus-visible { outline: 2px solid var(--t-bright); outline-offset: 3px; }
-            .listing-price-presets { display: flex; align-items: center; flex-wrap: wrap; gap: .8rem; margin-top: .5rem; }
-            .listing-price-presets button { padding: .5rem 1.2rem; border: 1px solid var(--t-muted); border-radius: 3rem; background: transparent; color: var(--t-bright); font: inherit; font-size: 1.4rem; }
+            .listing-price-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+            .listing-price-presets { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; margin-left: auto; }
+            .listing-price-presets button { padding: .4rem .8rem; border: 1px solid var(--t-muted); border-radius: 3rem; background: transparent; color: var(--t-bright); font: inherit; font-size: 1.4rem; }
             .listing-price-presets button[aria-pressed="true"] { background: var(--t-bright); color: var(--base); border-color: var(--t-bright); }
             .listing-price-presets button:focus-visible { outline: 2px solid var(--t-bright); outline-offset: 3px; }
             .modal-label { font-size: 1.8rem; font-weight: 600; color: var(--t-medium); }
@@ -515,7 +516,13 @@ export function ListModal({
                         </h2>
                         <div role="tabpanel" id="listing-general-panel" aria-labelledby="listing-general-tab" hidden={detailsTab !== "general"}>
                         <div className="modal-field">
+                            <div className="listing-price-heading">
                             <label className="modal-label" htmlFor="listing-price">Price</label>
+                            <div className="listing-price-presets" role="group" aria-label="Proposed price">
+                                <span className="hint">Proposed price</span>
+                                {["$0.05", "$1.00", "$5.00", "$10.00", "$25.00"].map(preset => <button key={preset} type="button" disabled={submitting} aria-pressed={price === preset} onClick={() => setPrice(preset)}>{preset}</button>)}
+                            </div>
+                            </div>
                             <input
                                 id="listing-price"
                                 className="agent-input"
@@ -523,10 +530,7 @@ export function ListModal({
                                 value={price}
                                 onChange={(e) => setPrice(e.target.value)}
                             />
-                            <div className="listing-price-presets" role="group" aria-label="Proposed price">
-                                <span className="hint">Proposed price</span>
-                                {["$0.05", "$1.00", "$5.00", "$10.00", "$25.00"].map(preset => <button key={preset} type="button" disabled={submitting} aria-pressed={price === preset} onClick={() => setPrice(preset)}>{preset}</button>)}
-                            </div>
+
                         </div>
 
                         <div className="modal-field">
