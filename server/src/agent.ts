@@ -1,8 +1,9 @@
-import { mintCloneResponse } from "./purchase-access.js";
-import { parseAccessPolicy, type AccessPolicy } from "../../shared/accessPolicy.js";
+import { createCheckoutQuote, completeCheckout } from "./checkout.js";
+import { checkoutAbi, typedOrder, checkoutTermsHash } from "../../shared/checkout.js";
+import { allowsCheckout, parseAccessPolicy, type AccessPolicy } from "../../shared/accessPolicy.js";
 import OpenAI from "openai";
 import type { ChatCompletionMessageParam, ChatCompletionTool } from "openai/resources/chat/completions";
-import { createPublicClient, createWalletClient, formatUnits, http, parseAbiItem } from "viem";
+import { createPublicClient, createWalletClient, formatUnits, http, parseAbiItem, parseSignature } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { redis } from "./redis.js";
 import { decryptToken, encryptToken } from "./crypto.js";
@@ -10,7 +11,7 @@ import { createApiKey } from "./api-keys.js";
 import { createListing, deleteListing, getListing, listListings, type Listing } from "./listings.js";
 import { resolvePayoutAddress } from "./names.js";
 import type { SessionData } from "./session.js";
-import { ARC_TOKEN_ADDRESSES, arcTestnet, priceToAtomicUnits, verifyDirectPayment, type PaymentToken } from "./payments.js";
+import { ARC_TOKEN_ADDRESSES, arcTestnet, priceToAtomicUnits, type PaymentToken } from "./payments.js";
 
 const HISTORY_PREFIX = "margit:agent-chat:";
 const HISTORY_TTL_SECONDS = 60 * 60 * 24;
@@ -81,12 +82,25 @@ interface BuyResult {
     txHash?: string;
 }
 
-async function buyListing(listingId: string, token: PaymentToken): Promise<BuyResult> {
+async function buyListing(listingId: string, token: PaymentToken, operatorSession?: string): Promise<BuyResult> {
     if (!walletClient || !agentAccount) {
         return { ok: false, reason: "Agent wallet is not configured (ARC_DEMO_BUYER_PRIVATE_KEY missing)" };
     }
+    // Persist a pending receipt before verification so agent retries cannot buy twice.
+    const pendingKey = `margit:agent-checkout:${operatorSession ?? "internal"}:${listingId}`;
+    const previous = await redis.get<{secret:string;hash:`0x${string}`}>(pendingKey);
+    if (previous) {
+        const receipt = await publicClient.waitForTransactionReceipt({hash:previous.hash});
+        if (receipt.status !== "success") {await redis.del(pendingKey);return {ok:false,reason:"Previous checkout failed; no purchase was completed."};}
+        const access = await completeCheckout(previous.secret,previous.hash);
+        await redis.del(pendingKey);
+        return {ok:true,txHash:previous.hash,...access};
+    }
     const listing = await getListing(listingId);
     if (!listing) return { ok: false, reason: "Unknown listing id" };
+
+    // The built-in agent uses contract checkout, which follows the wallet channel.
+    if (!allowsCheckout(listing.accessPolicy, "wallet")) return { ok: false, reason: "This listing requires x402 checkout. This agent's contract checkout tool cannot buy it." };
 
     const amount = priceToAtomicUnits(listing.price);
     const tokenAddress = ARC_TOKEN_ADDRESSES[token] as `0x${string}`;
@@ -106,25 +120,22 @@ async function buyListing(listingId: string, token: PaymentToken): Promise<BuyRe
         };
     }
 
-    let txHash: `0x${string}`;
-    try {
-        txHash = await walletClient.writeContract({
-            address: tokenAddress,
-            abi: ERC20_ABI,
-            functionName: "transfer",
-            args: [listing.payoutAddress as `0x${string}`, amount],
-        });
-    } catch (err) {
-        return { ok: false, reason: err instanceof Error ? err.message : "On-chain transfer failed" };
+    const quote = await createCheckoutQuote(listingId,agentAccount.address,token,operatorSession);
+    if (quote.order.termsHash !== checkoutTermsHash(listing.price,token,listing.payoutAddress,listing.accessPolicy)) return {ok:false,reason:"Listing changed. Review its latest terms before purchasing."};
+    const allowance = await publicClient.readContract({address:tokenAddress,abi:[parseAbiItem("function allowance(address owner,address spender) view returns (uint256)")],functionName:"allowance",args:[agentAccount.address,quote.contract]});
+    if (allowance < BigInt(quote.order.amount)) {
+        const approval = await walletClient.writeContract({address:tokenAddress,abi:[parseAbiItem("function approve(address spender,uint256 amount) returns (bool)")],functionName:"approve",args:[quote.contract,BigInt(quote.order.amount)]});
+        const receipt = await publicClient.waitForTransactionReceipt({hash:approval});
+        if (receipt.status !== "success") return {ok:false,reason:"Token approval failed"};
     }
-    await publicClient.waitForTransactionReceipt({ hash: txHash });
-
-    const verification = await verifyDirectPayment(txHash, listing.payoutAddress, amount, token);
-    if (!verification.ok) return { ok: false, reason: verification.reason };
-
-    const access = await mintCloneResponse(listing);
-    if (!access) return { ok: false, reason: "Listing has no stored credentials" };
-    return { ok: true, txHash, ...access };
+    const signature = parseSignature(quote.signature);
+    const txHash = await walletClient.writeContract({address:quote.contract,abi:checkoutAbi,functionName:"buy",args:[typedOrder(quote.order),Number(signature.v ?? BigInt(27+(signature.yParity ?? 0))),signature.r,signature.s]});
+    await redis.set(pendingKey,{secret:quote.claimSecret,hash:txHash});
+    const receipt = await publicClient.waitForTransactionReceipt({hash:txHash});
+    if (receipt.status !== "success") {await redis.del(pendingKey);return {ok:false,reason:"Checkout transaction failed"};}
+    const access = await completeCheckout(quote.claimSecret,txHash);
+    await redis.del(pendingKey);
+    return {ok:true,txHash,...access};
 }
 
 export interface GithubRepoSummary {
@@ -318,7 +329,7 @@ const TOOLS: ChatCompletionTool[] = [
                     repoFullName: { type: "string", description: 'e.g. "octocat/my-repo" — must be a repo the signed-in user owns' },
                     price: { type: "string", description: 'e.g. "$0.05" — dollar sign, up to 2 decimal places' },
                     payoutAddress: { type: "string", description: "0x address, .eth (ENS), or .arc/.circle (ArcNS) name" },
-                    accessPolicy: { type: "object", description: "Seller delivery terms. Defaults to 10 minutes with retries. Single download is ZIP only and consumed when transfer starts.", properties: { mode: { type: "string", enum: ["window", "single_download"] }, minutes: { type: "integer", enum: [10, 60, 1440, 10080] } } },
+                    accessPolicy: { type: "object", description: "Seller delivery terms. Defaults to 10 minutes with retries. Single download is ZIP only and consumed when transfer starts.", properties: { mode: { type: "string", enum: ["window", "single_download"] }, minutes: { type: "integer", enum: [10, 60, 1440, 10080] }, checkout: { type: "string", enum: ["both", "x402", "wallet"], description: "Allowed payment method, not human identity verification" } } },
                     sellerDescription: { type: "string", description: "Optional short description shown to buyers" },
                 },
                 required: ["repoFullName", "price", "payoutAddress"],
@@ -389,6 +400,7 @@ async function executeTool(
     name: string,
     input: Record<string, unknown>,
     githubSession: SessionData | undefined,
+    operatorSession?: string,
 ): Promise<{ output: unknown; purchase?: AgentTurnResult["purchase"]; listingChange?: AgentTurnResult["listingChange"] }> {
     switch (name) {
         case "list_listings": {
@@ -435,7 +447,7 @@ async function executeTool(
             const id = typeof input.id === "string" ? input.id : undefined;
             const token: PaymentToken = input.token === "EURC" ? "EURC" : "USDC";
             if (!id) return { output: { ok: false, reason: "Missing listing id" } };
-            const result = await buyListing(id, token);
+            const result = await buyListing(id, token, operatorSession);
             if (result.ok && result.cloneUrl && result.txHash) {
                 const listing = await getListing(id);
                 return {
@@ -671,7 +683,7 @@ export async function runAgentTurn(
                     output,
                     purchase: madePurchase,
                     listingChange: madeListingChange,
-                } = await executeTool(call.function.name, args, githubSession);
+                } = await executeTool(call.function.name, args, githubSession, sessionId);
                 if (madePurchase) purchase = madePurchase;
                 if (madeListingChange) listingChange = madeListingChange;
                 messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(output) });

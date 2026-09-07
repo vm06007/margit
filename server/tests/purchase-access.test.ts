@@ -17,9 +17,11 @@ const mockFetch: typeof fetch = async (url, init) => {
             let result;
             if (command === "get") result = data.has(key) ? Buffer.from(JSON.stringify(data.get(key))).toString("base64") : null;
             else if (command === "del") result = Number(data.delete(key));
+            else if (command === "sadd") { const values = new Set(data.get(key) ?? []); values.add(value); data.set(key,[...values]); result = 1; }
+            else if (command === "smembers") result = (data.get(key) ?? []).map((v: string) => Buffer.from(v).toString("base64"));
             else if (command === "set") {
                 if (options.includes("nx") && data.has(key)) result = null;
-                else { data.set(key, JSON.parse(value)); result = "OK"; }
+                else { let decoded; try { decoded = JSON.parse(value); } catch { decoded = value; } data.set(key, decoded); result = "OK"; }
             } else throw new Error(`Unexpected Redis command ${command}`);
             return { result };
         };
@@ -31,12 +33,12 @@ const mockFetch: typeof fetch = async (url, init) => {
 let requests: { url: string; init?: RequestInit }[];
 beforeEach(() => {
     data.clear(); requests = [];
-    data.set("margit:listing:test", { encryptedOwnerToken: encryptToken("seller-secret") });
+    data.set("margit:listing:test", { ownerLogin: "seller", encryptedOwnerToken: encryptToken("seller-secret") });
     globalThis.fetch = mockFetch;
     upstream = async () => new Response("test archive");
 });
 async function grant(mode: "window" | "single_download" = "window") {
-    const response = await mintCloneResponse({ id: "test", repoFullName: "seller/repo", accessPolicy: { mode, minutes: 10 } } as any);
+    const response = await mintCloneResponse({ id: "test", ownerLogin: "seller", repoFullName: "seller/repo", accessPolicy: { mode, minutes: 10 } } as any);
     assert.ok(response);
     assert.ok(!JSON.stringify(response).includes("seller-secret"));
     return new URL(response.cloneUrl).pathname.replace("/api/access", "");
@@ -80,4 +82,61 @@ test("failed upstream response releases single-use claim before delivery starts"
     const response = await request(path);
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("Cache-Control"), "no-store");
+});
+
+test("purchase channels default to both and enforce the selected payment method", async () => {
+    const { allowsCheckout } = await import("../../shared/accessPolicy.js");
+    for (const checkout of [undefined, "both", "wallet", "x402"] as const) {
+        const policy = parseAccessPolicy({ mode: "window", minutes: 10, checkout });
+        assert.equal(allowsCheckout(policy, "wallet"), checkout !== "x402");
+        assert.equal(allowsCheckout(policy, "x402"), checkout !== "wallet");
+    }
+    assert.throws(() => parseAccessPolicy({ mode: "window", minutes: 10, checkout: "human" }));
+});
+
+
+test("purchase history is durable, idempotent, and does not disclose delivery credentials", async () => {
+    const { recordPurchase, listPurchaseHistory, getPurchaseAccess } = await import("../src/purchases.js");
+    const listing = { id:"test", repoFullName:"seller/repo", ownerLogin:"seller", price:"$5.00", accessPolicy:{mode:"window",minutes:10} } as any;
+    const access = { cloneUrl:"https://margit.example/api/access/secret/repo.git", expiresAt:new Date(Date.now()+60000).toISOString() };
+    const payment = {reference:"0xabc",buyerWallet:"0xbuyer",currency:"USDC",channel:"wallet"} as const;
+    const id = await recordPurchase(listing,payment,access);
+    assert.equal(await recordPurchase({...listing,price:"$99.00"},payment,access),id);
+    const sales = await listPurchaseHistory("seller","seller");
+    assert.equal(sales.length,1); assert.equal(sales[0].amount,"5.00");
+    assert.ok(!JSON.stringify(sales).includes("secret"));
+    assert.equal(await getPurchaseAccess(id,"0xother"),null);
+    assert.deepEqual(await getPurchaseAccess(id,"0xbuyer"),{cloneUrl:access.cloneUrl,repoFullName:"seller/repo"});
+    data.get(`margit:purchase:${id}`).expiresAt = new Date(0).toISOString();
+    assert.deepEqual(await getPurchaseAccess(id,"0xbuyer"),{expired:true});
+    assert.equal((await listPurchaseHistory("buyer","0xbuyer")).length,1);
+});
+
+test("seller reconnect repairs an existing grant without resetting its terms", async () => {
+    const path = await grant("single_download");
+    upstream = async () => new Response("Unauthorized", {status:401});
+    const failed = await request(path);
+    assert.equal(failed.status, 502);
+    assert.match((await failed.json()).error, /reconnect GitHub/);
+    const {refreshSellerCredential} = await import("../src/listings.js");
+    await refreshSellerCredential("seller", "replacement-secret");
+    upstream = async () => new Response("archive");
+    assert.equal((await request(path)).status, 200);
+    const headers = new Headers(requests.at(-1)?.init?.headers);
+    assert.equal(headers.get("Authorization"), `Basic ${Buffer.from("x-access-token:replacement-secret").toString("base64")}`);
+    assert.equal((await request(path)).status, 410);
+});
+
+test("delivery check blocks unavailable credentials and recovers after seller reconnect", async () => {
+    const {checkRepositoryDelivery} = await import("../src/purchase-access.js");
+    const {refreshSellerCredential} = await import("../src/listings.js");
+    const listing = {id:"test",ownerLogin:"seller",repoFullName:"seller/repo"} as any;
+    upstream = async () => new Response("Unauthorized", {status:401});
+    assert.equal((await checkRepositoryDelivery(listing)).ok, false);
+    await refreshSellerCredential("seller", "new-token");
+    upstream = async () => new Response("archive");
+    assert.equal((await checkRepositoryDelivery(listing)).ok, true);
+    assert.equal(new Headers(requests.at(-1)?.init?.headers).get("Authorization"), "Bearer new-token");
+    upstream = async () => {throw new Error("Network unavailable")};
+    assert.equal((await checkRepositoryDelivery(listing)).ok, false);
 });

@@ -36,6 +36,7 @@ export function priceToAtomicUnits(price: string): bigint {
 export interface DirectPaymentVerification {
     ok: boolean;
     reason?: string;
+    payer?: string;
 }
 
 /**
@@ -70,12 +71,15 @@ export async function verifyDirectPayment(
     }
 
     const tokenAddress = ARC_TOKEN_ADDRESSES[token];
+    let payer: string | undefined;
     const paid = receipt.logs.some((log) => {
         if (log.address.toLowerCase() !== tokenAddress.toLowerCase()) return false;
         try {
             const decoded = decodeEventLog({ abi: TRANSFER_ABI, data: log.data, topics: log.topics });
-            const { to, value } = decoded.args as { to: string; value: bigint };
-            return to.toLowerCase() === payoutAddress.toLowerCase() && value >= requiredAtomicAmount;
+            const { from, to, value } = decoded.args as { from: string; to: string; value: bigint };
+            const matches = to.toLowerCase() === payoutAddress.toLowerCase() && value >= requiredAtomicAmount;
+            if (matches) payer = from;
+            return matches;
         } catch {
             return false;
         }
@@ -90,5 +94,5 @@ export async function verifyDirectPayment(
 
     const claimed = await redis.set(USED_TX_PREFIX + txHash.toLowerCase(), "1", { nx: true });
     if (!claimed) return { ok: false, reason: "This transaction was already used to unlock a listing" };
-    return { ok: true };
+    return { ok: true, payer };
 }

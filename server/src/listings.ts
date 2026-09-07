@@ -31,6 +31,15 @@ interface StoredListing extends Listing {
 const LISTING_PREFIX = "margit:listing:";
 const LISTING_INDEX = "margit:listings:index";
 
+/** Updated only after GitHub authenticates the seller on OAuth reconnect. */
+export async function refreshSellerCredential(login: string, token: string) {
+    await redis.set(`margit:seller-credential:${login.toLowerCase()}`, encryptToken(token));
+}
+export async function getRefreshedSellerCredential(login: string): Promise<string | undefined> {
+    const encrypted = await redis.get<string>(`margit:seller-credential:${login.toLowerCase()}`);
+    return encrypted ? decryptToken(encrypted) : undefined;
+}
+
 export async function createListing(input: {
     repoFullName: string;
     ownerLogin: string;
@@ -74,7 +83,7 @@ export async function getListing(id: string): Promise<Listing | undefined> {
 
 export async function getOwnerTokenForListing(id: string): Promise<string | undefined> {
     const stored = await redis.get<StoredListing>(LISTING_PREFIX + id);
-    return stored ? decryptToken(stored.encryptedOwnerToken) : undefined;
+    return stored ? (await getRefreshedSellerCredential(stored.ownerLogin)) ?? decryptToken(stored.encryptedOwnerToken) : undefined;
 }
 
 export async function listListings(): Promise<Listing[]> {

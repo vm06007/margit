@@ -9,7 +9,14 @@
     "dev:api": "tsx watch --env-file=.env server/src/index.ts",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "contracts:compile": "node scripts/compile-checkout.mjs",
+    "contracts:test": "node --import tsx --test contracts/tests/checkout.test.ts",
+    "contracts:deploy": "node --env-file=.env --import tsx scripts/deploy-checkout.ts --deploy",
+    "graph:configure": "node --env-file=.env scripts/configure-subgraph.mjs",
+    "graph:codegen": "graph codegen subgraph/subgraph.yaml --output-dir subgraph/generated",
+    "graph:build": "graph build subgraph/subgraph.yaml --output-dir subgraph/build",
+    "graph:deploy": "node --env-file=.env scripts/deploy-subgraph.mjs"
   },
   "dependencies": {
     "@circle-fin/x402-batching": "^3.4.0",
@@ -29,12 +36,15 @@
     "viem": "^2.56.3"
   },
   "devDependencies": {
+    "@graphprotocol/graph-cli": "^0.98.1",
+    "@graphprotocol/graph-ts": "^0.38.2",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",
     "concurrently": "^10.0.5",
     "oxlint": "^1.79.0",
+    "solc": "^0.8.36",
     "tsx": "^4.23.13",
     "typescript": "~6.0.2",
     "vite": "^8.2.2"

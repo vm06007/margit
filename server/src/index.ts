@@ -1,5 +1,9 @@
-import { accessRoutes, mintCloneResponse } from "./purchase-access.js";
-import { parseAccessPolicy } from "../../shared/accessPolicy.js";
+import { createHash } from "node:crypto";
+import { portfolio } from "./portfolio.js";
+import { checkoutRoutes } from "./checkout.js";
+import { recordPurchase } from "./purchases.js";
+import { accessRoutes, mintCloneResponse, checkRepositoryDelivery } from "./purchase-access.js";
+import { allowsCheckout, parseAccessPolicy } from "../../shared/accessPolicy.js";
 import { normalizeDemoUrl } from "../../shared/demoUrl.js";
 import { randomBytes } from "node:crypto";
 import { serve } from "@hono/node-server";
@@ -16,6 +20,7 @@ import {
     deleteListing,
     getListing,
     listListings,
+    refreshSellerCredential,
     type Listing,
 } from "./listings.js";
 import { resolveArcNsReverse, resolvePayoutAddress } from "./names.js";
@@ -71,6 +76,44 @@ app.use(
     }),
 );
 
+// Reject unsupported checkout before x402 can settle a payment.
+app.use("/api/listings/unlock", async (c, next) => {
+    const listing = await getListing(c.req.query("id") ?? "");
+    if (listing && !allowsCheckout(listing.accessPolicy, "x402")) return c.json({ error: "This listing only accepts wallet checkout." }, 403);
+    if (!listing) return c.json({ error: "Listing not found" }, 404);
+    const delivery = await checkRepositoryDelivery(listing);
+    if (!delivery.ok) return c.json({ error: delivery.error }, 503);
+    await next();
+});
+
+app.post("/api/listings/:id/check-delivery", async c => {
+    c.header("Cache-Control", "no-store");
+    const listing = await getListing(c.req.param("id"));
+    if (!listing) return c.json({ error: "Listing not found" }, 404);
+    if (!allowsCheckout(listing.accessPolicy, "wallet")) return c.json({ error: "This listing requires x402 checkout." }, 403);
+    const delivery = await checkRepositoryDelivery(listing);
+    return delivery.ok ? c.json({ ok: true }) : c.json({ error: delivery.error }, 503);
+});
+
+app.route("/api/portfolio", portfolio);
+app.route("/api/checkout", checkoutRoutes);
+app.use("/api/listings/unlock", async (c, next) => {
+    const listing = await getListing(c.req.query("id") ?? "");
+    await next();
+    const settledHeader = c.res.headers.get("payment-response") ?? c.res.headers.get("x-payment-response");
+    if (!listing || !c.res.ok || !settledHeader) return;
+    const settlement = JSON.parse(Buffer.from(settledHeader, "base64").toString());
+    if (!settlement.success) return;
+    const signedHeader = c.req.header("payment-signature") ?? c.req.header("x-payment") ?? "";
+    const payload = JSON.parse(Buffer.from(signedHeader, "base64").toString());
+    const authorization = payload.payload?.authorization;
+    const payer = settlement.payer ?? authorization?.from;
+    if (typeof payer !== "string" || !/^0x[0-9a-f]{40}$/i.test(payer)) throw new Error("Settled payment has no verifiable payer");
+    const access = await c.res.clone().json() as {cloneUrl:string;expiresAt:string};
+    const reference = `x402:${createHash("sha256").update(`${payer.toLowerCase()}:${authorization?.nonce ?? signedHeader}`).digest("hex")}`;
+    await recordPurchase(listing, {reference,buyerWallet:payer,currency:"USDC",channel:"x402",transactionHash: /^0x[0-9a-f]{64}$/i.test(settlement.transaction ?? "") ? settlement.transaction : undefined}, access);
+});
+
 // x402 paywall on Arc testnet, settled via Circle's Gateway facilitator. Price and
 // payout address are resolved per-listing from the `id` query param, so one static
 // route can sell access to any listing.
@@ -108,8 +151,11 @@ app.get("/api/listings/unlock", async (c) => {
 // verification. Meant for humans buying once; the x402 unlock endpoint above
 // is better suited to agents making repeated gasless payments via Gateway.
 app.post("/api/listings/:id/verify-payment", async (c) => {
+    if (process.env.CHECKOUT_CONTRACT_ADDRESS) return c.json({ error: "Use contract checkout for new purchases." }, 410);
     const listing = await getListing(c.req.param("id"));
     if (!listing) return c.json({ error: "Unknown listing" }, 404);
+
+    if (!allowsCheckout(listing.accessPolicy, "wallet")) return c.json({ error: "This listing only accepts x402 checkout." }, 403);
 
     const { txHash, token } = await c.req.json<{ txHash?: string; token?: PaymentToken }>();
     if (!txHash) return c.json({ error: "txHash is required" }, 400);
@@ -125,6 +171,7 @@ app.post("/api/listings/:id/verify-payment", async (c) => {
 
     const response = await mintCloneResponse(listing);
     if (!response) return c.json({ error: "Listing has no stored credentials" }, 500);
+    await recordPurchase(listing, { reference: txHash, buyerWallet: result.payer!, currency: paymentToken, channel: "wallet", transactionHash: txHash }, response);
     return c.json(response);
 });
 
@@ -227,7 +274,9 @@ app.get("/api/auth/github/callback", async (c) => {
             Accept: "application/vnd.github+json",
         },
     });
+    if (!userRes.ok) return c.text("GitHub could not verify your account. Please reconnect.", 502);
     const user = (await userRes.json()) as { login: string; name: string | null; avatar_url: string };
+    await refreshSellerCredential(user.login, tokenJson.access_token);
 
     const sessionId = await createSession({
         githubAccessToken: tokenJson.access_token,

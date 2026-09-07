@@ -1,0 +1,11 @@
+import fs from 'node:fs';
+import solc from 'solc';
+const source = fs.readFileSync('contracts/MargitCheckout.sol','utf8');
+const result = JSON.parse(solc.compile(JSON.stringify({language:'Solidity',sources:{'MargitCheckout.sol':{content:source}},settings:{evmVersion:'paris',optimizer:{enabled:true,runs:200},outputSelection:{'*':{'*':['abi','evm.bytecode.object']}}}})));
+for (const issue of result.errors ?? []) console.error(issue.formattedMessage);
+if ((result.errors ?? []).some(issue=>issue.severity==='error')) process.exit(1);
+fs.mkdirSync('contracts/artifacts',{recursive:true});
+const contract = result.contracts['MargitCheckout.sol'].MargitCheckout;
+fs.writeFileSync('contracts/artifacts/MargitCheckout.abi.json',JSON.stringify(contract.abi,null,2)+'\n');
+fs.writeFileSync('contracts/artifacts/MargitCheckout.bytecode.txt',contract.evm.bytecode.object+'\n');
+console.log('Compiled MargitCheckout with',solc.version());
