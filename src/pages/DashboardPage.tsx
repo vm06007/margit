@@ -169,6 +169,10 @@ export function DashboardStyle() {
             .listing-details-tabs button i { flex-shrink: 0; font-size: 2rem; }
             .listing-details-tabs button[aria-selected="true"] { background: var(--t-bright); color: var(--base); }
             .listing-details-tabs button:focus-visible { outline: 2px solid var(--t-bright); outline-offset: 3px; }
+            .listing-price-presets { display: flex; align-items: center; flex-wrap: wrap; gap: .8rem; margin-top: .5rem; }
+            .listing-price-presets button { padding: .5rem 1.2rem; border: 1px solid var(--t-muted); border-radius: 3rem; background: transparent; color: var(--t-bright); font: inherit; font-size: 1.4rem; }
+            .listing-price-presets button[aria-pressed="true"] { background: var(--t-bright); color: var(--base); border-color: var(--t-bright); }
+            .listing-price-presets button:focus-visible { outline: 2px solid var(--t-bright); outline-offset: 3px; }
             .modal-label { font-size: 1.8rem; font-weight: 600; color: var(--t-medium); }
             .modal-link-btn {
                 font: inherit;
@@ -522,15 +526,20 @@ export function ListModal({
                             {isEdit ? "Edit listing" : "List for sale"}
                         </h2>
                         <div role="tabpanel" id="listing-general-panel" aria-labelledby="listing-general-tab" hidden={detailsTab !== "general"}>
-                        <label className="modal-field">
-                            <span className="modal-label">Price</span>
+                        <div className="modal-field">
+                            <label className="modal-label" htmlFor="listing-price">Price</label>
                             <input
+                                id="listing-price"
                                 className="agent-input"
                                 placeholder="$0.05"
                                 value={price}
                                 onChange={(e) => setPrice(e.target.value)}
                             />
-                        </label>
+                            <div className="listing-price-presets" role="group" aria-label="Proposed price">
+                                <span className="hint">Proposed price</span>
+                                {["$0.05", "$1.00", "$5.00", "$10.00", "$25.00"].map(preset => <button key={preset} type="button" disabled={submitting} aria-pressed={price === preset} onClick={() => setPrice(preset)}>{preset}</button>)}
+                            </div>
+                        </div>
 
                         <div className="modal-field">
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
