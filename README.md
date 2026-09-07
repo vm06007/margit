@@ -6,6 +6,8 @@ Sell access to a private repo. Get paid in **USDC** or **EURC** on [Arc](https:/
 
 Built for **ETHGlobal ETHOnline 2026**.
 
+**Checkout and indexing:** wallet and built-in agent purchases now use the Arc `MargitCheckout` quote/receipt flow. Circle Gateway x402 remains separate. See [contract design, deployment, Graph setup and limitations](contracts/README.md) and [portfolio/agent integration](docs/portfolio-and-agent-flow.md). Deployed on Arc Testnet at `0x3adc0cce0f7a5c7b543a09bc3b783f8317c9108b`; MargitArc Studio **v0.1.0** is indexing its receipts.
+
 ---
 
 ## Table of Contents
@@ -57,7 +59,7 @@ flowchart LR
         direction TB
         Dash[My Repos Dashboard]
         Cat[Public Catalog]
-        Direct["Direct payment<br/>verify-payment (viem)"]
+        Direct["Contract payment<br/>quote / confirm (viem)"]
         X402[x402 Gateway<br/>Circle Gateway facilitator]
         Vault[(Encrypted<br/>Token Vault — Redis)]
     end
@@ -123,14 +125,14 @@ flowchart TD
         L[owner/repo · $0.05 · payout 0xabc...]
     end
 
-    L --> Direct["🟢 Direct path<br/>plain USDC/EURC ERC-20 transfer<br/>+ POST /api/listings/:id/verify-payment"]
+    L --> Direct["🟢 Direct path<br/>USDC/EURC contract checkout<br/>quote → buy → confirm"]
     L --> X402["🔵 x402 path<br/>GET /api/listings/unlock (402-gated)<br/>Circle Gateway facilitator"]
 
     Direct --> Human["Human with a connected wallet<br/>(wallet connect button)<br/>one-shot, no pre-funding"]
     X402 --> Agent["Any x402-aware agent<br/>repeated, gasless via Gateway<br/>(after a one-time deposit)"]
 ```
 
-**Direct path** (`DirectBuyButton` → `verify-payment`): the buyer's connected wallet sends a plain ERC-20 `transfer()` of USDC or EURC straight to the seller's payout address. The server independently verifies the transaction on-chain (via `viem`, decoding the `Transfer` event log) before minting the clone URL. Tx hashes are single-use (Redis-tracked) to prevent replay.
+**Contract path:** the backend checks delivery and signs a short-lived, buyer-bound quote. The buyer approves the token and calls `MargitCheckout.buy()`. The server verifies the resulting `PurchaseCompleted` event before granting access. The same order cannot be paid twice; confirmation can be retried without extending access. Sellers need not remain online or submit onchain listing transactions.
 
 **x402 path** (`BuyButton` → `GET /api/listings/unlock`): a real `402 Payment Required` challenge, settled through `@circle-fin/x402-batching`'s `BatchFacilitatorClient`/`GatewayEvmScheme` against Circle's testnet Gateway facilitator (`gateway-api-testnet.circle.com`). Requires a one-time `deposit()` into the `GatewayWallet` contract (real bundled ABI, not guessed) before the first payment. Built for agents that pay repeatedly.
 
@@ -149,9 +151,9 @@ sequenceDiagram
     GW->>A: 200 + clone URL
 ```
 
-Both paths mint the same thing: `mintCloneResponse()` looks up the seller's encrypted GitHub token and returns `https://x-access-token:<token>@github.com/<repo>.git`.
+Both paths mint a repository-specific `/api/access/<random-token>/repo.git` or one-time ZIP URL. GitHub credentials stay on the server. Seller-selected delivery terms determine expiry and retry behavior.
 
-**For buyers without a CLI**: the result panel also offers a one-click **Copy clone command** and **Download ZIP** (server-proxied through `/api/download-zip`, since GitHub's `codeload` response doesn't send CORS headers our origin can read).
+**For buyers without a CLI**: the result panel also offers a one-click **Copy clone command** and **Download ZIP** (server-proxied through `/api/access/:token/download.zip`, since GitHub's `codeload` response doesn't send CORS headers our origin can read).
 
 ### 3. The agent sidebar
 
@@ -224,7 +226,7 @@ flowchart TB
         Auth["/api/auth/* — GitHub OAuth"]
         Repos["/api/repos* — GitHub proxy"]
         Listings["/api/listings* — CRUD + unlock (x402)"]
-        Verify["/api/listings/:id/verify-payment — direct path"]
+        Verify["/api/checkout/quote + confirm — contract path"]
         AgentChat["/api/agent/* — chat, wallet, settings, models"]
         AgentApi["/api/agent-api/* — API-key auth, external agents"]
         Names["/api/resolve-name, /api/resolve-address"]
@@ -276,7 +278,7 @@ flowchart TB
 | UI | React 19, TypeScript |
 | Backend framework | Hono (`@hono/node-server`), `tsx watch` |
 | Chain | Arc — Circle's L1, testnet chain ID `5042002`, native-gas-as-USDC |
-| Payments (direct) | Plain ERC-20 transfer, verified server-side via `viem` |
+| Payments (wallet/agent) | MargitCheckout receipts on Arc, verified server-side via `viem` |
 | Payments (agentic) | x402 standard (`@x402/core`, `@x402/hono`) + `@circle-fin/x402-batching` (Circle Gateway) |
 | Wallet connect | Wallet SDK (connect modal, wallet details modal) |
 | Naming | ENS (`.eth`, via `viem`) + ArcNS (`.arc`/`.circle`, community REST API) |
@@ -314,7 +316,9 @@ flowchart TB
 | `/api/listings` | POST | Session | Create a listing (price, payout, description, screenshots) |
 | `/api/listings/:id` | DELETE | Session | Unlist |
 | `/api/listings/unlock` | GET | x402 (402-gated) | Agentic buy path — Circle Gateway settlement |
-| `/api/listings/:id/verify-payment` | POST | Public (tx hash) | Direct-payment verification path |
+| `/api/checkout/quote` | POST | Buyer address | Validate delivery and issue buyer-bound quote |
+| `/api/checkout/confirm` | POST | Private claim secret + tx hash | Verify receipt and recover original access |
+| `/api/portfolio` | GET | Wallet signature / GitHub / operator session | Purchases, sales and Graph indexing status |
 | `/api/download-zip` | POST | Public (clone URL) | Server-proxied ZIP download (no CORS) |
 | `/api/resolve-name` | GET | Public | ENS/ArcNS name → 0x address |
 | `/api/resolve-address` | GET | Public | 0x address → ArcNS name (reverse) |
@@ -412,24 +416,24 @@ flowchart LR
 ```
 
 - **GitHub tokens** encrypted with AES-256-GCM before storage; the key lives only in `TOKEN_ENCRYPTION_KEY`.
-- **Clone URLs** embed a live credential — not re-issued once minted, so a fresh payment is required to get a new one.
-- **Direct-payment tx hashes are single-use** (Redis-tracked) — replaying the same hash to unlock twice is rejected.
+- **Access URLs** contain repository-specific bearer grants, never the seller GitHub token. Grants expire and enforce the purchased delivery policy.
+- **Contract order IDs are single-use onchain**. Receipt recovery is idempotent and never resets delivery expiry or download consumption.
 - **Wallet keys never touch the server for human buyers** — the wallet SDK only ever handles signing in-browser.
 - **The agent's own wallet key** (`ARC_DEMO_BUYER_PRIVATE_KEY`) is a real private key held server-side — fund it only with what you're willing to let the agent spend.
 - **Bring-your-own OpenRouter keys and margit API keys** are encrypted at rest the same way GitHub tokens are.
-- **Payments are verified independently on-chain** (direct path via `viem` receipt decode; x402 path via the Circle Gateway facilitator) — the server never trusts a client's claim that it paid.
+- **Payments are verified independently on-chain** (contract path via `viem` receipt decode; x402 path via the Circle Gateway facilitator) — the server never trusts a client's claim that it paid.
 
 ---
 
 ## Known Limitations / Roadmap
 
 - **Reviews/ratings are UI placeholders only** (`StarRating`, `ReviewsSection`) — intentionally honest "not built yet" rather than fake data. Planned basis: ERC-8004 (Trustless Agents — Identity/Reputation/Validation registries).
-- **The Graph**: not yet indexing anything. Confirmed Arc Testnet is a real Subgraph Studio target; needs a Deploy Key for a new subgraph project before building the actual subgraph (e.g. indexing USDC/EURC `Transfer` events tied to listings).
+- **The Graph**: receipt schema/mapping and Studio deployment scripts are implemented for MargitArc. Configure the deployed query endpoint to enable portfolio enrichment; x402 Gateway is not indexed by this contract subgraph.
 - **Bazantic**: `/api/agent-api/*` exists as the intended wrap target, but no Gateway/Recipe has been registered yet — blocked on a real Bazantic API key (the JWT currently in `.env` doesn't authenticate against `api.bazantic.com`).
 - **Hedera**: explicitly out of scope for now (see [Sponsor Integrations](#sponsor-integrations)).
 - **Landing page production serving**: `/` is only intercepted in the Vite **dev** server; `npm run build` doesn't yet copy/serve it for a static production deploy.
 - **Landing page leftover content**: the mid-body "demo showcase" sections (ported from the source HTML template) still contain unrelated template-vendor marketing copy and dead links to pages that were never copied over — nav, footer, hero, and header CTAs are all real and wired to margit routes; the deep body content is a separate, larger content-authoring pass.
-- **Arc mainnet**: not usable yet — Circle hasn't published mainnet contract addresses for Arc as of this build.
+- **Network scope**: this implementation targets Arc Testnet only; mainnet deployment is out of scope.
 
 ---
 
