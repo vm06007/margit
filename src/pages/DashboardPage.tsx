@@ -165,7 +165,8 @@ export function DashboardStyle() {
             .listing-sidebar-navigation { margin-top: auto; padding-top: 2.4rem; }
             .listing-sidebar-navigation .listing-details-tabs { margin-bottom: 0; }
             .listing-sidebar-divider { width: 100%; border: 0; border-top: 1px solid var(--st-muted); margin: 1rem 0 2.4rem; }
-            .listing-details-tabs button { flex: 1; padding: 1.2rem; border: 0; border-radius: 3rem; background: transparent; color: var(--t-medium); font: inherit; font-size: 1.7rem; }
+            .listing-details-tabs button { display: flex; align-items: center; justify-content: flex-start; gap: 1rem; text-align: left; flex: 1; padding: 1.2rem 1.8rem; border: 0; border-radius: 3rem; background: transparent; color: var(--t-medium); font: inherit; font-size: 1.7rem; }
+            .listing-details-tabs button i { flex-shrink: 0; font-size: 2rem; }
             .listing-details-tabs button[aria-selected="true"] { background: var(--t-bright); color: var(--base); }
             .listing-details-tabs button:focus-visible { outline: 2px solid var(--t-bright); outline-offset: 3px; }
             .modal-label { font-size: 1.8rem; font-weight: 600; color: var(--t-medium); }
@@ -482,7 +483,7 @@ export function ListModal({
                                 const next = event.key === "Home" ? "general" : event.key === "End" ? "access" : tab === "general" ? "access" : "general";
                                 setDetailsTab(next);
                                 document.getElementById(`listing-${next}-tab`)?.focus();
-                            }}>{tab === "general" ? "General Details" : "Access Details"}</button>)}
+                            }}><i className={`ph ph-${tab === "general" ? "text-align-left" : "lock-simple"}`} aria-hidden="true" /><span>{tab === "general" ? "General Details" : "Access Details"}</span></button>)}
                         </div>
                         </div>
                         {isEdit && (
