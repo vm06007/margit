@@ -32,6 +32,6 @@ Only USDC is supported for deferred settlement because the current Gateway path 
 
 No new-listing or existing-listing restriction is enabled for unpaid fees. Collection currently depends on publishers settling; the dashboard does not imply guaranteed collection. No retroactive fees are charged for recorded sales before launch.
 
-## Design reference
+## Collection model
 
-Stellar Bazgit used a deferred 0.5% seller fee and blocked new listings when debt exceeded its threshold. Margit retains deferred billing for Gateway and uses atomic collection where its checkout contract controls settlement.
+Margit uses deferred billing for Circle Gateway payments and atomic fee collection for purchases processed by its checkout contract.
