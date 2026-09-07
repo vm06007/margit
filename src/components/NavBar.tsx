@@ -151,12 +151,6 @@ export function ProfileDropdown({ me, onLogout }: { me: Me; onLogout: () => void
             </button>
             {open && (
                 <div className="profile-menu"><a href="/works" className="profile-menu-item"><i className="ph-bold ph-folder" /> My Repos</a>
-                    {me.authenticated && (
-                        <div className="profile-menu-header">
-                            <p className="hint">Signed in as</p>
-                            <p>{me.login}</p>
-                        </div>
-                    )}
                     <button type="button" className="profile-menu-item" onClick={handleWalletClick}>
                         <WalletIcon /> {account ? (arcName ?? shortenAddress(account.address)) : "Connect Wallet"}
                     </button>

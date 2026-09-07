@@ -12,8 +12,7 @@ export default defineConfig({
       },
     },
     watch: {
-      // Not wired into the app yet — a big reference template sitting in the
-      // repo root, kept around to build the homepage from later.
+      // Keep the archived vendor template outside the dev watcher.
       ignored: ['**/portfolio-html-template/**'],
     },
   },

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import type { Listing } from "../api";
+import { listingMediaStyle } from "../components/listingMedia";
 
 function formatListedDate(iso: string): string {
     return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
@@ -44,11 +45,7 @@ function repoName(listing: Listing): string {
 }
 
 function mediaStyle(listing: Listing, altIndex: number): CSSProperties {
-    const shot = listing.screenshots[0];
-    if (shot) {
-        return { backgroundImage: `url(${shot})`, backgroundSize: "cover", backgroundPosition: "center" };
-    }
-    return { background: altIndex % 2 === 0 ? FALLBACK_ACCENT : FALLBACK_ADDITIONAL };
+    return listingMediaStyle(listing.screenshots[0], altIndex % 2 === 0 ? FALLBACK_ACCENT : FALLBACK_ADDITIONAL);
 }
 
 /** Curated + present-in-listings + "always include the newest listing's language" set. */
@@ -110,7 +107,7 @@ function FeaturedPost({
     return (
         <article className="mxd-post post-featured radius-m">
             <a className="post-featured__thumb" href={href} onClick={goTo(href)}>
-                <div style={{ width: "100%", height: "100%", ...mediaStyle(listing, 0) }} />
+                <div className="listing-media" style={{ width: "100%", height: "100%", ...mediaStyle(listing, 0) }} />
             </a>
             <div className="post-featured__categories">
                 {listing.language && (
@@ -157,7 +154,7 @@ function SimplePost({
     return (
         <article className="mxd-post post-simple">
             <a className="post-simple__thumb radius-m" href={href} onClick={goTo(href)}>
-                <div style={{ width: "100%", height: "100%", ...mediaStyle(listing, altIndex) }} />
+                <div className="listing-media" style={{ width: "100%", height: "100%", ...mediaStyle(listing, altIndex) }} />
                 <div className="mxd-preview-hover">
                     <i className="mxd-preview-hover__icon">
                         <img src="/site/img/icons/icon-eye.svg" alt="Eye Icon" />
@@ -396,7 +393,7 @@ export function CatalogPage({
 
             <div className="mxd-section padding-default">
                 <div className="mxd-container grid-container">
-                    <div className="mxd-posts-area">
+                    <div className="mxd-posts-area catalog-posts-area">
                         <div className="mxd-posts-container mxd-grid-item" ref={postsRef}>
                             {listingsError ? (
                                 <p className="hint" style={{ opacity: 0.6 }}>
@@ -500,6 +497,7 @@ export function CatalogPage({
                                                 <div className="recent-post__thumb">
                                                     <a href={href} onClick={goTo(href)}>
                                                         <div
+                                                            className="listing-media"
                                                             style={{
                                                                 width: "100%",
                                                                 height: "100%",
