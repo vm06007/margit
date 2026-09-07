@@ -46,7 +46,7 @@ before(async()=>{
  token=(await publicClient.waitForTransactionReceipt({hash:deploy})).contractAddress!;
  const abi=JSON.parse(fs.readFileSync('contracts/artifacts/MargitCheckout.abi.json','utf8'));
  const bytecode=`0x${fs.readFileSync('contracts/artifacts/MargitCheckout.bytecode.txt','utf8').trim()}` as `0x${string}`;
- for(let i=0;i<2;i++){const hash=await wallet.deployContract({abi,bytecode,args:[token,token,signer.address]});const address=(await publicClient.waitForTransactionReceipt({hash})).contractAddress!;if(i===0)contract=address;else otherContract=address;}
+ for(let i=0;i<2;i++){const hash=await wallet.deployContract({abi,bytecode,args:[other.address,token,signer.address]});const address=(await publicClient.waitForTransactionReceipt({hash})).contractAddress!;if(i===0)contract=address;else otherContract=address;}
  await send({account:buyer,address:token,abi:tokenAbi,functionName:'approve',args:[contract,1000000000n]});
 });
 test('payment goes to seller; receipt is emitted; order cannot be reused',async()=>{
@@ -54,22 +54,22 @@ test('payment goes to seller; receipt is emitted; order cannot be reused',async(
  const result=await send({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args});
  assert.equal(result.logs.filter(log=>log.address.toLowerCase()===contract.toLowerCase()).length,1);
  assert.equal(await publicClient.readContract({address:token,abi:tokenAbi,functionName:'balanceOf',args:[seller.address]}),before+o.value.amount);
- await assert.rejects(publicClient.simulateContract({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args}),/Order used/);
+ await assert.rejects(publicClient.simulateContract({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args}),/OrderUsed/);
 });
 test('rejects another buyer, changed price, expired quote, unsupported token and cross-domain signatures',async()=>{
  const o=await order();
  for(const [account,address,args,pattern] of [
-  [other,contract,o.args,/Wrong buyer/],
-  [buyer,contract,[{...o.value,amount:2000000n},...o.args.slice(1)],/Invalid signer/],
-  [buyer,otherContract,o.args,/Invalid signer/],
-  [buyer,contract,(await order({deadline:0n})).args,/Order expired/],
-  [buyer,contract,(await order({token:zeroAddress})).args,/Invalid order/],
-  [buyer,contract,(await order({},contract,5042002)).args,/Invalid signer/],
+  [other,contract,o.args,/WrongBuyer/],
+  [buyer,contract,[{...o.value,amount:2000000n},...o.args.slice(1)],/InvalidSigner/],
+  [buyer,otherContract,o.args,/InvalidSigner/],
+  [buyer,contract,(await order({deadline:0n})).args,/OrderExpired/],
+  [buyer,contract,(await order({token:zeroAddress})).args,/InvalidOrder/],
+  [buyer,contract,(await order({},contract,5042002)).args,/InvalidSigner/],
  ] as any[]) await assert.rejects(publicClient.simulateContract({account,address,abi:checkoutAbi,functionName:'buy',args}),pattern);
 });
 test('failed transfer leaves order unused and can be retried',async()=>{
  const o=await order();await send({address:token,abi:tokenAbi,functionName:'setFail',args:[true]});
- await assert.rejects(publicClient.simulateContract({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args}),/Transfer failed/);
+ await assert.rejects(publicClient.simulateContract({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args}),/TransferFailed/);
  assert.equal(await publicClient.readContract({address:contract,abi:checkoutAbi,functionName:'usedOrders',args:[o.value.orderId]}),false);
  await send({address:token,abi:tokenAbi,functionName:'setFail',args:[false]});
  await send({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args});
@@ -81,4 +81,57 @@ test('token callback cannot reenter checkout',async()=>{
  await send({address:token,abi:tokenAbi,functionName:'setCallback',args:[contract,encodeFunctionData({abi:checkoutAbi,functionName:'buy',args:o.args})]});
  await send({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args});
  await send({address:token,abi:tokenAbi,functionName:'setCallback',args:[zeroAddress,'0x']});
+});
+
+test('native USDC pays seller in one transaction, keeps six-decimal receipts and rejects wrong value',async()=>{
+ const o=await order({token:other.address});
+ const value=o.value.amount*10n**12n;
+ const before=await publicClient.getBalance({address:seller.address});
+ for(const incorrect of [0n,value-1n,value+1n]) {
+  await assert.rejects(publicClient.simulateContract({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args,value:incorrect}),/InvalidNativeValue/);
+ }
+ const receipt=await send({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args,value});
+ assert.equal(await publicClient.getBalance({address:seller.address}),before+value);
+ const {decodeEventLog}=await import('viem');
+ const event=decodeEventLog({abi:checkoutAbi,data:receipt.logs[0].data,topics:receipt.logs[0].topics,eventName:'PurchaseCompleted'});
+ assert.equal(event.args.amount,1000000n);
+ await assert.rejects(publicClient.simulateContract({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args,value}),/OrderUsed/);
+ const erc=await order();
+ await assert.rejects(publicClient.simulateContract({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:erc.args,value:1n}),/InvalidNativeValue/);
+});
+test('native payment to a rejecting recipient leaves the order unused',async()=>{
+ const o=await order({token:other.address,seller:token});
+ await assert.rejects(publicClient.simulateContract({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args,value:o.value.amount*10n**12n}),/TransferFailed/);
+ assert.equal(await publicClient.readContract({address:contract,abi:checkoutAbi,functionName:'usedOrders',args:[o.value.orderId]}),false);
+});
+
+test('deployer is admin; only admin can add or disable valid token contracts',async()=>{
+ assert.equal((await publicClient.readContract({address:contract,abi:checkoutAbi,functionName:'admin'})).toLowerCase(),signer.address.toLowerCase());
+ await assert.rejects(publicClient.simulateContract({account:buyer,address:contract,abi:checkoutAbi,functionName:'setAllowedToken',args:[token,false]}),/Unauthorized/);
+ for(const invalid of [zeroAddress,buyer.address]){
+  await assert.rejects(publicClient.simulateContract({account:signer,address:contract,abi:checkoutAbi,functionName:'setAllowedToken',args:[invalid,true]}),/InvalidToken/);
+ }
+ const o=await order();
+ await send({address:contract,abi:checkoutAbi,functionName:'setAllowedToken',args:[token,false]});
+ await assert.rejects(publicClient.simulateContract({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args}),/InvalidOrder/);
+ assert.equal(await publicClient.readContract({address:contract,abi:checkoutAbi,functionName:'usedOrders',args:[o.value.orderId]}),false);
+ await send({address:contract,abi:checkoutAbi,functionName:'setAllowedToken',args:[token,true]});
+ await send({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args});
+});
+
+test('admin transfer requires nominee acceptance and can be cancelled',async()=>{
+ await assert.rejects(publicClient.simulateContract({account:buyer,address:contract,abi:checkoutAbi,functionName:'transferAdmin',args:[buyer.address]}),/Unauthorized/);
+ await assert.rejects(publicClient.simulateContract({account:signer,address:contract,abi:checkoutAbi,functionName:'transferAdmin',args:[zeroAddress]}),/InvalidAdmin/);
+ await send({address:contract,abi:checkoutAbi,functionName:'transferAdmin',args:[buyer.address]});
+ await assert.rejects(publicClient.simulateContract({account:other,address:contract,abi:checkoutAbi,functionName:'acceptAdmin'}),/Unauthorized/);
+ assert.equal((await publicClient.readContract({address:contract,abi:checkoutAbi,functionName:'admin'})).toLowerCase(),signer.address.toLowerCase());
+ await send({address:contract,abi:checkoutAbi,functionName:'cancelAdminTransfer'});
+ await assert.rejects(publicClient.simulateContract({account:buyer,address:contract,abi:checkoutAbi,functionName:'acceptAdmin'}),/Unauthorized/);
+ await send({address:contract,abi:checkoutAbi,functionName:'transferAdmin',args:[buyer.address]});
+ await send({account:buyer,address:contract,abi:checkoutAbi,functionName:'acceptAdmin'});
+ await assert.rejects(publicClient.simulateContract({account:signer,address:contract,abi:checkoutAbi,functionName:'setAllowedToken',args:[token,false]}),/Unauthorized/);
+ await send({account:buyer,address:contract,abi:checkoutAbi,functionName:'setAllowedToken',args:[token,true]});
+ await send({account:buyer,address:contract,abi:checkoutAbi,functionName:'transferAdmin',args:[signer.address]});
+ await send({account:signer,address:contract,abi:checkoutAbi,functionName:'acceptAdmin'});
+ assert.equal(await publicClient.readContract({address:contract,abi:checkoutAbi,functionName:'pendingAdmin'}),zeroAddress);
 });

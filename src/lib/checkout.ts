@@ -28,7 +28,7 @@ export async function purchaseWithContract(listing:Listing,currency:PaymentToken
         if (quote.order.amount !== parseUnits(listing.price.replace('$',''),6).toString() || quote.order.token.toLowerCase() !== ARC_TOKEN_ADDRESSES[currency].toLowerCase() || quote.order.seller.toLowerCase() !== listing.payoutAddress.toLowerCase() || quote.order.termsHash !== checkoutTermsHash(listing.price,currency,listing.payoutAddress,listing.accessPolicy)) throw new Error('The listing changed. Refresh to review its latest price and access terms before paying.');
         const token = getContract({client:thirdwebClient,chain:arcTestnet,address:quote.order.token});
         const amount = BigInt(quote.order.amount);
-        const allowance = await readContract({contract:token,method:'function allowance(address owner,address spender) view returns (uint256)',params:[account.address,quote.contract]});
+        const allowance = currency === 'USDC' ? amount : await readContract({contract:token,method:'function allowance(address owner,address spender) view returns (uint256)',params:[account.address,quote.contract]});
         onStatus('sending');
         if (allowance < amount) {
             const approval = prepareContractCall({contract:token,method:'function approve(address spender,uint256 value) returns (bool)',params:[quote.contract,amount]});
@@ -39,7 +39,7 @@ export async function purchaseWithContract(listing:Listing,currency:PaymentToken
         if (BigInt(quote.order.deadline) <= BigInt(Math.floor(Date.now()/1000))) throw new Error('Checkout quote expired. Please try again.');
         const signature = parseSignature(quote.signature);
         const contract = getContract({client:thirdwebClient,chain:arcTestnet,address:quote.contract,abi:checkoutAbi});
-        const transaction = prepareContractCall({contract,method:'buy',params:[typedOrder(quote.order),Number(signature.v ?? BigInt(27+(signature.yParity ?? 0))),signature.r,signature.s]});
+        const transaction = prepareContractCall({contract,value:currency === 'USDC' ? amount * 10n**12n : 0n,method:'buy',params:[typedOrder(quote.order),Number(signature.v ?? BigInt(27+(signature.yParity ?? 0))),signature.r,signature.s]});
         // Ensure receipt persistence is available before requesting the purchase transaction.
         localStorage.setItem(`${key}:quote`,JSON.stringify({claimSecret:quote.claimSecret,currency}));
         const tx = await sendTransaction({transaction,account});

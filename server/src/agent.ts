@@ -122,14 +122,14 @@ async function buyListing(listingId: string, token: PaymentToken, operatorSessio
 
     const quote = await createCheckoutQuote(listingId,agentAccount.address,token,operatorSession);
     if (quote.order.termsHash !== checkoutTermsHash(listing.price,token,listing.payoutAddress,listing.accessPolicy)) return {ok:false,reason:"Listing changed. Review its latest terms before purchasing."};
-    const allowance = await publicClient.readContract({address:tokenAddress,abi:[parseAbiItem("function allowance(address owner,address spender) view returns (uint256)")],functionName:"allowance",args:[agentAccount.address,quote.contract]});
+    const allowance = token === "USDC" ? BigInt(quote.order.amount) : await publicClient.readContract({address:tokenAddress,abi:[parseAbiItem("function allowance(address owner,address spender) view returns (uint256)")],functionName:"allowance",args:[agentAccount.address,quote.contract]});
     if (allowance < BigInt(quote.order.amount)) {
         const approval = await walletClient.writeContract({address:tokenAddress,abi:[parseAbiItem("function approve(address spender,uint256 amount) returns (bool)")],functionName:"approve",args:[quote.contract,BigInt(quote.order.amount)]});
         const receipt = await publicClient.waitForTransactionReceipt({hash:approval});
         if (receipt.status !== "success") return {ok:false,reason:"Token approval failed"};
     }
     const signature = parseSignature(quote.signature);
-    const txHash = await walletClient.writeContract({address:quote.contract,abi:checkoutAbi,functionName:"buy",args:[typedOrder(quote.order),Number(signature.v ?? BigInt(27+(signature.yParity ?? 0))),signature.r,signature.s]});
+    const txHash = await walletClient.writeContract({value:token === "USDC" ? BigInt(quote.order.amount)*10n**12n : 0n,address:quote.contract,abi:checkoutAbi,functionName:"buy",args:[typedOrder(quote.order),Number(signature.v ?? BigInt(27+(signature.yParity ?? 0))),signature.r,signature.s]});
     await redis.set(pendingKey,{secret:quote.claimSecret,hash:txHash});
     const receipt = await publicClient.waitForTransactionReceipt({hash:txHash});
     if (receipt.status !== "success") {await redis.del(pendingKey);return {ok:false,reason:"Checkout transaction failed"};}
