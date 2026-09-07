@@ -72,6 +72,29 @@ export async function makeRepoPrivate(fullName: string): Promise<void> {
     }
 }
 
+/** Fetches and decodes a repo's real GitHub README (used by the "Use README" listing-description shortcut). */
+export async function fetchRepoReadme(fullName: string): Promise<string> {
+    const res = await fetch(`/api/repos/readme?fullName=${encodeURIComponent(fullName)}`, {
+        credentials: "include",
+    });
+    const body = (await res.json().catch(() => ({}))) as { content?: string; error?: string };
+    if (!res.ok || body.content === undefined) throw new Error(body.error ?? "Failed to fetch README");
+    return body.content;
+}
+
+/** Asks the OpenRouter-backed endpoint to draft a listing description from the repo's README. */
+export async function generateRepoDescription(fullName: string): Promise<string> {
+    const res = await fetch("/api/repos/generate-description", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullName }),
+    });
+    const body = (await res.json().catch(() => ({}))) as { description?: string; error?: string };
+    if (!res.ok || !body.description) throw new Error(body.error ?? "Failed to generate a description");
+    return body.description;
+}
+
 export async function logout(): Promise<void> {
     await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
 }
