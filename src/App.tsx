@@ -124,7 +124,7 @@ function App() {
                 )}
                 {path === "/catalog" && <CatalogCTA />}
                 </main>
-                {path !== "/works" && path !== "/profile" && <SiteFooter variant={home ? "home" : path === "/catalog" ? "catalog" : "works"} />}
+                {path !== "/works" && path !== "/profile" && !(repoMatch && !publisherMatch) && <SiteFooter variant={home ? "home" : path === "/catalog" ? "catalog" : "works"} />}
             </div>
             <AgentSidebar
                 open={!home && agentOpen}
