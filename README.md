@@ -6,7 +6,14 @@ Sell access to a private repo. Get paid in **USDC** or **EURC** on [Arc](https:/
 
 Built for **ETHGlobal ETHOnline 2026**.
 
-**Checkout and indexing:** wallet and built-in agent purchases now use the Arc `MargitCheckout` quote/receipt flow. Circle Gateway x402 remains separate. See [contract design, deployment, Graph setup and limitations](contracts/README.md) and [portfolio/agent integration](docs/portfolio-and-agent-flow.md). Deployed on Arc Testnet at `0x3adc0cce0f7a5c7b543a09bc3b783f8317c9108b`; MargitArc Studio **v0.1.0** is indexing its receipts.
+**Deployed checkout contract — Arc Testnet (chain ID 5042002):**
+[0x2deb736ea29f140eb77919380b28d34b854e7ab2](https://testnet.arcscan.app/address/0x2deb736ea29f140eb77919380b28d34b854e7ab2)
+
+`MargitCheckout` verifies short-lived, buyer-specific quotes signed by Margit, transfers USDC or EURC directly from the buyer to the seller, and prevents the same order from being paid twice. It emits `PurchaseCompleted` receipts that **The Graph** indexes for purchase history and portfolio analytics. Wallet checkout and the built-in agent use this contract; Circle Gateway x402 remains a separate payment flow.
+
+Repository delivery and access expiry are enforced by Margit's backend. The contract does not store code, guarantee delivery, hold payments in escrow, or issue refunds.
+
+[MargitArc Studio](https://thegraph.com/studio/subgraph/margit-arc) **v0.3.0** indexes v1 from block **60950495**, v2 from block **60954258**, and the current admin-enabled v3 from block **60955382**. See [contract design, deployment, Graph setup and limitations](contracts/README.md) and [portfolio/agent integration](docs/portfolio-and-agent-flow.md).
 
 ---
 
@@ -132,7 +139,7 @@ flowchart TD
     X402 --> Agent["Any x402-aware agent<br/>repeated, gasless via Gateway<br/>(after a one-time deposit)"]
 ```
 
-**Contract path:** the backend checks delivery and signs a short-lived, buyer-bound quote. The buyer approves the token and calls `MargitCheckout.buy()`. The server verifies the resulting `PurchaseCompleted` event before granting access. The same order cannot be paid twice; confirmation can be retried without extending access. Sellers need not remain online or submit onchain listing transactions.
+**Contract path:** the backend checks delivery and signs a short-lived, buyer-bound quote. USDC buyers call `MargitCheckout.buy()` with native USDC in one transaction; EURC buyers approve the ERC-20 amount first. The server verifies the resulting `PurchaseCompleted` event before granting access. The same order cannot be paid twice; confirmation can be retried without extending access. Sellers need not remain online or submit onchain listing transactions.
 
 **x402 path** (`BuyButton` → `GET /api/listings/unlock`): a real `402 Payment Required` challenge, settled through `@circle-fin/x402-batching`'s `BatchFacilitatorClient`/`GatewayEvmScheme` against Circle's testnet Gateway facilitator (`gateway-api-testnet.circle.com`). Requires a one-time `deposit()` into the `GatewayWallet` contract (real bundled ABI, not guessed) before the first payment. Built for agents that pay repeatedly.
 
