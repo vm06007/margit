@@ -236,3 +236,6 @@
 .privacy-dialog .privacy-icon { display: block; font-size: 4rem; color: #9f8be7; margin-bottom: 1.5rem; }
 .privacy-dialog .privacy-repo-name { color: var(--t-bright); font-weight: 600; overflow-wrap: anywhere; margin-bottom: 1.5rem; }
 .privacy-confetti { position: fixed; inset: 0; width: 100vw; height: 100dvh; pointer-events: none; z-index: 1; }
+
+.privacy-celebrate { display: block; padding: 0; border: 0; background: transparent; border-radius: 50%; }
+.privacy-celebrate:focus-visible { outline: 2px solid #9f8be7; outline-offset: 5px; }

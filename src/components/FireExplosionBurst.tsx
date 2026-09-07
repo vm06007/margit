@@ -38,7 +38,7 @@ function spawnBurst(width: number, height: number): ConfettiPiece[] {
     return pieces;
 }
 
-export function FireExplosionBurst({ replay }: { replay: number }) {
+export function FireExplosionBurst({ replay, className = "purchase-confetti" }: { replay: number; className?: string }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     useEffect(() => {
@@ -107,7 +107,7 @@ export function FireExplosionBurst({ replay }: { replay: number }) {
     return (
         <canvas
             ref={canvasRef}
-            className="purchase-confetti"
+            className={className}
             aria-hidden
         />
     );
