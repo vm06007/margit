@@ -1,4 +1,5 @@
-import { useActiveAccount } from "thirdweb/react";
+import { arcTestnet, thirdwebAppMetadata, thirdwebClient, thirdwebTheme, thirdwebWallets } from "../lib/thirdweb";
+import { useActiveAccount, useConnectModal } from "thirdweb/react";
 import { ACCESS_WINDOWS, DEFAULT_ACCESS_POLICY, accessPolicyLabel, accessWindowLabel, type AccessPolicy } from "../../shared/accessPolicy";
 import { MakePrivateModal } from "../components/MakePrivateModal";
 import { RepoVisibilitySelect } from "../components/RepoVisibilitySelect";
@@ -305,6 +306,18 @@ export function ListModal({
     onUnlisted: (listingId: string) => void;
 }) {
     const account = useActiveAccount();
+    const connectModal = useConnectModal();
+    const [connectingWallet, setConnectingWallet] = useState(false);
+    const useConnectedWallet = async () => {
+        if (account) { setPayoutAddress(account.address); return; }
+        setConnectingWallet(true);
+        try {
+            const wallet = await connectModal.connect({ client: thirdwebClient, wallets: thirdwebWallets, chain: arcTestnet, appMetadata: thirdwebAppMetadata, theme: thirdwebTheme });
+            const connected = wallet.getAccount();
+            if (connected) setPayoutAddress(connected.address);
+        } catch { /* Closing the wallet picker leaves the payout address unchanged. */ }
+        finally { setConnectingWallet(false); }
+    };
     const isEdit = !!listing;
     const [price, setPrice] = useState(listing?.price ?? "$0.05");
     const [payoutAddress, setPayoutAddress] = useState(listing?.payoutAddress ?? "");
@@ -536,9 +549,9 @@ export function ListModal({
                         <div className="modal-field">
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
                                 <label className="modal-label" htmlFor="listing-payout-address">Payout address</label>
-                                {account && <button type="button" className="modal-link-btn" disabled={submitting} onClick={() => setPayoutAddress(account.address)}>
-                                    Use connected wallet
-                                </button>}
+                                <button type="button" className="modal-link-btn" disabled={submitting || connectingWallet} onClick={useConnectedWallet}>
+                                    {connectingWallet ? "Connecting…" : "Use connected wallet"}
+                                </button>
                             </div>
                             <input
                                 id="listing-payout-address"
