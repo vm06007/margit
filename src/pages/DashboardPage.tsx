@@ -1,3 +1,4 @@
+import { useActiveAccount } from "thirdweb/react";
 import { ACCESS_WINDOWS, DEFAULT_ACCESS_POLICY, accessPolicyLabel, accessWindowLabel, type AccessPolicy } from "../../shared/accessPolicy";
 import { MakePrivateModal } from "../components/MakePrivateModal";
 import { RepoVisibilitySelect } from "../components/RepoVisibilitySelect";
@@ -306,6 +307,7 @@ export function ListModal({
     onSaved: (listing: Listing) => void;
     onUnlisted: (listingId: string) => void;
 }) {
+    const account = useActiveAccount();
     const isEdit = !!listing;
     const [price, setPrice] = useState(listing?.price ?? "$0.05");
     const [payoutAddress, setPayoutAddress] = useState(listing?.payoutAddress ?? "");
@@ -530,9 +532,15 @@ export function ListModal({
                             />
                         </label>
 
-                        <label className="modal-field">
-                            <span className="modal-label">Payout address</span>
+                        <div className="modal-field">
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+                                <label className="modal-label" htmlFor="listing-payout-address">Payout address</label>
+                                {account && <button type="button" className="modal-link-btn" disabled={submitting} onClick={() => setPayoutAddress(account.address)}>
+                                    Use connected wallet
+                                </button>}
+                            </div>
                             <input
+                                id="listing-payout-address"
                                 className="agent-input"
                                 placeholder="0x… address, name.eth, or name.arc"
                                 value={payoutAddress}
@@ -547,7 +555,7 @@ export function ListModal({
                                     → <code>{resolved}</code>
                                 </span>
                             )}
-                        </label>
+                        </div>
 
                         <label className="modal-field">
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
