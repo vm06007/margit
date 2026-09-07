@@ -1,0 +1,25 @@
+specVersion: 1.0.0
+# Receipt indexing only; repository credentials are never written onchain.
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum/contract
+    name: MargitCheckout
+    network: ${GRAPH_NETWORK}
+    source:
+      address: '${CHECKOUT_ADDRESS}'
+      abi: MargitCheckout
+      startBlock: ${START_BLOCK}
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - Purchase
+      abis:
+        - name: MargitCheckout
+          file: ../contracts/artifacts/MargitCheckout.abi.json
+      eventHandlers:
+        - event: PurchaseCompleted(indexed bytes32,indexed bytes32,indexed address,address,address,uint256,bytes32)
+          handler: handlePurchaseCompleted
+      file: ./src/mapping.ts

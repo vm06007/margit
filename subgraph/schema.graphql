@@ -1,0 +1,12 @@
+type Purchase @entity(immutable: true) {
+  id: Bytes!
+  purchaseId: Bytes!
+  listingId: Bytes!
+  buyer: Bytes!
+  seller: Bytes!
+  token: Bytes!
+  amount: BigInt!
+  termsHash: Bytes!
+  transactionHash: Bytes!
+  timestamp: BigInt!
+}

@@ -165,3 +165,8 @@ dist-ssr
 /public/landing
 /public/original
 /public/site
+
+# Generated Graph build files
+/subgraph/generated/
+/subgraph/build/
+/subgraph/validation.local.yaml
