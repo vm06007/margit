@@ -7,6 +7,7 @@
 :root { --bg: var(--base); --surface: var(--base-tint); --border: var(--st-muted); --text: var(--t-medium); --text-heading: var(--t-bright); --text-muted: var(--t-muted); --error: #ff6b6b; --code-bg: var(--base-tint); }
 .site-app { display: flex; align-items: stretch; height: 100dvh; overflow: hidden; }
 .site-page-wrap { flex: 1 1 auto; min-width: 0; height: 100%; overflow-y: auto; overflow-x: hidden; position: relative; }
+.site-app .mxd-page-content { padding-top: 0px; }
 .site-header .mxd-header__controls { align-items: center; }
 .site-header .header-hamburger-proxy { border: 0; padding: 0; background: transparent; flex-shrink: 0; }
 .site-home .site-header { width: calc(100% - 6rem); }

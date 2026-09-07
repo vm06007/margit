@@ -1,3 +1,4 @@
+import { PageLoading } from "../components/PageLoading";
 import { arcTestnet, thirdwebAppMetadata, thirdwebClient, thirdwebTheme, thirdwebWallets } from "../lib/thirdweb";
 import { useActiveAccount, useConnectModal } from "thirdweb/react";
 import { ACCESS_WINDOWS, DEFAULT_ACCESS_POLICY, accessPolicyLabel, accessWindowLabel, type AccessPolicy } from "../../shared/accessPolicy";
@@ -726,7 +727,7 @@ function PrivateRepoRow({
                         <div className="col-6 col-md-6 col-xl-2 mxd-grid-item no-margin">
                             <div className="mxd-projects-list__date repo-row-price">
                                 {listing ? (
-                                    <span className="tag tag-default tag-permanent">{listing.price}</span>
+                                    <span className="tag tag-default tag-permanent">${Number(listing.price.replace("$", "")).toFixed(2)}</span>
                                 ) : (
                                     <span className="repo-row-price-empty" aria-label="Not listed">—</span>
                                 )}
@@ -842,6 +843,8 @@ export function DashboardPage({
     }, [pageCount]);
 
 
+    if (me.authenticated && repos === null && !reposError) return <PageLoading label="Loading repositories…" />;
+
     return (
         <div className="mxd-section overflow-hidden dashboard-section"><div className="mxd-container grid-container">
             <DashboardStyle /><div className="mxd-block">
@@ -866,7 +869,6 @@ export function DashboardPage({
             </div><div className="mxd-block">
             {!me.authenticated && <p style={{padding: "2rem 0", opacity: .6}}><a href="/api/auth/github/login">Connect with GitHub</a> to see your repositories here.</p>}
             {reposError && <p className="error">{reposError}</p>}
-            {me.authenticated && repos === null && !reposError && <p className="hint">Loading repositories…</p>}
 
             {repos && (
                 <>

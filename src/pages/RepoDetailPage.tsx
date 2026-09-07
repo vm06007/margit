@@ -1,3 +1,4 @@
+import { PageLoading } from "../components/PageLoading";
 import { pendingCheckout, purchaseWithContract } from "../lib/checkout";
 import { allowsCheckout, checkoutLabel, accessPolicyLabel } from "../../shared/accessPolicy";
 import { normalizeDemoUrl } from "../../shared/demoUrl";
@@ -303,10 +304,7 @@ export function RepoDetailPage({ owner, name, listings, navigate }: {
     const connectModal = useConnectModal();
     const listing = listings?.find(l => l.repoFullName.toLowerCase() === `${owner}/${name}`.toLowerCase());
     if (listings === null) return <section className="repository-page" aria-busy="true">
-        <div className="repository-loading" role="status">
-            <span className="repository-loading-spinner" aria-hidden="true" />
-            <p>Loading repository…</p>
-        </div>
+        <PageLoading label="Loading repository…" />
     </section>;
     if (!listing) return <section className="repository-page"><a href="/catalog">← Catalog</a><p>This repository is no longer listed.</p></section>;
     const publisher = `/publisher/${encodeURIComponent(listing.ownerLogin)}`;
@@ -328,7 +326,7 @@ export function RepoDetailPage({ owner, name, listings, navigate }: {
                     {purchase ? <PurchaseSuccess receipt={purchase} listing={listing} /> : <>
                     <p className="repository-eyebrow">Make it yours</p><div className="repository-price">{listing.price}</div><p>Pay once. Get the code.</p><p className="hint">{checkoutLabel(listing.accessPolicy)}. {accessPolicyLabel(listing.accessPolicy)}</p>
                     <div className="repository-payment-tabs" role="group" aria-label="Purchase method"><button type="button" disabled={!allowsCheckout(listing.accessPolicy, "wallet")} aria-pressed={selectedPayment === "wallet"} onClick={() => setPayment("wallet")}>Your wallet</button><button type="button" disabled={!allowsCheckout(listing.accessPolicy, "x402")} aria-pressed={selectedPayment === "agent"} onClick={() => setPayment("agent")}>x402 / Agent</button></div>
-                    <div hidden={selectedPayment !== "wallet"}><h3>Pay directly</h3><p className="hint">Send USDC or EURC on Arc directly to the publisher.</p><DirectBuyButton listing={listing} onPurchased={setPurchase} /></div>
+                    <div hidden={selectedPayment !== "wallet"}><h3>Pay with wallet</h3><p className="hint">Send USDC or EURC on Arc through the Margit contract to the publisher.</p><DirectBuyButton listing={listing} onPurchased={setPurchase} /></div>
                     <div hidden={selectedPayment !== "agent"}><h3>Buy with x402</h3><p className="hint">Fund Circle Gateway with USDC, then authorize an x402 payment.</p><DepositButton /><BuyButton listingId={listing.id} onPurchased={setPurchase} /><AgentInstructions listingId={listing.id} /></div>
                     {selectedPayment === "wallet" ? (!account && <div className="repository-requirements">{!account && <button className="btn btn-primary repository-connect-wallet" type="button" onClick={() => {void connectModal.connect({client:thirdwebClient, wallets:thirdwebWallets, chain:arcTestnet, theme:thirdwebTheme, appMetadata:thirdwebAppMetadata}).catch(() => undefined)}}><WalletIcon /> Connect Wallet</button>}</div>) : <div className="repository-requirements"><button className="btn btn-outline" type="button" disabled={unlockResults[listing.id] === "loading"} onClick={() => previewUnlock(listing.id)}>{unlockResults[listing.id] === "loading" ? "Checking…" : "Preview requirements"}</button>{unlockDetailsNode(unlockResults[listing.id])}</div>}
                     </>}

@@ -1,13 +1,14 @@
-.error-toast {
+.app-toast {
     position: fixed;
     inset: auto 2rem 2rem auto;
     margin: 0;
-    width: min(48rem, calc(100vw - 4rem));
+    width: max-content;
+    max-width: min(48rem, calc(100vw - 4rem));
     box-sizing: border-box;
-    padding: 1.6rem 2rem;
+    padding: 1.2rem 1.6rem;
     background: var(--base, #161616);
     color: var(--t-bright, #fff);
-    border: 1px solid #ff7373;
+    border: 1px solid var(--toast-accent, #ff7373);
     border-radius: 1.6rem;
     box-shadow: 0 1rem 4rem #0006;
     font-size: 1.6rem;
@@ -15,9 +16,23 @@
     gap: 1.2rem;
     align-items: flex-start;
     z-index: 10000;
+    animation: toast-slide-in 220ms ease-out both;
 }
-.error-toast:popover-open { display: flex; }
-.error-toast > i { color: #ff7373; font-size: 2.4rem; }
-.error-toast > span { flex: 1; overflow-wrap: anywhere; }
-.error-toast > button { background: transparent; border: 0; color: inherit; cursor: pointer; font-size: 2.4rem; line-height: 1; padding: .2rem; }
-@supports not selector(:popover-open) { .error-toast { display: flex; } }
+.app-toast:popover-open { display: flex; }
+.app-toast > i { color: var(--toast-accent, #ff7373); font-size: 2.4rem; }
+.app-toast > span { min-width: 0; overflow-wrap: anywhere; }
+.app-toast > i, .app-toast > button { flex-shrink: 0; }
+.app-toast > button { background: transparent; border: 0; color: inherit; cursor: pointer; font-size: 2.4rem; line-height: 1; padding: .2rem; }
+@supports not selector(:popover-open) { .app-toast { display: flex; } }
+
+.app-toast-success { --toast-accent: var(--accent, #dfff63); }
+.app-toast-closing { animation: toast-slide-out 220ms ease-in both; pointer-events: none; }
+@keyframes toast-slide-in {
+    from { transform: translateX(calc(100% + 2rem)); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+@keyframes toast-slide-out {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(calc(100% + 2rem)); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .app-toast { animation: none; } }
