@@ -174,9 +174,16 @@ export interface AgentPurchase {
     token: "USDC" | "EURC";
 }
 
+export interface AgentListingChange {
+    type: "listed" | "unlisted";
+    repoFullName: string;
+    listing?: Listing;
+}
+
 export interface AgentChatResponse {
     reply: string;
     purchase?: AgentPurchase;
+    listingChange?: AgentListingChange;
 }
 
 export function fetchAgentWallet(): Promise<AgentWallet> {

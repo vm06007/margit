@@ -397,6 +397,76 @@ app.post("/api/repos/make-private", async (c) => {
     return c.json({ ok: true });
 });
 
+async function fetchReadmeText(fullName: string, githubAccessToken: string): Promise<string | null> {
+    const res = await fetch(`https://api.github.com/repos/${fullName}/readme`, {
+        headers: { Authorization: `Bearer ${githubAccessToken}`, Accept: "application/vnd.github+json" },
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { content?: string; encoding?: string };
+    if (!body.content || body.encoding !== "base64") return null;
+    return Buffer.from(body.content, "base64").toString("utf-8");
+}
+
+app.get("/api/repos/readme", async (c) => {
+    const session = await getSession(getCookie(c, SESSION_COOKIE));
+    if (!session) return c.json({ error: "Not authenticated" }, 401);
+
+    const fullName = c.req.query("fullName");
+    if (!fullName) return c.json({ error: "fullName is required" }, 400);
+
+    const readme = await fetchReadmeText(fullName, session.githubAccessToken);
+    if (readme === null) return c.json({ error: "This repo has no README" }, 404);
+    return c.json({ content: readme });
+});
+
+app.post("/api/repos/generate-description", async (c) => {
+    const session = await getSession(getCookie(c, SESSION_COOKIE));
+    if (!session) return c.json({ error: "Not authenticated" }, 401);
+
+    const { fullName } = await c.req.json<{ fullName?: string }>();
+    if (!fullName) return c.json({ error: "fullName is required" }, 400);
+
+    if (!process.env.OPENROUTER_API_KEY) {
+        return c.json(
+            { error: "AI description generation isn't configured — the site owner needs to set OPENROUTER_API_KEY." },
+            503,
+        );
+    }
+
+    const readme = await fetchReadmeText(fullName, session.githubAccessToken);
+    const repoRes = await fetch(`https://api.github.com/repos/${fullName}`, {
+        headers: { Authorization: `Bearer ${session.githubAccessToken}`, Accept: "application/vnd.github+json" },
+    });
+    const repo = repoRes.ok
+        ? ((await repoRes.json()) as { description?: string | null; language?: string | null })
+        : {};
+
+    const prompt =
+        `Write a compelling 2-3 sentence marketplace listing description for a GitHub repo, aimed at a ` +
+        `buyer deciding whether to purchase access. Repo: ${fullName}. ` +
+        `Language: ${repo.language ?? "unknown"}. ` +
+        `GitHub description: ${repo.description ?? "none"}. ` +
+        `README (may be truncated):\n${(readme ?? "none available").slice(0, 4000)}\n\n` +
+        `Reply with only the description text, no preamble, no quotes.`;
+
+    const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            model: "openrouter/free",
+            messages: [{ role: "user", content: prompt }],
+        }),
+    });
+    if (!aiRes.ok) return c.json({ error: "The AI model didn't respond" }, 502);
+    const aiBody = (await aiRes.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const description = aiBody.choices?.[0]?.message?.content?.trim();
+    if (!description) return c.json({ error: "The AI model returned an empty response" }, 502);
+    return c.json({ description });
+});
+
 app.get("/api/listings", async (c) => {
     return c.json(await listListings());
 });

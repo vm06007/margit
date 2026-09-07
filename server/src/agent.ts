@@ -227,20 +227,25 @@ export async function createListingForUser(
 export async function unlistRepoForUser(
     session: SessionData,
     input: { id?: string; repoFullName?: string },
-): Promise<{ ok: boolean; reason?: string }> {
+): Promise<{ ok: boolean; reason?: string; repoFullName?: string }> {
     let id = input.id;
-    if (!id && input.repoFullName) {
+    let repoFullName = input.repoFullName;
+    if (!id && repoFullName) {
         const all = await listListings();
         const match = all.find(
             (l) =>
-                l.repoFullName.toLowerCase() === input.repoFullName?.toLowerCase() &&
+                l.repoFullName.toLowerCase() === repoFullName?.toLowerCase() &&
                 l.ownerLogin.toLowerCase() === session.login.toLowerCase(),
         );
         id = match?.id;
     }
     if (!id) return { ok: false, reason: "Could not find a listing for that repo owned by you" };
+    if (!repoFullName) {
+        const listing = await getListing(id);
+        repoFullName = listing?.repoFullName;
+    }
     const ok = await deleteListing(id, session.login);
-    return ok ? { ok: true } : { ok: false, reason: "Listing not found or not yours" };
+    return ok ? { ok: true, repoFullName } : { ok: false, reason: "Listing not found or not yours" };
 }
 
 const TOOLS: ChatCompletionTool[] = [
@@ -366,6 +371,7 @@ function systemPrompt(githubSession: SessionData | undefined): string {
 export interface AgentTurnResult {
     reply: string;
     purchase?: { cloneUrl: string; txHash: string; repoFullName: string; token: PaymentToken };
+    listingChange?: { type: "listed" | "unlisted"; repoFullName: string; listing?: Listing };
 }
 
 function safeParseArgs(text: string): Record<string, unknown> {
@@ -381,7 +387,7 @@ async function executeTool(
     name: string,
     input: Record<string, unknown>,
     githubSession: SessionData | undefined,
-): Promise<{ output: unknown; purchase?: AgentTurnResult["purchase"] }> {
+): Promise<{ output: unknown; purchase?: AgentTurnResult["purchase"]; listingChange?: AgentTurnResult["listingChange"] }> {
     switch (name) {
         case "list_listings": {
             const all = await listListings();
@@ -459,9 +465,19 @@ async function executeTool(
             if (!repoFullName || !price || !payoutAddress) {
                 return { output: { ok: false, reason: "repoFullName, price, and payoutAddress are required" } };
             }
-            return {
-                output: await createListingForUser(githubSession, { repoFullName, price, payoutAddress, sellerDescription }),
-            };
+            const createResult = await createListingForUser(githubSession, {
+                repoFullName,
+                price,
+                payoutAddress,
+                sellerDescription,
+            });
+            if (createResult.ok && createResult.listing) {
+                return {
+                    output: createResult,
+                    listingChange: { type: "listed", repoFullName, listing: createResult.listing },
+                };
+            }
+            return { output: createResult };
         }
         case "unlist_repo": {
             if (!githubSession) {
@@ -469,7 +485,14 @@ async function executeTool(
             }
             const id = typeof input.id === "string" ? input.id : undefined;
             const repoFullName = typeof input.repoFullName === "string" ? input.repoFullName : undefined;
-            return { output: await unlistRepoForUser(githubSession, { id, repoFullName }) };
+            const unlistResult = await unlistRepoForUser(githubSession, { id, repoFullName });
+            if (unlistResult.ok && unlistResult.repoFullName) {
+                return {
+                    output: unlistResult,
+                    listingChange: { type: "unlisted", repoFullName: unlistResult.repoFullName },
+                };
+            }
+            return { output: unlistResult };
         }
         case "generate_api_key": {
             if (!githubSession) {
@@ -618,6 +641,7 @@ export async function runAgentTurn(
     ];
 
     let purchase: AgentTurnResult["purchase"];
+    let listingChange: AgentTurnResult["listingChange"];
     let finalText = "";
 
     try {
@@ -640,8 +664,13 @@ export async function runAgentTurn(
             for (const call of calls) {
                 if (call.type !== "function") continue;
                 const args = safeParseArgs(call.function.arguments);
-                const { output, purchase: madePurchase } = await executeTool(call.function.name, args, githubSession);
+                const {
+                    output,
+                    purchase: madePurchase,
+                    listingChange: madeListingChange,
+                } = await executeTool(call.function.name, args, githubSession);
                 if (madePurchase) purchase = madePurchase;
+                if (madeListingChange) listingChange = madeListingChange;
                 messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(output) });
             }
         }
@@ -655,5 +684,5 @@ export async function runAgentTurn(
         ex: HISTORY_TTL_SECONDS,
     });
 
-    return { reply: finalText || "(no response)", purchase };
+    return { reply: finalText || "(no response)", purchase, listingChange };
 }
