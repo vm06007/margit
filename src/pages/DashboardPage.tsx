@@ -455,6 +455,7 @@ export function ListModal({
                             <span>{repo.description || "No description on GitHub."}</span>
                         </p>
                         {repo.updatedAt && <p className="hint modal-repo-detail-line" style={{ fontSize: "1.4rem", marginTop: "2.4rem" }}><i className="ph ph-calendar-blank" aria-hidden="true" /><span>Updated {new Date(repo.updatedAt).toLocaleDateString()}</span></p>}
+                        <hr className="listing-sidebar-divider" style={{ marginTop: "2.4rem" }} />
                         <div
                             className="modal-repo-thumb"
                             style={{ marginTop: "1.6rem", backgroundImage: `url(${thumbFor(repo, listing)})` }}
