@@ -107,7 +107,7 @@ function App() {
                 ) : repoMatch ? (
                     <RepoDetailPage owner={repoMatch[1]} name={repoMatch[2]} listings={listings} navigate={navigate} />
                 ) : (
-                    <WelcomePage me={me} navigate={navigate} />
+                    <WelcomePage me={me} navigate={navigate} listings={listings} listingsError={listingsError} />
                 )}
             </main>
             <AgentSidebar
