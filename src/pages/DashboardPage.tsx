@@ -163,7 +163,7 @@ export function DashboardStyle() {
             .listing-details-tabs button:focus-visible { outline: 2px solid var(--t-bright); outline-offset: 3px; }
             .listing-price-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
             .listing-price-presets { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; margin-left: auto; }
-            .listing-price-presets button { padding: .4rem .8rem; border: 1px solid var(--t-muted); border-radius: 3rem; background: transparent; color: var(--t-bright); font: inherit; font-size: 1.4rem; }
+            .listing-price-presets button { padding: .3rem .7rem; border: 1px solid var(--t-muted); border-radius: 3rem; background: transparent; color: var(--t-bright); font: inherit; font-size: 1.25rem; }
             .listing-price-presets button[aria-pressed="true"] { background: var(--t-bright); color: var(--base); border-color: var(--t-bright); }
             .listing-price-presets button:focus-visible { outline: 2px solid var(--t-bright); outline-offset: 3px; }
             .modal-label { font-size: 1.8rem; font-weight: 600; color: var(--t-medium); }
