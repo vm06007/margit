@@ -90,7 +90,7 @@ function App() {
                     <PublisherPage login={publisherMatch[1]} listings={listings} navigate={navigate} />
                 ) : path === "/catalog" ? (
                     <CatalogPage listings={listings} listingsError={listingsError} navigate={navigate} />
-                ) : path === "/profile" ? (
+                ) : path === "/works" ? (
                     <DashboardPage
                         me={me}
                         repos={repos}

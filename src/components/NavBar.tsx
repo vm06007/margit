@@ -43,7 +43,7 @@ export function NavBar({
                 <a href="/" className="brand">
                     margit
                 </a>
-                <NavLink to="/profile" path={path} navigate={navigate}>
+                <NavLink to="/works" path={path} navigate={navigate}>
                     My Repos
                 </NavLink>
                 <NavLink to="/catalog" path={path} navigate={navigate}>

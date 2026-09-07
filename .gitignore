@@ -163,3 +163,4 @@ dist-ssr
 *.sw?
 /.claude
 /public/landing
+/public/original

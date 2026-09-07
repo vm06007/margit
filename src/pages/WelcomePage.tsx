@@ -89,7 +89,7 @@ function ConnectOrProfileButton({
     className: string;
 }) {
     return me.authenticated ? (
-        <button type="button" className={className} onClick={() => navigate("/profile")}>
+        <button type="button" className={className} onClick={() => navigate("/works")}>
             <span className="btn-caption">Go to My Repos</span>
             <i className="ph-bold ph-arrow-up-right" />
         </button>
@@ -432,8 +432,8 @@ export function WelcomePage({
                                         </a>
                                         <a
                                             className="btn btn-anim btn-default btn-small btn-outline slide-right-up"
-                                            href="/profile"
-                                            onClick={goTo("/profile")}
+                                            href="/works"
+                                            onClick={goTo("/works")}
                                         >
                                             <span className="btn-caption">My Repos</span>
                                             <i className="ph ph-arrow-up-right" />
@@ -462,7 +462,7 @@ export function WelcomePage({
                                                                     </a>
                                                                 </li>
                                                                 <li>
-                                                                    <a href="/profile" onClick={goTo("/profile")}>
+                                                                    <a href="/works" onClick={goTo("/works")}>
                                                                         My Repos
                                                                     </a>
                                                                 </li>
