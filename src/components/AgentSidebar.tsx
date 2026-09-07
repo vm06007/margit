@@ -14,7 +14,7 @@ import {
 } from "../api";
 import { useVoiceInput } from "../hooks/useVoiceInput";
 import { CloneResult } from "./CloneResult";
-import { CloseIcon, GearIcon, MicIcon, RobotIcon } from "./icons";
+import { MicIcon } from "./icons";
 
 export function AgentSettingsPanel({ onSaved }: { onSaved: (settings: AgentSettings) => void }) {
     const [models, setModels] = useState<AgentModel[] | null>(null);
@@ -41,7 +41,7 @@ export function AgentSettingsPanel({ onSaved }: { onSaved: (settings: AgentSetti
         setSaving(true);
         setError(null);
         try {
-            const next = await updateAgentSettings({ model, apiKey });
+            const next = await updateAgentSettings({ model, ...(apiKey.trim() ? { apiKey } : {}) });
             setSettings(next);
             setApiKey("");
             setSaved(true);
@@ -55,13 +55,13 @@ export function AgentSettingsPanel({ onSaved }: { onSaved: (settings: AgentSetti
     };
 
     return (
-        <div className="agent-settings">
+        <div className="agent-settings-panel open">
             <label className="agent-settings-label" htmlFor="agent-model-input">
                 Model
             </label>
             <input
                 id="agent-model-input"
-                className="input"
+                className="agent-input"
                 list="agent-model-options"
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
@@ -81,7 +81,7 @@ export function AgentSettingsPanel({ onSaved }: { onSaved: (settings: AgentSetti
             </label>
             <input
                 id="agent-key-input"
-                className="input"
+                className="agent-input"
                 type="password"
                 autoComplete="off"
                 placeholder={
@@ -102,7 +102,7 @@ export function AgentSettingsPanel({ onSaved }: { onSaved: (settings: AgentSetti
             </p>
 
             {error && <p className="error">{error}</p>}
-            <button type="button" className="btn btn-primary btn-small" disabled={saving} onClick={save}>
+            <button type="button" className="btn btn-anim btn-default btn-small btn-accent" disabled={saving} onClick={save}>
                 {saving ? "Saving…" : saved ? "Saved!" : "Save"}
             </button>
         </div>
@@ -125,7 +125,7 @@ export function AgentSidebar({
     onListingChange?: (change: AgentListingChange) => void;
 }) {
     const [wallet, setWallet] = useState<AgentWallet | null>(null);
-    const [settings, setSettings] = useState<AgentSettings | null>(null);
+    const [, setSettings] = useState<AgentSettings | null>(null);
     const [showSettings, setShowSettings] = useState(false);
     const [messages, setMessages] = useState<AgentMessage[]>([]);
     const [input, setInput] = useState("");
@@ -172,12 +172,12 @@ export function AgentSidebar({
     };
 
     return (
-        <aside className={`agent-sidebar ${open ? "open" : ""}`}>
+        <aside id="agent-sidebar" className={`agent-sidebar ${open ? "open" : ""}`} inert={!open}>
             <div className="agent-sidebar-inner">
                 <div className="agent-header">
                     <div>
                         <h3>
-                            <RobotIcon /> margit agent
+                            <i className="ph-fill ph-robot" /> margit agent
                         </h3>
                         {wallet?.address ? (
                             <p className="hint">
@@ -189,41 +189,24 @@ export function AgentSidebar({
                         ) : (
                             <p className="hint">Loading wallet…</p>
                         )}
-                        {settings && (
-                            <p className="hint agent-model-line">
-                                Model: {settings.model} (
-                                {settings.hasCustomKey
-                                    ? "your key"
-                                    : settings.hasSharedDefault
-                                      ? "shared key"
-                                      : "no key configured"}
-                                )
-                            </p>
-                        )}
                     </div>
                     <div className="agent-header-actions">
-                        <button
+<button type="button" className="agent-icon-btn" onClick={onClose} aria-label="Close agent">
+                            <i className="ph ph-x" />
+                        </button>
+<button
                             type="button"
-                            className={`btn-icon-plain ${showSettings ? "active" : ""}`}
+                            className={`agent-icon-btn ${showSettings ? "active" : ""}`}
                             onClick={() => setShowSettings((v) => !v)}
                             aria-label="Agent settings"
                             title="Configure model / API key"
                         >
-                            <GearIcon />
-                        </button>
-                        <button type="button" className="btn-icon-plain" onClick={onClose} aria-label="Close agent">
-                            <CloseIcon />
+                            <i className="ph ph-gear" />
                         </button>
                     </div>
                 </div>
                 {showSettings && <AgentSettingsPanel onSaved={setSettings} />}
                 <div className="agent-messages" ref={scrollRef}>
-                    {messages.length === 0 && (
-                        <p className="hint agent-empty">
-                            Ask me to find a repo, or tell me to buy one — I have my own funded wallet and can pay
-                            for it directly.
-                        </p>
-                    )}
                     {messages.map((m, i) => (
                         <div key={i} className={`agent-message agent-message-${m.role}`}>
                             <p>{m.text}</p>
@@ -244,7 +227,7 @@ export function AgentSidebar({
                 >
                     <input
                         type="text"
-                        className="input"
+                        className="agent-input"
                         placeholder={voice.listening ? "Listening…" : "Ask the agent to find or buy a repo…"}
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
@@ -261,7 +244,7 @@ export function AgentSidebar({
                             <MicIcon />
                         </button>
                     )}
-                    <button type="submit" className="btn btn-primary" disabled={sending || !input.trim()}>
+                    <button type="submit" className="btn btn-anim btn-default btn-small btn-accent" disabled={sending || !input.trim()}>
                         Send
                     </button>
                 </form>

@@ -1,0 +1,101 @@
+@import "../App.css" layer(legacy);
+/* Native cursor: no mouse-tracking layer or delay; controls retain their affordances. */
+@media (hover: hover) and (pointer: fine) {
+ body { cursor: url('/site/img/cursor.svg') 26 25, auto; }
+}
+/* Layout and interaction layer for the React pages. Reference HTML stays untouched. */
+:root { --bg: var(--base); --surface: var(--base-tint); --border: var(--st-muted); --text: var(--t-medium); --text-heading: var(--t-bright); --text-muted: var(--t-muted); --error: #ff6b6b; --code-bg: var(--base-tint); }
+.site-app { display: flex; align-items: stretch; height: 100dvh; overflow: hidden; }
+.site-page-wrap { flex: 1 1 auto; min-width: 0; height: 100%; overflow-y: auto; overflow-x: hidden; position: relative; }
+.site-header .mxd-header__controls { align-items: center; }
+.site-header .header-hamburger-proxy { border: 0; padding: 0; background: transparent; flex-shrink: 0; }
+.site-home .site-header { width: calc(100% - 6rem); }
+@media(min-width:768px) { .site-home .site-header { width: calc(100% - 12rem); } }
+@media(min-width:1600px) { .site-home .site-header { width: calc(100% - 18rem); } }
+.site-menu { position: fixed; inset: 0; z-index: 150; background: var(--base); }
+.site-menu .mxd-menu__wrapper { display: flex; }
+.site-menu .mxd-menu__contain { opacity: 1; transform: none; }
+.site-menu .menu-fade-in, .site-menu .main-menu__link { opacity: 1; transform: none; }
+.site-header.site-menu-open { z-index: 151; }
+.site-inner #mxd-page-wrap .mxd-section-inner-headline { padding-top: 0; }
+.site-inner .mxd-section-inner-headline.padding-blog-default-pre-grid { padding-bottom: 0; }
+.catalog-page-title .catalog-title-parent { white-space: nowrap; }
+.catalog-page-title a { color: var(--t-muted); font: inherit; text-decoration: none; transition: color .2s ease; }
+.catalog-page-title a:hover, .catalog-page-title a:focus-visible { color: var(--t-bright); }
+.site-app .loading__fade, .site-app .loading__item { opacity: 1; visibility: visible; }
+.site-app .marquee { overflow: hidden; }
+.site-app .marquee__item { flex-shrink: 0; }
+.site-app .marquee__toleft { width: max-content; display: flex; translate: none; animation: site-marquee 35s linear infinite; }
+.site-app .marquee__toright { width: max-content; display: flex; translate: none; animation: site-marquee 35s linear infinite reverse; }
+/* The reference's GSAP offset is !important; CSS owns the full loop here. */
+.site-app .marquee-left--gsap .marquee__toleft, .site-app .marquee-right--gsap .marquee__toright { translate: none !important; }
+@keyframes site-marquee { to { transform: translateX(-50%); } }
+.site-app .mxd-hero-00__marquee .marquee__toleft { animation-duration: 25s; }
+.site-app .swiper-wrapper { display: flex; width: max-content; animation: site-marquee 55s linear infinite; }
+.site-app .swiper-slide { width: 32rem; flex-shrink: 0; }
+.site-app .rotate { animation: site-rotate 25s linear infinite; }
+@keyframes site-rotate { to { transform: rotate(360deg); } }
+.site-to-top { position: fixed; bottom: 3rem; right: 3rem; opacity: 1; transform: none; cursor: pointer; border: 0; z-index: 90; }
+.site-app .profile-menu { padding: 0; gap: 0; border-radius: var(--_radius-m); }
+.site-app .profile-menu-header { padding: 1.4rem 2rem; }
+.site-app .profile-trigger { padding-left: 1rem; gap: 1rem; }
+.site-app .profile-menu-item svg { width: 2rem; height: 2rem; }
+.site-app .agent-sidebar { width: 0; flex-shrink: 0; overflow: hidden; }
+.site-app .agent-sidebar.open { width: 30vw; }
+.site-app .agent-sidebar-inner { width: 30vw; padding: 0; min-width: 0; background: var(--base); }
+.site-app .agent-header h3 { font-size: 2rem; color: var(--t-bright); }
+.site-app .agent-header h3 svg { width: 2rem; height: 2rem; }
+.site-app .agent-header .hint { font-size: 1.4rem; color: var(--t-medium); }
+.site-app .agent-header-actions { flex-direction: column; }
+.site-app .agent-header-actions svg { width: 2.2rem; height: 2.2rem; }
+.site-app .agent-message { font-size: 1.6rem; }
+.site-app .agent-settings { padding: 1rem 1.25rem; background: var(--base-tint); }
+.site-app .agent-settings .input { font-size: 1.6rem; }
+.site-app .agent-input-row { gap: .8rem; padding: 0; }
+.site-app .agent-input-row input { font: inherit; font-size: 1.6rem; background: var(--base-tint); color: var(--t-bright); border: 0; border-radius: 0; padding: 1.1rem 1.8rem; min-width: 0; }
+.site-app .agent-input-row .btn { flex-shrink: 0; }
+.site-app .btn-icon-plain { background: none; border: 0; color: var(--t-medium); cursor: pointer; }
+.site-app .agent-error { font-size: 1.4rem; }
+.site-app .buy-result code { overflow-wrap: anywhere; }
+@media(max-width:767px) {
+ .site-app .agent-sidebar.open { width: 100%; }
+ .site-app:has(.agent-sidebar.open) .site-page-wrap { display: none; }
+ .site-app .agent-sidebar-inner { width: 100%; }
+ .site-header .mxd-logo__text { font-size: 2.8rem !important; }
+ .site-menu .mxd-menu__contain { overflow-y: auto; }
+ .site-to-top { right: 1.5rem; bottom: 1.5rem; }
+}
+@media(prefers-reduced-motion:reduce) { .site-app *, .site-app *::before, .site-app *::after { animation: none !important; scroll-behavior: auto !important; } }
+.site-menu .mxd-menu__contain { background: var(--base-opp-tint); border-radius: 6rem; }
+.site-menu .mxd-menu__caption { color: var(--t-opp-medium); }
+.site-menu .mxd-menu__inner { animation: menu-appear .3s ease-out; }
+@keyframes menu-appear { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
+.site-header.site-menu-open, #mxd-page-wrap .site-header.site-menu-open { background: transparent; backdrop-filter: none; transform: none; pointer-events: none; }
+#mxd-page-wrap .site-header.site-menu-open::before { display: none; }
+.site-header.site-menu-open .mxd-header__logo, .site-header.site-menu-open .mxd-header__controls > :not(.header-hamburger-proxy) { visibility: hidden; }
+.site-header.site-menu-open .header-hamburger-proxy { visibility: visible; position: fixed; top: 3rem; right: 3rem; pointer-events: auto; }
+@media (min-width: 768px) { .site-header.site-menu-open .header-hamburger-proxy { top: 4rem; right: 6rem; } }
+@media (min-width: 1600px) { .site-header.site-menu-open .header-hamburger-proxy { right: 9rem; } }
+.site-header.site-menu-open .hamburger__base { background: #fff; }
+.site-header.site-menu-open .hamburger__line { background: #161616; }
+.site-app .mxd-pulse { animation: site-pulse 6s ease-in-out infinite; }
+.site-app .mxd-move { animation: site-float 5s ease-in-out infinite; }
+@keyframes site-pulse { 50% { transform: scale(1.025); } }
+@keyframes site-float { 50% { transform: translateY(8px); } }
+.site-to-top { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .2s; }
+.site-to-top.visible { opacity: 1; visibility: visible; pointer-events: auto; }
+/* Animation wrappers must not inherit the template's bold `p span` emphasis rule. */
+.site-reveal-text, .site-reveal-text .site-reveal-word, .site-reveal-text .site-reveal-char { font-weight: inherit; }
+.site-reveal-word { display: inline-block; }
+.site-reveal-char { opacity: .2; }
+.site-reveal-text .site-reveal-accent { position: relative; display: inline-block; white-space: nowrap; font-weight: inherit; }
+.site-reveal-accent::after { content: ''; position: absolute; left: -2%; bottom: -.13em; width: 104%; height: .22em; background: url('/site/img/underline.svg') center / 100% 100% no-repeat; opacity: var(--underline-opacity, .2); pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .site-reveal-char { opacity: 1; } }
+.site-app .agent-header h3 { display: flex; align-items: center; gap: .5rem; margin: 0; }
+.site-app .agent-header .hint { margin-top: .4rem; }
+.site-app .agent-input-row .agent-mic-btn svg { width: 2.2rem; height: 2.2rem; }
+@media (hover: hover) and (pointer: fine) {
+ .site-app :is(a[href], button, [role="button"], [role="switch"], summary, select, label[for], input[type="checkbox"], input[type="radio"], input[type="submit"], .repo-row-clickable, .screenshot-upload):not(:disabled):not([aria-disabled="true"]) {
+  cursor: url('/site/img/cursor-pointer.svg') 34 20, pointer;
+ }
+}

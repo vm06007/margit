@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchListings, fetchMe, fetchRepos, logout, type AgentListingChange, type Listing, type Me, type Repo } from "./api";
-import { NavBar } from "./components/NavBar";
+import { SiteHeader } from "./components/layout/SiteHeader";
+import { BackToTop } from "./components/layout/BackToTop";
+import { SiteFooter } from "./components/layout/SiteFooter";
+import { CatalogCTA } from "./components/layout/CatalogCTA";
+import { useSiteMotion } from "./hooks/useSiteMotion";
+import type { MouseEvent } from "react";
 import { AgentSidebar } from "./components/AgentSidebar";
 import { useRoute } from "./hooks/useRoute";
 import { WelcomePage } from "./pages/WelcomePage";
@@ -8,7 +13,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { PublisherPage } from "./pages/PublisherPage";
 import { RepoDetailPage } from "./pages/RepoDetailPage";
-import "./App.css";
+
 
 const AGENT_OPEN_STORAGE_KEY = "margit:agent-open";
 
@@ -62,37 +67,42 @@ function App() {
         return map;
     }, [listings]);
 
-    if (me === null) {
-        return (
-            <main className="shell">
-                <p className="hint">Loading…</p>
-            </main>
-        );
-    }
+    useSiteMotion(path);
 
     const publisherMatch = path.match(/^\/publisher\/([^/]+)$/);
     // Bare owner/name (no "/repo/" prefix) — checked after publisherMatch/catalog/profile
     // below so those reserved single-segment paths keep winning over a same-shaped repo URL.
     const repoMatch = path.match(/^\/([^/]+)\/([^/]+)$/);
 
+    const home = path === "/";
+    const viewer = me ?? { authenticated: false };
+    const routeClick = (event: MouseEvent<HTMLDivElement>) => {
+        if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        const anchor = (event.target as HTMLElement).closest<HTMLAnchorElement>("a[href]");
+        if (!anchor || anchor.target || anchor.hasAttribute("download")) return;
+        const url = new URL(anchor.href);
+        if (url.origin !== location.origin || url.pathname.startsWith("/api/") || url.hash || url.pathname.endsWith(".html")) return;
+        event.preventDefault();
+        navigate(url.pathname);
+    };
     return (
-        <div className="app-row">
-            <main className="shell">
-                <NavBar
+        <div id="app-row" className={`site-app ${home ? "site-home" : "site-inner"}`} onClick={routeClick}>
+            <div id={home ? "home-page-wrap" : "mxd-page-wrap"} className="site-page-wrap">
+                <SiteHeader key={path} home={home}
                     path={path}
-                    navigate={navigate}
-                    me={me}
+                    me={viewer}
                     onLogout={() => logout().then(() => setMe({ authenticated: false }))}
                     agentOpen={agentOpen}
                     onToggleAgent={() => setAgentOpen((v) => !v)}
                 />
+                <main id="mxd-page-content" className={`mxd-page-content ${home ? "" : "inner-page-content"}`}>
                 {publisherMatch ? (
                     <PublisherPage login={publisherMatch[1]} listings={listings} navigate={navigate} />
                 ) : path === "/catalog" ? (
                     <CatalogPage listings={listings} listingsError={listingsError} navigate={navigate} />
-                ) : path === "/works" ? (
+                ) : (path === "/works" || path === "/profile") ? (
                     <DashboardPage
-                        me={me}
+                        me={viewer}
                         repos={repos}
                         reposError={reposError}
                         listingByRepo={listingByRepo}
@@ -107,14 +117,18 @@ function App() {
                 ) : repoMatch ? (
                     <RepoDetailPage owner={repoMatch[1]} name={repoMatch[2]} listings={listings} navigate={navigate} />
                 ) : (
-                    <WelcomePage me={me} navigate={navigate} listings={listings} listingsError={listingsError} />
+                    <WelcomePage me={viewer} navigate={navigate} listings={listings} listingsError={listingsError} />
                 )}
-            </main>
+                {path === "/catalog" && <CatalogCTA />}
+                </main>
+                <SiteFooter variant={home ? "home" : path === "/catalog" ? "catalog" : "works"} />
+            </div>
             <AgentSidebar
-                open={agentOpen}
+                open={!home && agentOpen}
                 onClose={() => setAgentOpen(false)}
                 onListingChange={handleAgentListingChange}
             />
+            <BackToTop path={path} />
         </div>
     );
 }

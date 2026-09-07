@@ -132,12 +132,14 @@ export function ProfileDropdown({ me, onLogout }: { me: Me; onLogout: () => void
         }
     };
 
+    if (!me.authenticated) return <a className="btn btn-anim btn-default btn-mobile-icon btn-outline slide-right-up" href="/api/auth/github/login" aria-label="Account"><span className="btn-caption">Connect With GitHub</span><i className="ph-bold ph-github-logo" /></a>;
+
     return (
         <div className="profile-dropdown" ref={ref}>
-            <button type="button" className="profile-trigger" onClick={() => setOpen((v) => !v)}>
+            <button type="button" className="profile-trigger btn btn-anim btn-default btn-mobile-icon btn-outline" onClick={() => setOpen((v) => !v)}>
                 {me.authenticated ? (
                     <>
-                        {me.avatarUrl && <img src={me.avatarUrl} alt="" className="avatar" />}
+                        {me.avatarUrl && <img src={me.avatarUrl} alt="" className="profile-avatar" />}
                         <span>{me.name ?? me.login}</span>
                     </>
                 ) : (
@@ -148,7 +150,7 @@ export function ProfileDropdown({ me, onLogout }: { me: Me; onLogout: () => void
                 )}
             </button>
             {open && (
-                <div className="profile-menu">
+                <div className="profile-menu"><a href="/works" className="profile-menu-item"><i className="ph-bold ph-folder" /> My Repos</a>
                     {me.authenticated && (
                         <div className="profile-menu-header">
                             <p className="hint">Signed in as</p>

@@ -7,7 +7,7 @@ function formatListedDate(iso: string): string {
 
 /**
  * Catalog page — a faithful React port of the finished design/behavior prototyped in
- * public/landing/catalog2.html (a static copy of the "Rayo" vendor template, made dynamic
+ * public/site/catalog2.html (a static copy of the "Rayo" vendor template, made dynamic
  * against this same backend). The vendor CSS (main.min.css / plugins.min.css / loader.css)
  * is loaded globally in src/main.tsx, so the class names below (mxd-*, post-featured,
  * post-simple, tag-*, widget__*, etc.) are the real vendor classes, not invented ones.
@@ -160,7 +160,7 @@ function SimplePost({
                 <div style={{ width: "100%", height: "100%", ...mediaStyle(listing, altIndex) }} />
                 <div className="mxd-preview-hover">
                     <i className="mxd-preview-hover__icon">
-                        <img src="/landing/img/icons/icon-eye.svg" alt="Eye Icon" />
+                        <img src="/site/img/icons/icon-eye.svg" alt="Eye Icon" />
                     </i>
                 </div>
             </a>
@@ -341,11 +341,12 @@ export function CatalogPage({
                         <div className="container-fluid px-0">
                             <div className="row gx-0">
                                 <div className="col-12" />
-                                <div className="col-12 col-xl-10 mxd-grid-item no-margin">
+                                <div className="col-12 mxd-grid-item no-margin">
                                     <div className="mxd-block__content">
                                         <div className="mxd-block__inner-headline">
-                                            <h1 className="inner-headline__title">
-                                                Catalog
+                                            <h1 className="inner-headline__title catalog-page-title">
+                                                <span className="catalog-title-parent"><a href="/" onClick={goTo("/")}>Home</a> <span aria-hidden="true">/</span></span>{" "}
+                                                <span>Catalog</span>
                                             </h1>
                                         </div>
                                     </div>
@@ -354,7 +355,7 @@ export function CatalogPage({
                             </div>
                             <div className="row g-0">
                                 <div className="col-12" />
-                                <div className="col-12 col-xl-8 mxd-grid-item no-margin">
+                                <div className="col-12 mxd-grid-item no-margin">
                                     <div className="inner-headline__blogtags">
                                         <span
                                             className={`tag tag-default tag-outline tag-link-outline${activeLanguages.length === 0 ? " tag-link-active" : ""}`}
@@ -385,18 +386,6 @@ export function CatalogPage({
                                                 </a>
                                             </span>
                                         ))}
-                                    </div>
-                                </div>
-                                <div className="col-12 col-xl-4 mxd-grid-item no-margin">
-                                    <div className="inner-headline__breadcrumbs">
-                                        <div className="breadcrumbs__nav">
-                                            <span>
-                                                <a href="/" onClick={goTo("/")}>
-                                                    Home
-                                                </a>
-                                            </span>
-                                            <span className="current-item">Catalog</span>
-                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -501,7 +490,7 @@ export function CatalogPage({
 
                             <div className="mxd-sidebar__widget bg-base-tint radius-m">
                                 <div className="widget__title">
-                                    <p>Latest listings</p>
+                                    <p>Latest posts</p>
                                 </div>
                                 <ul className="widget__recent-posts">
                                     {recentThree.map((listing, i) => {
@@ -555,6 +544,7 @@ export function CatalogPage({
                                 <div className="widget__title">
                                     <p>Ecosystem</p>
                                 </div>
+                                <div className="widget__descr"><p className="t-small">Follow us and get to know all the news and other interesting stuff first!</p></div>
                                 <div className="widget__social-links-small">
                                     {[
                                         ["GitHub Source", "https://github.com/vm06007/margit"],

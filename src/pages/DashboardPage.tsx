@@ -10,7 +10,7 @@ import {
     type Me,
     type Repo,
 } from "../api";
-import { WelcomePage } from "./WelcomePage";
+
 
 /**
  * Dashboard ("My Repos") page — a faithful React port of the finished design/behavior
@@ -724,7 +724,6 @@ export function DashboardPage({
     onListed,
     onUnlisted,
     onMadePrivate,
-    navigate,
     highlightedRepo,
 }: {
     me: Me;
@@ -758,13 +757,10 @@ export function DashboardPage({
         setPage((p) => Math.min(p, pageCount));
     }, [pageCount]);
 
-    if (!me.authenticated) {
-        return <WelcomePage me={me} navigate={navigate} />;
-    }
 
     return (
-        <section>
-            <DashboardStyle />
+        <div className="mxd-section overflow-hidden padding-grid-pre-mtext"><div className="mxd-container grid-container">
+            <DashboardStyle /><div className="mxd-block">
 
             <div className="mxd-section-title">
                 <div className="container-fluid p-0">
@@ -795,8 +791,10 @@ export function DashboardPage({
                 </div>
             </div>
 
+            </div><div className="mxd-block">
+            {!me.authenticated && <p style={{padding: "2rem 0", opacity: .6}}><a href="/api/auth/github/login">Connect with GitHub</a> to see your repositories here.</p>}
             {reposError && <p className="error">{reposError}</p>}
-            {repos === null && !reposError && <p className="hint">Loading repositories…</p>}
+            {me.authenticated && repos === null && !reposError && <p className="hint">Loading repositories…</p>}
 
             {repos && (
                 <>
@@ -867,6 +865,8 @@ export function DashboardPage({
                 </>
             )}
 
+            {!me.authenticated && <div className="dashboard-pagination-row"><div /><label className="dashboard-per-page">Per page <span className="pill-select-wrap"><select aria-label="Per page" className="pill-select" value={pageSize} onChange={e => setPageSize(Number(e.target.value))}><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option></select></span></label></div>}
+            </div>
             {modalRepo && (
                 <ListModal
                     repo={modalRepo}
@@ -876,6 +876,6 @@ export function DashboardPage({
                     onUnlisted={onUnlisted}
                 />
             )}
-        </section>
+        </div></div>
     );
 }
