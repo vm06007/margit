@@ -158,8 +158,12 @@ export function DashboardStyle() {
             .modal-field { display: flex; flex-direction: column; gap: 0.7rem; margin-bottom: 1.8rem; }
             .modal-field .agent-input { font-size: 1.8rem; }
             .modal-field .hint { font-size: 1.4rem !important; }
-            .modal-delivery-terms { margin-top: 2.4rem; padding-top: 2.4rem; border-top: 1px solid var(--st-muted); min-width: 0; }
+            .modal-delivery-terms { min-width: 0; }
             .modal-delivery-terms .agent-input { width: 100%; min-width: 0; }
+            .listing-details-tabs { display: flex; gap: .5rem; padding: .5rem; border: 1px solid var(--t-muted); border-radius: 4rem; margin-bottom: 2.4rem; }
+            .listing-details-tabs button { flex: 1; padding: 1.2rem; border: 0; border-radius: 3rem; background: transparent; color: var(--t-medium); font: inherit; font-size: 1.7rem; }
+            .listing-details-tabs button[aria-selected="true"] { background: var(--t-bright); color: var(--base); }
+            .listing-details-tabs button:focus-visible { outline: 2px solid var(--t-bright); outline-offset: 3px; }
             .modal-label { font-size: 1.8rem; font-weight: 600; color: var(--t-medium); }
             .modal-link-btn {
                 font: inherit;
@@ -302,6 +306,7 @@ export function ListModal({
     const [price, setPrice] = useState(listing?.price ?? "$0.05");
     const [payoutAddress, setPayoutAddress] = useState(listing?.payoutAddress ?? "");
     const [resolved, setResolved] = useState<string | "loading" | "error" | null>(null);
+    const [detailsTab, setDetailsTab] = useState<"general" | "access">("general");
     const [accessPolicy, setAccessPolicy] = useState<AccessPolicy>(listing?.accessPolicy ?? DEFAULT_ACCESS_POLICY);
     const [description, setDescription] = useState(listing?.sellerDescription ?? "");
     const [demoUrl, setDemoUrl] = useState(listing ? listing.demoUrl ?? "" : normalizeDemoUrl(repo.homepage) ?? "");
@@ -447,18 +452,6 @@ export function ListModal({
                             className="modal-repo-thumb"
                             style={{ marginTop: "1.6rem", backgroundImage: `url(${thumbFor(repo, listing)})` }}
                         />
-                        <div className="modal-field modal-delivery-terms">
-                            <label className="modal-label" htmlFor="delivery-mode">Delivery terms</label>
-                            <select id="delivery-mode" className="agent-input" value={accessPolicy.mode} disabled={submitting} onChange={event => setAccessPolicy({ ...accessPolicy, mode: event.target.value as AccessPolicy["mode"] })}>
-                                <option value="window">Timed access · clone and ZIP with retries</option>
-                                <option value="single_download">One-time ZIP download</option>
-                            </select>
-                            <label className="modal-label" htmlFor="delivery-window">Access expires after purchase</label>
-                            <select id="delivery-window" className="agent-input" value={accessPolicy.minutes} disabled={submitting} onChange={event => setAccessPolicy({ ...accessPolicy, minutes: Number(event.target.value) })}>
-                                {ACCESS_WINDOWS.map(minutes => <option key={minutes} value={minutes}>{accessWindowLabel(minutes)}</option>)}
-                            </select>
-                            <p className="hint">{accessPolicyLabel(accessPolicy)} Files already downloaded remain with the buyer. Changing these terms only affects new purchases.</p>
-                        </div>
                         {isEdit && (
                             <div style={{ marginTop: "auto", paddingTop: "2rem", borderTop: "1px solid var(--st-muted)" }}>
                                 {!confirmingUnlist ? (
@@ -506,6 +499,16 @@ export function ListModal({
                         <h2 style={{ margin: "0 0 1.6rem", fontSize: "2.4rem", color: "var(--t-bright)" }}>
                             {isEdit ? "Edit listing" : "List for sale"}
                         </h2>
+                        <div className="listing-details-tabs" role="tablist" aria-label="Listing details">
+                            {(["general", "access"] as const).map(tab => <button key={tab} type="button" role="tab" id={`listing-${tab}-tab`} aria-controls={`listing-${tab}-panel`} aria-selected={detailsTab === tab} tabIndex={detailsTab === tab ? 0 : -1} onClick={() => setDetailsTab(tab)} onKeyDown={event => {
+                                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+                                event.preventDefault();
+                                const next = event.key === "Home" ? "general" : event.key === "End" ? "access" : tab === "general" ? "access" : "general";
+                                setDetailsTab(next);
+                                document.getElementById(`listing-${next}-tab`)?.focus();
+                            }}>{tab === "general" ? "General Details" : "Access Details"}</button>)}
+                        </div>
+                        <div role="tabpanel" id="listing-general-panel" aria-labelledby="listing-general-tab" hidden={detailsTab !== "general"}>
                         <label className="modal-field">
                             <span className="modal-label">Price</span>
                             <input
@@ -557,12 +560,28 @@ export function ListModal({
                             {descStatus && <p className="hint" style={{ fontSize: "1.4rem" }}>{descStatus}</p>}
                         </label>
 
-                        {error && <p className="error" style={{ color: "#ff6b6b", fontSize: "1.6rem" }}>{error}</p>}
                         <div className="modal-field">
                             <label className="modal-label" htmlFor="listing-demo-url">Live preview / Demo link</label>
                             <input id="listing-demo-url" className="agent-input" type="url" placeholder="https://your-demo.com" value={demoUrl} onChange={event => setDemoUrl(event.target.value)} disabled={submitting} />
                         </div>
-                        <ScreenshotPicker screenshots={screenshots} setScreenshots={setScreenshots} actions={
+                        <ScreenshotPicker screenshots={screenshots} setScreenshots={setScreenshots} />
+                        </div>
+                        <div role="tabpanel" id="listing-access-panel" aria-labelledby="listing-access-tab" hidden={detailsTab !== "access"}>
+                        <div className="modal-field modal-delivery-terms">
+                            <label className="modal-label" htmlFor="delivery-mode">Delivery terms</label>
+                            <select id="delivery-mode" className="agent-input" value={accessPolicy.mode} disabled={submitting} onChange={event => setAccessPolicy({ ...accessPolicy, mode: event.target.value as AccessPolicy["mode"] })}>
+                                <option value="window">Timed access · clone and ZIP with retries</option>
+                                <option value="single_download">One-time ZIP download</option>
+                            </select>
+                            <label className="modal-label" htmlFor="delivery-window">Access expires after purchase</label>
+                            <select id="delivery-window" className="agent-input" value={accessPolicy.minutes} disabled={submitting} onChange={event => setAccessPolicy({ ...accessPolicy, minutes: Number(event.target.value) })}>
+                                {ACCESS_WINDOWS.map(minutes => <option key={minutes} value={minutes}>{accessWindowLabel(minutes)}</option>)}
+                            </select>
+                            <p className="hint">{accessPolicyLabel(accessPolicy)} Files already downloaded remain with the buyer. Changing these terms only affects new purchases.</p>
+                        </div>
+                        </div>
+                        {error && <p className="error" role="alert" style={{ color: "#ff6b6b", fontSize: "1.6rem" }}>{error}</p>}
+
                         <div className="modal-footer">
                             <button type="button" className="btn btn-anim btn-default btn-outline btn-small" onClick={onClose}>
                                 <span className="btn-caption">Cancel</span>
@@ -578,7 +597,6 @@ export function ListModal({
                                 </span>
                             </button>
                         </div>
-                        } />
                     </div>
                 </div>
             </div>
