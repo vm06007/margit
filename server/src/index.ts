@@ -109,7 +109,7 @@ app.use("/api/listings/unlock", async (c, next) => {
     const authorization = payload.payload?.authorization;
     const payer = settlement.payer ?? authorization?.from;
     if (typeof payer !== "string" || !/^0x[0-9a-f]{40}$/i.test(payer)) throw new Error("Settled payment has no verifiable payer");
-    const access = await c.res.clone().json() as {cloneUrl:string;expiresAt:string};
+    const access = await c.res.clone().json() as {cloneUrl:string;expiresAt:string|null};
     const reference = `x402:${createHash("sha256").update(`${payer.toLowerCase()}:${authorization?.nonce ?? signedHeader}`).digest("hex")}`;
     await recordPurchase(listing, {reference,buyerWallet:payer,currency:"USDC",channel:"x402",transactionHash: /^0x[0-9a-f]{64}$/i.test(settlement.transaction ?? "") ? settlement.transaction : undefined}, access);
 });
@@ -505,7 +505,7 @@ app.post("/api/listings", async (c) => {
     const { repoFullName, price, payoutAddress, sellerDescription, screenshots } = body;
     let accessPolicy;
     try { accessPolicy = parseAccessPolicy(body.accessPolicy); }
-    catch { return c.json({ error: "Choose valid delivery terms." }, 400); }
+    catch (error) { return c.json({ error: error instanceof Error ? error.message : "Choose valid delivery terms." }, 400); }
     const demoUrl = normalizeDemoUrl(body.demoUrl);
     if (body.demoUrl && !demoUrl) return c.json({ error: "Enter a valid HTTP or HTTPS demo URL." }, 400);
 

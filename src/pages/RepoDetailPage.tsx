@@ -2,8 +2,8 @@ import { checkoutAmountLabel } from "../../shared/checkout";
 import { parseUnits } from "viem";
 import { Toast } from "../components/Toast";
 import { PageLoading } from "../components/PageLoading";
-import { pendingCheckout, purchaseWithContract } from "../lib/checkout";
-import { allowsCheckout, checkoutLabel, accessPolicyLabel, accessWindowLabel, DEFAULT_ACCESS_POLICY } from "../../shared/accessPolicy";
+import { InsufficientBalanceError, pendingCheckout, purchaseWithContract } from "../lib/checkout";
+import { allowsCheckout, acceptedPaymentTokens, checkoutLabel, accessPolicyLabel, accessWindowLabel, DEFAULT_ACCESS_POLICY } from "../../shared/accessPolicy";
 import { normalizeDemoUrl } from "../../shared/demoUrl";
 import { useCallback, useEffect, useState } from "react";
 import { useActiveAccount, useConnectModal } from "thirdweb/react";
@@ -49,51 +49,67 @@ function AgentInstructions({ listingId }: { listingId: string }) {
             <ol className="agent-instructions-steps">
                 <li>Read the price and recipient from the <code>PAYMENT-REQUIRED</code> header.</li>
                 <li>Use a Circle Gateway-compatible x402 client to authorize payment and retry.</li>
-                <li>Use the returned access link before it expires.</li>
+                <li>Use the returned access link according to the listing’s access terms.</li>
             </ol>
             {notification && <Toast key={notification.id} message={notification.message} tone={notification.tone} onDismiss={dismiss} />}
         </section>
     );
 }
 
-interface CachedEurcPrice { key: string; amount: string; expiresAt: number }
-const eurcPriceStorageKey = 'margit:eurc-price';
-function readEurcPrice(key: string): CachedEurcPrice | null {
+interface CachedTokenPrice { key: string; amount: string; expiresAt: number }
+const priceStorageKey = (currency: PaymentToken) => `margit:checkout-price:${currency}`;
+function readTokenPrice(key: string, currency: PaymentToken): CachedTokenPrice | null {
     try {
-        const cached = JSON.parse(localStorage.getItem(eurcPriceStorageKey) ?? 'null') as CachedEurcPrice | null;
+        const cached = JSON.parse(localStorage.getItem(priceStorageKey(currency)) ?? 'null') as CachedTokenPrice | null;
         return cached?.key === key && cached.expiresAt > Date.now() && /^[1-9][0-9]*$/.test(cached.amount) ? cached : null;
     } catch { return null; }
 }
 
 function DirectBuyButton({ listing, onPurchased }: { listing: Listing; onPurchased: (receipt: PurchaseReceipt) => void }) {
     const account = useActiveAccount();
-    const [token, setToken] = useState<PaymentToken>("USDC");
+    const acceptedTokens = acceptedPaymentTokens(listing.accessPolicy);
+    const [selectedToken, setToken] = useState<PaymentToken>(() => acceptedTokens[0]);
+    const token = acceptedTokens.includes(selectedToken) ? selectedToken : acceptedTokens[0];
     const [status, setStatus] = useState<"idle" | "checking" | "sending" | "verifying" | "done" | "error">("idle");
     const [error, setError] = useState<string | null>(null);
-    const priceKey = `${listing.id}:${listing.price}:EURC`;
-    const [pricing, setPricing] = useState<CachedEurcPrice | null>(() => readEurcPrice(priceKey));
-    const [priceError, setPriceError] = useState<string | null>(null);
+    const [balanceToast, setBalanceToast] = useState<{ message: string; id: number } | null>(null);
+    const dismissBalanceToast = useCallback(() => setBalanceToast(null), []);
+    const priceKey = `${listing.id}:${listing.price}`;
+    const acceptsBtc = acceptedTokens.includes("cirBTC");
+    const acceptsEurc = acceptedTokens.includes("EURC");
+    const [pricing, setPricing] = useState<Partial<Record<PaymentToken, CachedTokenPrice | null>>>(() => ({ EURC: readTokenPrice(priceKey, 'EURC'), cirBTC: readTokenPrice(priceKey, 'cirBTC') }));
+    const [priceErrors, setPriceErrors] = useState<Partial<Record<PaymentToken, string>>>({});
     const [priceRevision, setPriceRevision] = useState(0);
     useEffect(() => {
-        setPriceError(null);
-        // Preload while USDC is selected; keep a cached amount visible during refresh.
         const controller = new AbortController();
-        fetch(`/api/checkout/price?listingId=${encodeURIComponent(listing.id)}&currency=EURC`, { signal: controller.signal })
-            .then(async response => {
+        const load = async (currency: PaymentToken) => {
+            setPriceErrors(previous => ({ ...previous, [currency]: undefined }));
+            try {
+                const response = await fetch(`/api/checkout/price?listingId=${encodeURIComponent(listing.id)}&currency=${currency}`, { signal: controller.signal });
                 const data = await response.json();
-                if (!response.ok) throw new Error(data.error ?? "Could not load EURC price.");
-                if (data.currency !== "EURC" || !/^[1-9][0-9]*$/.test(data.amount)) throw new Error("Invalid EURC price.");
-                if (!controller.signal.aborted) {
-                    const cached = { key: priceKey, amount: data.amount, expiresAt: Date.now() + 60 * 60 * 1000 };
-                    setPricing(cached);
-                    try { localStorage.setItem(eurcPriceStorageKey, JSON.stringify(cached)); } catch { /* In-memory pricing still works when storage is unavailable. */ }
-                }
-            })
-            .catch(err => { if (!controller.signal.aborted) setPriceError(err instanceof Error ? err.message : "Could not load EURC price."); });
-        return () => controller.abort();
-    }, [listing.id, priceKey, priceRevision]);
-    const amount = token === "USDC" ? parseUnits(listing.price.replace("$", ""), 6).toString() : pricing?.key === priceKey && pricing.expiresAt > Date.now() ? pricing.amount : null;
-    const displayAmount = amount ? checkoutAmountLabel(amount) : null;
+                if (!response.ok) throw new Error(data.error ?? `Could not load ${currency} price.`);
+                if (data.currency !== currency || !/^[1-9][0-9]*$/.test(data.amount) || !Number.isFinite(data.expiresAt) || data.expiresAt <= Date.now()) throw new Error(`Invalid ${currency} price.`);
+                if (controller.signal.aborted) return;
+                const cached = { key: priceKey, amount: data.amount, expiresAt: data.expiresAt };
+                setPricing(previous => ({ ...previous, [currency]: cached }));
+                try { localStorage.setItem(priceStorageKey(currency), JSON.stringify(cached)); } catch { /* In-memory cache is sufficient. */ }
+            } catch (err) {
+                if (!controller.signal.aborted) setPriceErrors(previous => ({ ...previous, [currency]: err instanceof Error ? err.message : `Could not load ${currency} price.` }));
+            }
+        };
+        if (acceptsEurc) void load('EURC');
+        if (acceptsBtc) void load('cirBTC');
+        // Preload before selection and keep the short-lived BTC reference fresh.
+        const timer = window.setInterval(() => {
+            if (acceptsBtc) void load('cirBTC');
+            if (acceptsEurc && !readTokenPrice(priceKey, 'EURC')) void load('EURC');
+        }, 30_000);
+        return () => { controller.abort(); window.clearInterval(timer); };
+    }, [listing.id, priceKey, acceptsBtc, acceptsEurc, priceRevision]);
+    const cached = pricing[token];
+    const amount = token === "USDC" ? parseUnits(listing.price.replace("$", ""), 6).toString() : cached?.key === priceKey && cached.expiresAt > Date.now() ? cached.amount : null;
+    const priceError = priceErrors[token];
+    const displayAmount = amount ? checkoutAmountLabel(amount, token) : null;
 
     if (!account) {
         return null;
@@ -104,14 +120,19 @@ function DirectBuyButton({ listing, onPurchased }: { listing: Listing; onPurchas
         setStatus("checking");
         try {
             const data = await purchaseWithContract(listing, token, account, setStatus, amount ?? undefined);
-            onPurchased({ amount: data.amount, cloneUrl: data.cloneUrl, transactionHash: data.transactionHash, currency: data.currency, method: "wallet", expiresAt: data.expiresAt, checkoutContract: data.checkoutContract });
+            onPurchased({ accessPolicy: data.accessPolicy, amount: data.amount, cloneUrl: data.cloneUrl, transactionHash: data.transactionHash, currency: data.currency, method: "wallet", expiresAt: data.expiresAt, checkoutContract: data.checkoutContract });
             setStatus("done");
         } catch (err) {
+            if (err instanceof InsufficientBalanceError) {
+                setBalanceToast(previous => ({ message: err.message, id: (previous?.id ?? 0) + 1 }));
+                setStatus('idle');
+                return;
+            }
             setError(err instanceof Error ? err.message : "Purchase failed");
             setStatus("error");
-            if (token === 'EURC') {
-                setPricing(null);
-                try { localStorage.removeItem(eurcPriceStorageKey); } catch { /* Storage may be disabled. */ }
+            if (token !== 'USDC') {
+                setPricing(previous => ({ ...previous, [token]: null }));
+                try { localStorage.removeItem(priceStorageKey(token)); } catch { /* Storage may be disabled. */ }
             }
             setPriceRevision(value => value + 1);
         }
@@ -119,17 +140,18 @@ function DirectBuyButton({ listing, onPurchased }: { listing: Listing; onPurchas
 
     const busy = status === "checking" || status === "sending" || status === "verifying";
     const label =
-        status === "checking" ? "Checking delivery…" : status === "sending" ? "Confirm in wallet…" : status === "verifying" ? "Verifying…" : pendingCheckout(listing.id, account.address) ? "Recover purchase" : amount ? `Pay ${displayAmount} ${token}` : priceError ? "Retry EURC price" : "Converting…";
+        status === "checking" ? "Checking delivery…" : status === "sending" ? "Confirm in wallet…" : status === "verifying" ? "Verifying…" : pendingCheckout(listing.id, account.address) ? "Recover purchase" : amount ? `Pay ${displayAmount} ${token}` : priceError ? `Retry ${token} price` : "Converting…";
 
     return (
         <div className="buy-button-wrap">
             <div className="token-toggle" role="group" aria-label="Payment currency">
-                {(["USDC", "EURC"] as const).map((option) => (
+                {acceptedTokens.map((option) => (
                     <button
                         key={option}
                         type="button"
                         className={`token-toggle-option ${token === option ? "active" : ""}`}
                         disabled={busy}
+                        aria-pressed={token === option}
                         onClick={() => setToken(option)}
                     >
                         {option}
@@ -140,7 +162,8 @@ function DirectBuyButton({ listing, onPurchased }: { listing: Listing; onPurchas
                 {(status === "verifying" || (!amount && !priceError && !pendingCheckout(listing.id, account.address))) && <span className="payment-spinner" aria-hidden="true" />}
                 {label}
             </button>
-            {(error || (token === "EURC" && priceError)) && <p className="error">{error ?? priceError}</p>}
+            {balanceToast && <Toast key={balanceToast.id} message={balanceToast.message} onDismiss={dismissBalanceToast} />}
+            {(error || (token !== "USDC" && priceError)) && <p className="error">{error ?? priceError}</p>}
         </div>
     );
 }
@@ -175,9 +198,9 @@ export function RepoDetailPage({ owner, name, listings, navigate }: {
                 </article>
                 <aside className="repository-purchase" aria-label="Unlock repository">
                     {purchase ? <PurchaseSuccess receipt={purchase} listing={listing} /> : <>
-                    <h3 className="repository-purchase-title">Make it yours</h3><div className="repository-price">${Number(listing.price.replace("$", "")).toFixed(2)}</div><p className="hint">{checkoutLabel(listing.accessPolicy)}. {listing.accessPolicy?.mode === "single_download" ? accessPolicyLabel(listing.accessPolicy) : `Clone or download with retries for ${accessWindowLabel(listing.accessPolicy?.minutes ?? DEFAULT_ACCESS_POLICY.minutes)}.`}</p>
+                    <h3 className="repository-purchase-title">Make it yours</h3><div className="repository-price">${Number(listing.price.replace("$", "")).toFixed(2)}</div><p className="hint">{checkoutLabel(listing.accessPolicy)}. {listing.accessPolicy?.mode === "single_download" || listing.accessPolicy?.mode === "permanent" ? accessPolicyLabel(listing.accessPolicy) : `Clone or download with retries for ${accessWindowLabel(listing.accessPolicy?.minutes ?? DEFAULT_ACCESS_POLICY.minutes)}.`}</p>
                     <div className="repository-payment-tabs" role="group" aria-label="Purchase method"><button type="button" disabled={!allowsCheckout(listing.accessPolicy, "wallet")} aria-pressed={selectedPayment === "wallet"} onClick={() => setPayment("wallet")}>Your wallet</button><button type="button" disabled={!allowsCheckout(listing.accessPolicy, "x402")} aria-pressed={selectedPayment === "agent"} onClick={() => setPayment("agent")}>x402 / Agent</button></div>
-                    <div hidden={selectedPayment !== "wallet"}><h3>Pay with wallet</h3><p className="hint">Send USDC or EURC on Arc through the Margit contract to the publisher.</p><DirectBuyButton listing={listing} onPurchased={setPurchase} /></div>
+                    <div hidden={selectedPayment !== "wallet"}><h3>Pay with wallet</h3><p className="hint">Send {new Intl.ListFormat("en", { style: "long", type: "disjunction" }).format(acceptedPaymentTokens(listing.accessPolicy))} on Arc through the Margit contract to the publisher.</p><DirectBuyButton listing={listing} onPurchased={setPurchase} /></div>
                     <div hidden={selectedPayment !== "agent"}><h3>Buy with an agent</h3><p className="hint">Give this endpoint to your x402-compatible agent. It pays using its own funded Circle Gateway balance and receives the repository access link.</p><AgentInstructions listingId={listing.id} /></div>
                     {selectedPayment === "wallet" && !account && <div className="repository-requirements"><button className="btn btn-primary repository-connect-wallet" type="button" onClick={() => {void connectModal.connect({client:thirdwebClient, wallets:thirdwebWallets, chain:arcTestnet, theme:thirdwebTheme, appMetadata:thirdwebAppMetadata}).catch(() => undefined)}}><WalletIcon /> Connect Wallet</button></div>}
                     </>}

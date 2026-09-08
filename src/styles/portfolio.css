@@ -1,4 +1,4 @@
-.portfolio-header,.portfolio-toolbar{display:flex;align-items:center;justify-content:space-between;gap:2rem;flex-wrap:wrap}.portfolio-header h1{font-size:clamp(4rem,6vw,8rem)}.portfolio-toolbar .repository-payment-tabs{min-width:28rem}.portfolio-totals{display:flex;gap:3rem;flex-wrap:wrap;padding:3rem 0;margin-bottom:2rem;border-block:1px solid var(--t-muted);font-size:1.8rem}.portfolio-totals strong{font-size:3rem;margin-right:.7rem}.portfolio-table-wrap{overflow-x:auto}.portfolio-page table{width:100%;border-collapse:collapse;font-size:1.8rem}.portfolio-page th,.portfolio-page td{text-align:left;padding:2rem 1.5rem;border-bottom:1px solid var(--st-muted)}.portfolio-page th{color:var(--t-medium)}.portfolio-page small{display:block;font-size:1.4rem;color:var(--t-medium)}.portfolio-access{margin-top:3rem;background:var(--base-tint);padding:3rem;border-radius:2rem}
+.portfolio-header,.portfolio-toolbar{display:flex;align-items:center;justify-content:space-between;gap:2rem;flex-wrap:wrap}.portfolio-header h1{font-size:clamp(4rem,6vw,8rem)}.portfolio-toolbar .repository-payment-tabs{min-width:28rem}.portfolio-totals{display:flex;gap:3rem;flex-wrap:wrap;padding:3rem 0 0;margin-bottom:2rem;border-top:1px solid var(--t-muted);border-bottom:0;font-size:1.8rem}.portfolio-totals strong{font-size:3rem;margin-right:.7rem}.portfolio-table-wrap{overflow-x:auto}.portfolio-page table{width:100%;border-collapse:collapse;font-size:1.8rem}.portfolio-page th,.portfolio-page td{text-align:left;padding:2rem 1.5rem;border-bottom:1px solid var(--st-muted)}.portfolio-page th{color:var(--t-medium)}.portfolio-page small{display:block;font-size:1.4rem;color:var(--t-medium)}.portfolio-access{margin-top:3rem;background:var(--base-tint);padding:3rem;border-radius:2rem}
 
 .portfolio-payment-label { display: flex; align-items: center; gap: .7rem; }
 .portfolio-explorer-link { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; line-height: 1; padding: .3rem; }
@@ -8,7 +8,8 @@
 
 .portfolio-fees { border: 1px solid var(--t-muted); border-radius: 2rem; padding: 2.4rem; margin: 2.4rem 0; }
 .portfolio-fee-currency { margin: 2rem 0; }
-.portfolio-fee-currency h4 { font-size: 1.8rem; }
+.portfolio-fee-currency h4 { display: flex; align-items: center; gap: .8rem; font-size: 1.8rem; }
+.portfolio-fee-currency h4 img { width: 2.4rem; height: 2.4rem; flex-shrink: 0; }
 .portfolio-fee-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1.6rem; margin: 1rem 0 2rem; }
 .portfolio-fee-grid dt { font-size: 1.4rem; color: var(--t-medium); }
 .portfolio-fee-grid dd { margin: .4rem 0 0; font-size: 2.2rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
@@ -53,3 +54,22 @@
 
 .portfolio-verify-prompt { margin-bottom: 2rem; }
 .portfolio-empty { display: flex; align-items: center; justify-content: center; min-height: 30dvh; width: min(56rem, 100%); margin: 0 auto; padding: 4rem 0; text-align: center; }
+
+.portfolio-access-link { display: inline; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: .2em; }
+.portfolio-access-link:disabled { opacity: .5; cursor: wait; }
+.portfolio-access-link:focus-visible { outline: 2px solid var(--accent); outline-offset: .4rem; }
+
+.portfolio-access { scroll-margin-top: 3rem; }
+
+.portfolio-wallet-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+.portfolio-wallet-row .hint { margin: 0; }
+.portfolio-currency-toggle { margin-left: auto; padding: 0; border: 0; background: none; color: var(--t-medium); font: inherit; font-size: 1.6rem; text-decoration: none; cursor: pointer; }
+.portfolio-currency-toggle:hover { color: var(--t-bright); }
+.portfolio-currency-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: .4rem; }
+
+.portfolio-page tbody tr { background-color: var(--base); transition: background-color .15s ease; }
+.portfolio-page tbody tr:nth-child(even) { background-color: var(--base-tint); }
+.portfolio-page tbody tr:hover, .portfolio-page tbody tr:focus-within { background-color: color-mix(in srgb, var(--t-bright) 8%, var(--base)); }
+.portfolio-transaction-row { cursor: pointer; }
+.portfolio-transaction-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (prefers-reduced-motion: reduce) { .portfolio-page tbody tr { transition: none; } }

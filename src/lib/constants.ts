@@ -1,5 +1,1 @@
-export const ARC_USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
-export const ARC_EURC_ADDRESS = "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a";
-
-export type PaymentToken = "USDC" | "EURC";
-export const ARC_TOKEN_ADDRESSES: Record<PaymentToken, string> = { USDC: ARC_USDC_ADDRESS, EURC: ARC_EURC_ADDRESS };
+export * from "../../shared/paymentTokens";

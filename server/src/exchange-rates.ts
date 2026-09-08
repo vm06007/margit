@@ -29,11 +29,40 @@ async function exchangeRate() {
     return pending;
 }
 
+// cirBTC is priced as one BTC. Keep this volatile reference for only 30 seconds.
+let btcCached: { usdPerBtc: string; fetchedAt: number } | undefined;
+let btcPending: Promise<{ usdPerBtc: string; fetchedAt: number }> | undefined;
+export function convertUsdToBtc(usdUnits: bigint, usdPerBtc: string): bigint {
+    if (!/^\d+(?:\.\d{1,6})?$/.test(usdPerBtc)) throw new TypeError('Invalid BTC/USD exchange rate');
+    const rate = parseUnits(usdPerBtc, 6);
+    if (rate <= 0n) throw new TypeError('Invalid BTC/USD exchange rate');
+    return (usdUnits * 100_000_000n + rate / 2n) / rate;
+}
+async function bitcoinRate() {
+    if (btcCached && Date.now() - btcCached.fetchedAt < 30_000) return btcCached;
+    if (!btcPending) btcPending = (async () => {
+        const response = await fetch('https://api.coinbase.com/v2/prices/BTC-USD/spot', { signal: AbortSignal.timeout(8000) });
+        if (!response.ok) throw new TypeError('cirBTC exchange rate is unavailable. Try again or use USDC.');
+        const { data } = await response.json() as { data?: { base?: string; currency?: string; amount?: string } };
+        if (data?.base !== 'BTC' || data.currency !== 'USD' || typeof data.amount !== 'string') throw new TypeError('Invalid BTC/USD exchange rate');
+        convertUsdToBtc(1_000_000n, data.amount);
+        btcCached = { usdPerBtc: data.amount, fetchedAt: Date.now() };
+        return btcCached;
+    })().finally(() => { btcPending = undefined; });
+    return btcPending;
+}
+
 export async function checkoutPrice(price: string, currency: PaymentToken) {
     const usdAmount = priceToAtomicUnits(price);
     if (currency === 'USDC') return { amount: usdAmount.toString(), currency };
+    if (currency === 'cirBTC') {
+        const rate = await bitcoinRate();
+        const amount = convertUsdToBtc(usdAmount, rate.usdPerBtc);
+        if (amount <= 0n) throw new TypeError('Listing price is too small for cirBTC checkout.');
+        return { amount: amount.toString(), currency, usdPerBtc: rate.usdPerBtc, expiresAt: rate.fetchedAt + 30_000 };
+    }
     const rate = await exchangeRate();
     const amount = convertUsdToEur(usdAmount, rate.rate);
     if (amount <= 0n) throw new TypeError('Listing price is too small for EURC checkout.');
-    return { amount: amount.toString(), currency, rate: rate.rate, rateDate: rate.date };
+    return { amount: amount.toString(), currency, rate: rate.rate, rateDate: rate.date, expiresAt: rate.fetchedAt + 60 * 60 * 1000 };
 }

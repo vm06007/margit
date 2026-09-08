@@ -10,6 +10,7 @@ const { accessRoutes, mintCloneResponse } = await import("../src/purchase-access
 const { parseAccessPolicy } = await import("../../shared/accessPolicy.js");
 const data = new Map<string, any>();
 let upstream: () => Promise<Response>;
+let accessSetOptions: unknown[][] = [];
 const mockFetch: typeof fetch = async (url, init) => {
     if (String(url).startsWith("https://example.invalid")) {
         const commands = JSON.parse(String(init?.body));
@@ -20,6 +21,7 @@ const mockFetch: typeof fetch = async (url, init) => {
             else if (command === "sadd") { const values = new Set(data.get(key) ?? []); values.add(value); data.set(key,[...values]); result = 1; }
             else if (command === "smembers") result = (data.get(key) ?? []).map((v: string) => Buffer.from(v).toString("base64"));
             else if (command === "set") {
+                if (key.startsWith("margit:access:")) accessSetOptions.push(options);
                 if (options.includes("nx") && data.has(key)) result = null;
                 else { let decoded; try { decoded = JSON.parse(value); } catch { decoded = value; } data.set(key, decoded); result = "OK"; }
             } else throw new Error(`Unexpected Redis command ${command}`);
@@ -32,7 +34,7 @@ const mockFetch: typeof fetch = async (url, init) => {
 };
 let requests: { url: string; init?: RequestInit }[];
 beforeEach(() => {
-    data.clear(); requests = [];
+    data.clear(); requests = []; accessSetOptions = [];
     data.set("margit:listing:test", { ownerLogin: "seller", encryptedOwnerToken: encryptToken("seller-secret") });
     globalThis.fetch = mockFetch;
     upstream = async () => new Response("test archive");
@@ -139,4 +141,50 @@ test("delivery check blocks unavailable credentials and recovers after seller re
     assert.equal(new Headers(requests.at(-1)?.init?.headers).get("Authorization"), "Bearer new-token");
     upstream = async () => {throw new Error("Network unavailable")};
     assert.equal((await checkRepositoryDelivery(listing)).ok, false);
+});
+
+
+test("permanent grants have no TTL, allow repeated delivery and remain recoverable", async t => {
+    const {recordPurchase,getPurchaseAccess}=await import("../src/purchases.js");
+    const listing={id:"test",ownerLogin:"seller",repoFullName:"seller/repo",price:"$1.00",accessPolicy:{mode:"permanent",minutes:10}} as any;
+    const access=await mintCloneResponse(listing);
+    assert.ok(access);assert.equal(access.expiresAt,null);
+    assert.deepEqual(accessSetOptions,[["nx"]]);
+    const id=await recordPurchase(listing,{reference:"permanent",buyerWallet:"0xbuyer",currency:"USDC",channel:"wallet"},access);
+    const future=Date.now()+365*24*60*60*1000;
+    t.mock.method(Date,"now",()=>future);
+    const path=new URL(access.cloneUrl).pathname.replace("/api/access","");
+    for(let i=0;i<2;i++) assert.equal((await request(path.replace("repo.git","download.zip"))).status,200);
+    assert.equal((await request(`${path}/info/refs?service=git-upload-pack`)).status,200);
+    assert.equal((await request(`${path}/git-receive-pack`,{method:"POST"})).status,403);
+    assert.equal((await getPurchaseAccess(id,"0xbuyer"))?.cloneUrl,access.cloneUrl);
+    assert.equal(await getPurchaseAccess(id,"0xother"),null);
+});
+test("cirBTC is opt-in, permanent policy accepts omitted expiry, and old terms keep their shape", async()=>{
+    const {allowsPaymentToken}=await import("../../shared/accessPolicy.js");
+    assert.deepEqual(parseAccessPolicy({mode:"window",minutes:10,checkout:"both"}),{mode:"window",minutes:10,checkout:"both"});
+    assert.deepEqual(parseAccessPolicy({mode:"permanent"}),{mode:"permanent",minutes:10});
+    assert.equal(allowsPaymentToken(undefined,"cirBTC"),false);
+    assert.equal(allowsPaymentToken(parseAccessPolicy({mode:"permanent",acceptCirBTC:true}),"cirBTC"),true);
+    assert.throws(()=>parseAccessPolicy({mode:"permanent",acceptCirBTC:"true"}));
+});
+
+test("every nonempty currency combination is supported and x402 follows USDC acceptance", async () => {
+    const {acceptedPaymentTokens,allowsPaymentToken,allowsCheckout}=await import("../../shared/accessPolicy.js");
+    const tokens=["USDC","EURC","cirBTC"] as const;
+    assert.deepEqual(acceptedPaymentTokens(undefined),["USDC","EURC"]);
+    assert.deepEqual(acceptedPaymentTokens({mode:"window",minutes:10,acceptCirBTC:true}),tokens);
+    for(let mask=1;mask<8;mask++) {
+        const selected=tokens.filter((_,index)=>mask & (1<<index));
+        const policy=parseAccessPolicy({mode:"window",minutes:10,acceptedTokens:[...selected].reverse()});
+        assert.deepEqual(acceptedPaymentTokens(policy),selected);
+        for(const token of tokens) assert.equal(allowsPaymentToken(policy,token),selected.includes(token));
+        assert.equal(allowsCheckout(policy,"wallet"),true);
+        assert.equal(allowsCheckout(policy,"x402"),selected.includes("USDC"));
+    }
+    for(const acceptedTokens of [[],["BTC"],"USDC",null]) assert.throws(()=>parseAccessPolicy({mode:"window",minutes:10,acceptedTokens}));
+    assert.throws(()=>parseAccessPolicy({mode:"window",minutes:10,checkout:"x402",acceptedTokens:["EURC"]}),/x402 requires USDC/);
+    // Explicit selection supersedes the legacy opt-in flag.
+    const explicit=parseAccessPolicy({mode:"window",minutes:10,acceptCirBTC:true,acceptedTokens:["EURC"]});
+    assert.equal(allowsPaymentToken(explicit,"cirBTC"),false);
 });

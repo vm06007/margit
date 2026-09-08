@@ -1,3 +1,4 @@
+import type { PaymentToken } from "./paymentTokens.js";
 import type { AccessPolicy } from './accessPolicy.js';
 export interface Purchase {
     id: string;
@@ -10,13 +11,13 @@ export interface Purchase {
     sellerNet?: string;
     feeCollection?: 'automatic' | 'deferred';
     feeTreasury?: string;
-    currency: 'USDC' | 'EURC';
+    currency: PaymentToken;
     channel: 'wallet' | 'x402';
     status: 'confirmed' | 'gateway_accepted';
     transactionHash?: string;
     checkoutContract?: string;
     onchainPurchaseId?: string;
     createdAt: string;
-    expiresAt: string;
+    expiresAt: string | null;
     accessPolicy: AccessPolicy;
 }

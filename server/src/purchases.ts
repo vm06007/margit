@@ -1,3 +1,4 @@
+import type { PaymentToken } from "../../shared/paymentTokens.js";
 import { feeUnits, money, moneyUnits } from '../../shared/fees.js';
 import { createHash } from 'node:crypto';
 import { redis } from './redis.js';
@@ -9,7 +10,7 @@ export interface PaymentRecord {
     reference: string;
     amount?: string;
     buyerWallet: string;
-    currency: 'USDC' | 'EURC';
+    currency: PaymentToken;
     channel: 'wallet' | 'x402';
     transactionHash?: string;
     operatorSession?: string;
@@ -22,19 +23,19 @@ export interface PaymentRecord {
 }
 interface StoredPurchase extends Purchase { encryptedAccessUrl: string; operatorSession?: string }
 export const purchaseId = (reference: string) => createHash('sha256').update(`arc-testnet:${reference.toLowerCase()}`).digest('hex');
-export async function recordPurchase(listing: Listing, payment: PaymentRecord, access: { cloneUrl: string; expiresAt: string }) {
+export async function recordPurchase(listing: Listing, payment: PaymentRecord, access: { cloneUrl: string; expiresAt: string | null }) {
     const id = purchaseId(payment.reference);
-    const gross = moneyUnits(payment.amount ?? listing.price);
+    const gross = moneyUnits(payment.amount ?? listing.price, payment.currency);
     const started = Date.parse(process.env.PLATFORM_FEES_STARTED_AT ?? '');
     const deferred = payment.channel === 'x402' && Number.isFinite(started) && (payment.purchasedAt ?? Date.now()) >= started;
-    const fee = deferred ? money(feeUnits(gross)) : payment.platformFee;
+    const fee = deferred ? money(feeUnits(gross), payment.currency) : payment.platformFee;
     const record: StoredPurchase = {
         id, listingId: listing.id, repoFullName: listing.repoFullName, seller: listing.ownerLogin.toLowerCase(), buyerWallet: payment.buyerWallet.toLowerCase(),
         amount: payment.amount ?? listing.price.replace('$', ''), currency: payment.currency, channel: payment.channel,
         status: payment.channel === 'x402' ? 'gateway_accepted' : 'confirmed', transactionHash: payment.transactionHash,
         createdAt: new Date(payment.purchasedAt ?? Date.now()).toISOString(), expiresAt: access.expiresAt, accessPolicy: parseAccessPolicy(listing.accessPolicy),
         checkoutContract: payment.checkoutContract, onchainPurchaseId: payment.onchainPurchaseId,
-        ...(fee !== undefined ? {platformFee:fee, sellerNet:deferred ? money(gross-feeUnits(gross)) : payment.sellerNet, feeCollection:deferred ? 'deferred' as const : 'automatic' as const, feeTreasury:payment.feeTreasury} : {}),
+        ...(fee !== undefined ? {platformFee:fee, sellerNet:deferred ? money(gross-feeUnits(gross), payment.currency) : payment.sellerNet, feeCollection:deferred ? 'deferred' as const : 'automatic' as const, feeTreasury:payment.feeTreasury} : {}),
         encryptedAccessUrl: encryptToken(access.cloneUrl), operatorSession: payment.operatorSession,
     };
     await redis.set(`margit:purchase:${id}`, record, { nx: true });
@@ -55,6 +56,6 @@ export async function getPurchaseAccess(id: string, wallet?: string, operator?: 
     const record = await redis.get<StoredPurchase>(`margit:purchase:${id}`);
     if (!record || !((wallet && record.buyerWallet === wallet.toLowerCase()) || (operator && record.operatorSession === operator))) return null;
     // Returning the original grant never extends time or resets one-time download use.
-    if (Date.parse(record.expiresAt) <= Date.now()) return { expired: true };
+    if (record.expiresAt !== null && Date.parse(record.expiresAt) <= Date.now()) return { expired: true };
     return { cloneUrl: decryptToken(record.encryptedAccessUrl), repoFullName: record.repoFullName };
 }

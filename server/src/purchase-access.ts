@@ -6,7 +6,7 @@ import { encryptToken, decryptToken } from "./crypto.js";
 import { getOwnerTokenForListing, getRefreshedSellerCredential, type Listing } from "./listings.js";
 import { parseAccessPolicy, type AccessPolicy } from "../../shared/accessPolicy.js";
 
-interface Grant { repo: string; credential: string; policy: AccessPolicy; expiresAt: number }
+interface Grant { repo: string; credential: string; policy: AccessPolicy; expiresAt: number | null }
 const keyFor = (token: string) => `margit:access:${createHash("sha256").update(token).digest("hex")}`;
 
 /** Fail closed before requesting payment; a browser login is not required for delivery. */
@@ -32,11 +32,11 @@ export async function mintCloneResponse(listing: Listing, purchase?: { token: st
     if (!credential) return null;
     const policy = parseAccessPolicy(listing.accessPolicy);
     const token = purchase?.token ?? randomBytes(32).toString("hex");
-    const expiresAt = (purchase?.purchasedAt ?? Date.now()) + policy.minutes * 60000;
-    if (expiresAt > Date.now()) await redis.set(keyFor(token), { repo: listing.repoFullName, credential: encryptToken(credential), policy, expiresAt }, { px: Math.max(1, expiresAt - Date.now()), nx: true });
+    const expiresAt = policy.mode === "permanent" ? null : (purchase?.purchasedAt ?? Date.now()) + policy.minutes * 60000;
+    if (expiresAt === null || expiresAt > Date.now()) await redis.set(keyFor(token), { repo: listing.repoFullName, credential: encryptToken(credential), policy, expiresAt }, expiresAt === null ? { nx: true } : { px: Math.max(1, expiresAt - Date.now()), nx: true });
     const base = process.env.APP_URL ?? "http://localhost:5173";
     const path = policy.mode === "single_download" ? "download.zip" : "repo.git";
-    return { repoFullName: listing.repoFullName, cloneUrl: new URL(`/api/access/${token}/${path}`, base).href, expiresAt: new Date(expiresAt).toISOString(), accessPolicy: policy };
+    return { repoFullName: listing.repoFullName, cloneUrl: new URL(`/api/access/${token}/${path}`, base).href, expiresAt: expiresAt === null ? null : new Date(expiresAt).toISOString(), accessPolicy: policy };
 }
 
 export const accessRoutes = new Hono();
@@ -51,16 +51,16 @@ accessRoutes.all("/:token/*", async c => {
     if (!/^[a-f0-9]{64}$/.test(token)) return c.json({ error: "Invalid access link" }, 404);
     const key = keyFor(token);
     const grant = await redis.get<Grant>(key);
-    if (!grant || grant.expiresAt <= Date.now()) return c.json({ error: "This access link has expired or has already been used." }, 410);
+    if (!grant || (grant.expiresAt !== null && grant.expiresAt <= Date.now())) return c.json({ error: "This access link has expired or has already been used." }, 410);
     const path = c.req.path.split(`/${token}/`)[1];
     const zip = path === "download.zip" && c.req.method === "GET";
     const refs = path === "repo.git/info/refs" && c.req.method === "GET" && c.req.query("service") === "git-upload-pack";
     const pack = path === "repo.git/git-upload-pack" && c.req.method === "POST";
-    if (!zip && !(grant.policy.mode === "window" && (refs || pack))) return c.json({ error: "This operation is not included in your access terms." }, 403);
+    if (!zip && !((grant.policy.mode === "window" || grant.policy.mode === "permanent") && (refs || pack))) return c.json({ error: "This operation is not included in your access terms." }, 403);
     // A separate atomic claim prevents concurrent requests consuming a one-time grant twice.
     const claimKey = `${key}:claimed`;
     if (grant.policy.mode === "single_download") {
-        const claimed = await redis.set(claimKey, "1", { nx: true, px: Math.max(1, grant.expiresAt - Date.now()) });
+        const claimed = await redis.set(claimKey, "1", { nx: true, px: Math.max(1, (grant.expiresAt ?? Date.now()) - Date.now()) });
         if (!claimed) return c.json({ error: "This download has already started." }, 410);
     }
     try {

@@ -199,7 +199,7 @@ export interface AgentPurchase {
     cloneUrl: string;
     txHash: string;
     repoFullName: string;
-    token: "USDC" | "EURC";
+    token: "USDC" | "EURC" | "cirBTC";
 }
 
 export interface AgentListingChange {

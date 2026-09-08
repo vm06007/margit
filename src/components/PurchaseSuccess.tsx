@@ -1,5 +1,5 @@
 import { fireCelebrationBurst } from "./celebrationConfetti";
-import { accessPolicyLabel } from "../../shared/accessPolicy";
+import { accessPolicyLabel, type AccessPolicy } from "../../shared/accessPolicy";
 import { useEffect, useRef, useState } from "react";
 import confetti from "canvas-confetti";
 import type { Listing } from "../api";
@@ -9,9 +9,10 @@ import { CloneResult } from "./CloneResult";
 
 export interface PurchaseReceipt {
     amount?: string;
+    accessPolicy?: AccessPolicy;
     cloneUrl: string;
     checkoutContract?: string;
-    expiresAt?: string;
+    expiresAt?: string | null;
     transactionHash?: string;
     currency: string;
     method: "wallet" | "x402";
@@ -69,7 +70,7 @@ export function PurchaseSuccess({ receipt, listing }: { receipt: PurchaseReceipt
                     <h3 id="purchase-summary-title">Purchase details</h3>
                     <dl className="purchase-receipt">
                         <div><dt>Repository</dt><dd>{listing.repoFullName}</dd></div>
-                        {receipt.expiresAt && <div><dt>Expires</dt><dd>{new Date(receipt.expiresAt).toLocaleString()}</dd></div>}
+                        {receipt.expiresAt !== undefined && <div><dt>Expires</dt><dd>{receipt.expiresAt === null ? "Never · permanent access" : new Date(receipt.expiresAt).toLocaleString()}</dd></div>}
                         <div><dt>Amount</dt><dd>{receipt.amount ?? listing.price.replace("$", "")} {receipt.currency}</dd></div>
                         <div><dt>Payment</dt><dd>{receipt.method === "wallet" ? (receipt.checkoutContract ? "Margit checkout" : "Direct transfer") : "x402 / Circle Gateway"} · Arc testnet</dd></div>
                         <div><dt>Transaction</dt><dd>{hash ? (explorer ? <a href={`${explorer}/tx/${hash}`} target="_blank" rel="noopener noreferrer" title={hash}>{shortHash} ↗</a> : <span title={hash}>{shortHash}</span>) : "No transaction hash was returned for this settlement."}</dd></div>
@@ -77,10 +78,10 @@ export function PurchaseSuccess({ receipt, listing }: { receipt: PurchaseReceipt
                 </section>
                 <section className="purchase-access" aria-labelledby="purchase-access-title">
                     <h3 id="purchase-access-title">Get your code</h3>
-                    <p className="hint">{receipt.cloneUrl.endsWith("download.zip") ? "Download your repository as a ZIP. This link allows one download start." : "Run this command in your terminal to clone the repository, or download a ZIP before access expires."}</p>
+                    <p className="hint">{receipt.cloneUrl.endsWith("download.zip") ? "Download your repository as a ZIP. This link allows one download start." : "Run this command in your terminal to clone the repository, or download a ZIP."}</p>
                     <CloneResult cloneUrl={receipt.cloneUrl} repoFullName={listing.repoFullName} accessTerms={
                         <dl className="purchase-receipt purchase-access-terms">
-                            <div><dt>Access terms</dt><dd>{accessPolicyLabel(listing.accessPolicy)}</dd></div>
+                            <div><dt>Access terms</dt><dd>{accessPolicyLabel(receipt.accessPolicy ?? listing.accessPolicy)}</dd></div>
                         </dl>
                     } />
                 </section>

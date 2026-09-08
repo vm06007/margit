@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useActiveAccount, useConnectModal, useWalletDetailsModal } from "thirdweb/react";
 import { shortenAddress } from "thirdweb/utils";
 import { resolveArcNsReverse, revokeGithubAccess, type Me } from "../api";
-import { arcTestnet, thirdwebAppMetadata, thirdwebClient, thirdwebTheme, thirdwebWallets } from "../lib/thirdweb";
+import { arcTestnet, thirdwebSupportedTokens, thirdwebAppMetadata, thirdwebClient, thirdwebTheme, thirdwebWallets } from "../lib/thirdweb";
 import { ARC_USDC_ADDRESS } from "../lib/constants";
 import { AccountIcon, GitHubIcon, LogoutIcon, RobotIcon, TrashIcon, WalletIcon } from "./icons";
 
@@ -125,6 +125,7 @@ export function ProfileDropdown({ me, onLogout }: { me: Me; onLogout: () => void
                 client: thirdwebClient,
                 chains: [arcTestnet],
                 theme: thirdwebTheme,
+                supportedTokens: thirdwebSupportedTokens,
                 displayBalanceToken: { [arcTestnet.id]: ARC_USDC_ADDRESS },
                 connectedAccountName: arcName ?? shortenAddress(account.address),
             });

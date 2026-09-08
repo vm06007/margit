@@ -1,3 +1,4 @@
+import { TOKEN_DECIMALS } from "../../shared/paymentTokens.js";
 import { createCheckoutQuote, completeCheckout } from "./checkout.js";
 import { checkoutAbi, typedOrder, checkoutTermsHash } from "../../shared/checkout.js";
 import { allowsCheckout, parseAccessPolicy, type AccessPolicy } from "../../shared/accessPolicy.js";
@@ -47,12 +48,13 @@ export interface AgentWalletBalance {
     nativeGas?: string;
     usdc?: string;
     eurc?: string;
+    cirbtc?: string;
     error?: string;
 }
 
 export async function getAgentWalletBalance(): Promise<AgentWalletBalance> {
     if (!agentAccount) return { error: "Agent wallet is not configured (ARC_DEMO_BUYER_PRIVATE_KEY missing)" };
-    const [native, usdc, eurc] = await Promise.all([
+    const [native, usdc, eurc, cirbtc] = await Promise.all([
         publicClient.getBalance({ address: agentAccount.address }),
         publicClient.readContract({
             address: ARC_TOKEN_ADDRESSES.USDC as `0x${string}`,
@@ -66,12 +68,14 @@ export async function getAgentWalletBalance(): Promise<AgentWalletBalance> {
             functionName: "balanceOf",
             args: [agentAccount.address],
         }),
+        publicClient.readContract({ address: ARC_TOKEN_ADDRESSES.cirBTC as `0x${string}`, abi: ERC20_ABI, functionName: "balanceOf", args: [agentAccount.address] }),
     ]);
     return {
         address: agentAccount.address,
         nativeGas: formatUnits(native, 18),
         usdc: formatUnits(usdc as bigint, 6),
         eurc: formatUnits(eurc as bigint, 6),
+        cirbtc: formatUnits(cirbtc as bigint, 8),
     };
 }
 
@@ -116,7 +120,7 @@ async function buyListing(listingId: string, token: PaymentToken, operatorSessio
         return {
             ok: false,
             reason:
-                `Agent wallet has insufficient ${token} (has ${formatUnits(balance, 6)}, needs ${formatUnits(amount, 6)}). ` +
+                `Agent wallet has insufficient ${token} (has ${formatUnits(balance, TOKEN_DECIMALS[token])}, needs ${formatUnits(amount, TOKEN_DECIMALS[token])}). ` +
                 `Fund ${agentAccount.address} with ${token} on Arc testnet first.`,
         };
     }
@@ -288,7 +292,7 @@ const TOOLS: ChatCompletionTool[] = [
         type: "function",
         function: {
             name: "get_wallet_balance",
-            description: "Check the agent's own Arc-testnet wallet balance (native gas, USDC, EURC) before attempting a purchase.",
+            description: "Check the agent's own Arc-testnet wallet balance (native gas, USDC, EURC, cirBTC) before attempting a purchase.",
             parameters: { type: "object", properties: {} },
         },
     },
@@ -302,7 +306,7 @@ const TOOLS: ChatCompletionTool[] = [
                 type: "object",
                 properties: {
                     id: { type: "string", description: "Listing id to buy" },
-                    token: { type: "string", enum: ["USDC", "EURC"], description: "Which stablecoin to pay with (default USDC)" },
+                    token: { type: "string", enum: ["USDC", "EURC", "cirBTC"], description: "Payment currency (default USDC); must be accepted by the seller" },
                 },
                 required: ["id"],
             },
@@ -329,7 +333,7 @@ const TOOLS: ChatCompletionTool[] = [
                     repoFullName: { type: "string", description: 'e.g. "octocat/my-repo" — must be a repo the signed-in user owns' },
                     price: { type: "string", description: 'e.g. "$0.05" — dollar sign, up to 2 decimal places' },
                     payoutAddress: { type: "string", description: "0x address, .eth (ENS), or .arc/.circle (ArcNS) name" },
-                    accessPolicy: { type: "object", description: "Seller delivery terms. Defaults to 10 minutes with retries. Single download is ZIP only and consumed when transfer starts.", properties: { mode: { type: "string", enum: ["window", "single_download"] }, minutes: { type: "integer", enum: [10, 60, 1440, 10080] }, checkout: { type: "string", enum: ["both", "x402", "wallet"], description: "Allowed payment method, not human identity verification" } } },
+                    accessPolicy: { type: "object", description: "Seller delivery terms. Defaults to 10 minutes with retries. Single download is ZIP only and consumed when transfer starts. Permanent access has no expiry.", properties: { acceptedTokens: { type: "array", minItems: 1, uniqueItems: true, items: { type: "string", enum: ["USDC", "EURC", "cirBTC"] }, description: "Any nonempty combination; defaults to USDC and EURC. x402 requires USDC." }, mode: { type: "string", enum: ["window", "single_download", "permanent"] }, minutes: { type: "integer", enum: [10, 60, 1440, 10080] }, checkout: { type: "string", enum: ["both", "x402", "wallet"], description: "Allowed payment method, not human identity verification" } } },
                     sellerDescription: { type: "string", description: "Optional short description shown to buyers" },
                 },
                 required: ["repoFullName", "price", "payoutAddress"],
@@ -368,7 +372,7 @@ function systemPrompt(githubSession: SessionData | undefined): string {
         : "The user is NOT signed in with GitHub in this browser — list_my_repos/create_listing/unlist_repo will fail until they connect GitHub (top-right of the page).";
     return (
         "You are the margit shopping agent. margit is a marketplace where developers list private GitHub repos " +
-        "for sale; buyers pay USDC or EURC on Arc and receive a one-time authenticated clone URL. " +
+        "for sale; buyers pay USDC, EURC, or seller-enabled cirBTC on Arc and receive an authenticated clone URL under the seller’s timed or permanent terms. " +
         `You have two separate roles: (1) an autonomous BUYER with your own funded Arc-testnet wallet (${address}) — ` +
         "use get_wallet_balance and buy_listing to actually pay for listings when clearly asked; and " +
         "(2) a SELLER assistant acting on behalf of whichever human is chatting with you — use list_my_repos, " +
@@ -445,7 +449,7 @@ async function executeTool(
             return { output: await getAgentWalletBalance() };
         case "buy_listing": {
             const id = typeof input.id === "string" ? input.id : undefined;
-            const token: PaymentToken = input.token === "EURC" ? "EURC" : "USDC";
+            const token: PaymentToken = input.token === "cirBTC" ? "cirBTC" : input.token === "EURC" ? "EURC" : "USDC";
             if (!id) return { output: { ok: false, reason: "Missing listing id" } };
             const result = await buyListing(id, token, operatorSession);
             if (result.ok && result.cloneUrl && result.txHash) {

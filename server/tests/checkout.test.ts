@@ -1,6 +1,6 @@
 import {test,beforeEach} from 'node:test';
 import assert from 'node:assert/strict';
-import {encodeAbiParameters,encodeEventTopics,parseAbiParameters} from 'viem';
+import {encodeAbiParameters,encodeEventTopics,parseAbiParameters,encodeFunctionData} from 'viem';
 import {privateKeyToAccount} from 'viem/accounts';
 import {checkoutAbi} from '../../shared/checkout.js';
 process.env.KV_REST_API_URL='https://example.invalid';process.env.KV_REST_API_TOKEN='test';process.env.TOKEN_ENCRYPTION_KEY='ab'.repeat(32);process.env.APP_URL='https://margit.example';
@@ -17,9 +17,10 @@ const hash=`0x${'45'.repeat(32)}`;
 const blockHash=`0x${'67'.repeat(32)}`;
 let receipt:any;
 let deliveryOk=true;
+let btcAllowed=true;
 let timestamp=Math.floor(Date.now()/1000);
 beforeEach(()=>{
- data.clear();deliveryOk=true;timestamp=Math.floor(Date.now()/1000);
+ data.clear();deliveryOk=true;btcAllowed=true;timestamp=Math.floor(Date.now()/1000);
  data.set('margit:listing:test',{id:'test',ownerLogin:'seller',repoFullName:'seller/repo',price:'$1.00',payoutAddress:seller,accessPolicy:{mode:'single_download',minutes:10},encryptedOwnerToken:encryptToken('seller-secret')});
  globalThis.fetch=async(url,init)=>{
   if(String(url).startsWith('https://example.invalid')){
@@ -35,10 +36,11 @@ beforeEach(()=>{
    };
    return Response.json(Array.isArray(commands[0])?commands.map(run):run(commands));
   }
+  if(String(url).includes('api.coinbase.com')) return Response.json({data:{base:'BTC',currency:'USD',amount:'100000.00'}});
   if(String(url).includes('api.frankfurter.dev')) return Response.json({base:'USD',quote:'EUR',rate:0.875,date:new Date().toISOString().slice(0,10)});
   if(String(url).includes('github.com'))return new Response('archive',{status:deliveryOk?200:401});
   const req=JSON.parse(String(init?.body));let result;
-  if(req.method==='eth_call')result=encodeAbiParameters(parseAbiParameters('address'),[signer.address]);
+  if(req.method==='eth_call')result=req.params[0].data.startsWith(encodeFunctionData({abi:checkoutAbi,functionName:'allowedToken',args:[buyer]}).slice(0,10)) ? encodeAbiParameters(parseAbiParameters('bool'),[btcAllowed]) : encodeAbiParameters(parseAbiParameters('address'),[signer.address]);
   else if(req.method==='eth_getTransactionReceipt')result=receipt;
   else if(req.method==='eth_getBlockByHash')result={hash:blockHash,number:'0x1',timestamp:`0x${timestamp.toString(16)}`,transactions:[]};
   else throw new Error(`Unexpected RPC ${req.method}`);
@@ -114,4 +116,47 @@ test('EURC quote, confirmation and history use the converted amount and fees',as
  assert.equal(result.amount,'0.875');
  const [sale]=await listPurchaseHistory('seller','seller');
  assert.equal(sale.amount,'0.875');assert.equal(sale.currency,'EURC');assert.equal(sale.platformFee,'0.004375');assert.equal(sale.sellerNet,'0.870625');
+});
+
+
+test('cirBTC requires seller opt-in and contract support before a payable quote',async()=>{
+ await assert.rejects(createCheckoutQuote('test',buyer,'cirBTC'),/does not accept/);
+ data.get('margit:listing:test').accessPolicy.acceptCirBTC=true;
+ btcAllowed=false;
+ await assert.rejects(createCheckoutQuote('test',buyer,'cirBTC'),/not enabled/);
+});
+test('cirBTC receipts use eight decimals and preserve purchased permanent terms after edits',async()=>{
+ const listing=data.get('margit:listing:test');
+ listing.accessPolicy={mode:'permanent',minutes:10,acceptCirBTC:true};
+ const q=await createCheckoutQuote('test',buyer,'cirBTC');
+ assert.equal(q.order.amount,'1000');
+ receipt=receiptFor(q);
+ receipt.logs.push({...receipt.logs[0],logIndex:'0x1',topics:encodeEventTopics({abi:checkoutAbi,eventName:'PurchaseFeeCollected',args:{purchaseId:q.order.orderId,token:q.order.token,treasury:signer.address}}),data:encodeAbiParameters(parseAbiParameters('uint256,uint256'),[5n,995n])});
+ listing.accessPolicy={mode:'single_download',minutes:10};
+ const result=await completeCheckout(q.claimSecret,hash);
+ assert.equal(result.amount,'0.00001');assert.equal(result.expiresAt,null);
+ const [sale]=await listPurchaseHistory('seller','seller');
+ assert.equal(sale.accessPolicy.mode,'permanent');assert.equal(sale.currency,'cirBTC');
+ assert.equal(sale.platformFee,'0.00000005');assert.equal(sale.sellerNet,'0.00000995');
+ const {summarizeFees}=await import('../src/fees.js');
+ const summary=summarizeFees([sale],[]).find(s=>s.currency==='cirBTC')!;
+ assert.equal(summary.gross,'0.00001');assert.equal(summary.collected,'0.00000005');assert.equal(summary.net,'0.00000995');
+ assert.equal((await completeCheckout(q.claimSecret,hash)).cloneUrl,result.cloneUrl);
+});
+
+test('quotes and public prices reject all seller-disabled currencies',async()=>{
+ const {checkoutRoutes}=await import('../src/checkout.js');
+ for(const acceptedTokens of [['USDC'],['EURC'],['cirBTC']] as const) {
+  data.get('margit:listing:test').accessPolicy={mode:'window',minutes:10,acceptedTokens,checkout:'wallet'};
+  for(const currency of ['USDC','EURC','cirBTC'] as const) {
+   const price=await checkoutRoutes.request(`http://localhost/price?listingId=test&currency=${currency}`);
+   if(currency===acceptedTokens[0]) {
+    assert.equal(price.status,200);
+    assert.ok(await createCheckoutQuote('test',buyer,currency));
+   } else {
+    assert.equal(price.status,400);
+    await assert.rejects(createCheckoutQuote('test',buyer,currency),new RegExp(`does not accept ${currency}`));
+   }
+  }
+ }
 });

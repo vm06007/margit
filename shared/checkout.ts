@@ -1,3 +1,4 @@
+import { TOKEN_DECIMALS, type PaymentToken } from "./paymentTokens.js";
 import { formatUnits, parseAbi, keccak256, stringToHex } from 'viem';
 import { parseAccessPolicy, type AccessPolicy } from './accessPolicy.js';
 export const CHECKOUT_CHAIN_ID = 5042002;
@@ -51,7 +52,7 @@ export const checkoutDomain = (contract: `0x${string}`, chainId = CHECKOUT_CHAIN
 
 export const checkoutTermsHash = (price:string,currency:string,payout:string,policy?:AccessPolicy) => keccak256(stringToHex(JSON.stringify({version:1,policy:parseAccessPolicy(policy),price,currency,payout:payout.toLowerCase()})));
 
-export function checkoutAmountLabel(amount: string): string {
-    const [whole, fraction = ''] = formatUnits(BigInt(amount), 6).split('.');
+export function checkoutAmountLabel(amount: string, currency: PaymentToken = "USDC"): string {
+    const [whole, fraction = ''] = formatUnits(BigInt(amount), TOKEN_DECIMALS[currency]).split('.');
     return `${whole}.${fraction.padEnd(2, '0')}`;
 }

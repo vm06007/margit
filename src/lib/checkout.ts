@@ -1,11 +1,18 @@
+import type { AccessPolicy } from "../../shared/accessPolicy";
 import { getContract, prepareContractCall, readContract, sendTransaction, waitForReceipt } from 'thirdweb';
 import type { Account } from 'thirdweb/wallets';
 import { parseSignature, parseUnits } from 'viem';
-import { checkoutAbi, typedOrder, checkoutTermsHash, type CheckoutQuote } from '../../shared/checkout';
+import { checkoutAmountLabel, checkoutAbi, typedOrder, checkoutTermsHash, type CheckoutQuote } from '../../shared/checkout';
 import { arcTestnet, thirdwebClient } from './thirdweb';
 import { ARC_TOKEN_ADDRESSES, type PaymentToken } from './constants';
 import type { Listing } from '../api';
-export interface CheckoutResult { amount:string; cloneUrl:string; expiresAt:string; transactionHash:string; checkoutContract:string }
+export class InsufficientBalanceError extends Error {
+    constructor(balance: bigint, currency: PaymentToken) {
+        super(`Insufficient balance. You have ${checkoutAmountLabel(balance.toString(), currency)} ${currency}.`);
+        this.name = 'InsufficientBalanceError';
+    }
+}
+export interface CheckoutResult { accessPolicy:AccessPolicy; amount:string; cloneUrl:string; expiresAt:string|null; transactionHash:string; checkoutContract:string }
 interface Pending { claimSecret:string; transactionHash:string; currency:PaymentToken }
 const pendingKey = (listingId:string,buyer:string) => `margit:pending-checkout:${buyer.toLowerCase()}:${listingId}`;
 async function api<T>(path:string,body:unknown):Promise<T> {
@@ -23,11 +30,17 @@ export async function purchaseWithContract(listing:Listing,currency:PaymentToken
     let pending = pendingCheckout(listingId,account.address);
     if (!pending) {
         onStatus('checking');
+        const paymentToken = getContract({client:thirdwebClient,chain:arcTestnet,address:ARC_TOKEN_ADDRESSES[currency]});
+        // Arc's USDC ERC-20 mirror reports the native balance in six decimals.
+        const balance = await readContract({contract:paymentToken,method:'function balanceOf(address owner) view returns (uint256)',params:[account.address]});
+        const displayedAmount = expectedAmount ?? (currency === 'USDC' ? parseUnits(listing.price.replace('$',''),6).toString() : undefined);
+        if (displayedAmount && balance < BigInt(displayedAmount)) throw new InsufficientBalanceError(balance,currency);
         const quote = await api<CheckoutQuote>('quote',{listingId,buyer:account.address,currency});
         if (quote.chainId !== arcTestnet.id || quote.order.buyer.toLowerCase() !== account.address.toLowerCase()) throw new Error('Checkout quote does not match this wallet or network');
         if (quote.order.amount !== (expectedAmount ?? (currency === 'USDC' ? parseUnits(listing.price.replace('$',''),6).toString() : '')) || quote.order.token.toLowerCase() !== ARC_TOKEN_ADDRESSES[currency].toLowerCase() || quote.order.seller.toLowerCase() !== listing.payoutAddress.toLowerCase() || quote.order.termsHash !== checkoutTermsHash(listing.price,currency,listing.payoutAddress,listing.accessPolicy)) throw new Error('The price or access terms changed. Review the updated amount and try again.');
         const token = getContract({client:thirdwebClient,chain:arcTestnet,address:quote.order.token});
         const amount = BigInt(quote.order.amount);
+        if (balance < amount) throw new InsufficientBalanceError(balance,currency);
         const allowance = currency === 'USDC' ? amount : await readContract({contract:token,method:'function allowance(address owner,address spender) view returns (uint256)',params:[account.address,quote.contract]});
         onStatus('sending');
         if (allowance < amount) {

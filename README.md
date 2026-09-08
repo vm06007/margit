@@ -2,14 +2,14 @@
 
 **A marketplace for private GitHub repositories, built for humans and AI agents.**
 
-Sell access to a private repo. Get paid in **USDC** or **EURC** on [Arc](https://arc.io) (Circle's L1). Buyers — human or AI agent — pay once and get an authenticated `git clone` URL instantly. An agent sidebar with its own funded wallet can browse, buy, list, and unlist repos on command.
+Sell access to a private repo. Get paid in **USDC**, **EURC**, or optionally **cirBTC** on [Arc](https://arc.io) (Circle's L1). Buyers — human or AI agent — pay once and get an authenticated `git clone` URL instantly. An agent sidebar with its own funded wallet can browse, buy, list, and unlist repos on command.
 
 Built for **ETHGlobal ETHOnline 2026**.
 
 **Current checkout contract — Arc Testnet (chain ID 5042002):**
 [0x72c54ecd669acb19d6e6d5b5160f67d03b4d5b7b](https://testnet.arcscan.app/address/0x72c54ecd669acb19d6e6d5b5160f67d03b4d5b7b?tab=contract)
 
-`MargitCheckout` verifies buyer-bound quotes, pays the publisher, collects a **0.5% publisher fee**, and emits receipts indexed by **The Graph**. Native-USDC purchases take one transaction. EURC uses approval when needed, then checkout. Admin can manage allowed tokens and transfer administration through nominee acceptance.
+`MargitCheckout` verifies buyer-bound quotes, pays the publisher, collects a **0.5% publisher fee**, and emits receipts indexed by **The Graph**. Native-USDC purchases take one transaction. EURC and cirBTC use approval when needed, then checkout. Admin can manage allowed tokens and transfer administration through nominee acceptance.
 
 **One fee, two collection methods:**
 
@@ -468,3 +468,14 @@ flowchart LR
 Listing prices are in USD. The wallet button shows the actual token amount: USDC uses the USD amount; EURC uses the latest daily USD/EUR ECB reference rate via [Frankfurter](https://frankfurter.dev/). This assumes each stablecoin tracks its named currency; it is not a token-market swap quote. Rates are cached for an hour and rejected when more than seven days old. If conversion is unavailable, EURC checkout is blocked while USDC remains available.
 
 Converted amounts are rounded to six token decimals and shown with at least two decimals. The signed checkout order locks the payable amount for five minutes. If a fresh order differs from the amount displayed, the wallet flow stops before approval/payment and refreshes the price for review. Purchase history and fees use the amount actually paid in the selected token. x402 remains USDC-denominated.
+
+
+### Seller access and optional cirBTC
+
+In the listing editor’s Access tab, choose timed clone/ZIP access, one-time ZIP, or permanent access. Permanent grants have no expiry or download limit and return `expiresAt: null`. They serve the repository’s current source, including updates, while the seller keeps the repository connected and Margit remains available; they are not archived snapshots. Existing purchases and signed quotes retain their original access terms after listing edits.
+
+The **Accepted currencies** cards keep USDC selected and locked. EURC is preselected and optional, and cirBTC is optional. The API rejects quotes and price requests for currencies the seller has disabled. x402 requires USDC and is blocked before settlement on older listings that do not accept it. Legacy listings and pending quotes retain their original currency terms. cirBTC prices use the [Coinbase BTC/USD spot reference](https://docs.cdp.coinbase.com/coinbase-business/track-apis/prices), cached for 30 seconds, assuming one cirBTC tracks one BTC. This is a reference conversion, not a swap. Quotes round to the nearest satoshi; amounts that round to zero satoshis are rejected. The browser preloads conversions and verifies that the signed amount matches the displayed amount before requesting payment.
+
+The [Circle Arc testnet cirBTC contract](https://developers.circle.com/assets/cirbtc-contract-addresses) is `0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF` (8 decimals). Checkout must allowlist it using `setAllowedToken` before quoting cirBTC; payments, fees and portfolio history retain eight-decimal precision. The existing 0.5% fee rounds down in token base units.
+
+Run `node --env-file=.env --import tsx scripts/enable-cirbtc.ts` for an admin preflight, then add `--enable` to apply it. The script verifies chain, admin and decimals and saves the confirmed public transaction in `contracts/cirbtc.arc-testnet.json`.

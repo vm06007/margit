@@ -1,3 +1,4 @@
+import { ListingSuccess } from "./components/ListingSuccess";
 import { PortfolioPage } from "./pages/PortfolioPage";
 import { useEffect, useMemo, useState } from "react";
 import { fetchListings, fetchMe, fetchRepos, logout, type AgentListingChange, type Listing, type Me, type Repo } from "./api";
@@ -21,6 +22,7 @@ const AGENT_OPEN_STORAGE_KEY = "margit:agent-open";
 function App() {
     const [path, navigate] = useRoute();
     const [me, setMe] = useState<Me | null>(null);
+    const [listingSuccess, setListingSuccess] = useState<{ listing: Listing; updated: boolean } | null>(null);
     const [editingListing, setEditingListing] = useState<Listing | null>(null);
     const [repos, setRepos] = useState<Repo[] | null>(null);
     const [reposError, setReposError] = useState<string | null>(null);
@@ -77,7 +79,10 @@ function App() {
     const repoMatch = path.match(/^\/([^/]+)\/([^/]+)$/);
 
     const editingRepo = repos?.find(repo => repo.fullName.toLowerCase() === editingListing?.repoFullName.toLowerCase());
-    const saveListing = (listing: Listing) => setListings(prev => [...(prev ?? []).filter(item => item.repoFullName.toLowerCase() !== listing.repoFullName.toLowerCase()), listing]);
+    const saveListing = (listing: Listing) => {
+        setListingSuccess({ listing, updated: !!listings?.some(item => item.repoFullName.toLowerCase() === listing.repoFullName.toLowerCase()) });
+        setListings(prev => [...(prev ?? []).filter(item => item.repoFullName.toLowerCase() !== listing.repoFullName.toLowerCase()), listing]);
+    };
     const home = path === "/";
     const viewer = me ?? { authenticated: false };
     const routeClick = (event: MouseEvent<HTMLDivElement>) => {
@@ -133,6 +138,11 @@ function App() {
                 onListingChange={handleAgentListingChange}
             />
             <BackToTop path={path} />
+            {listingSuccess && <ListingSuccess listing={listingSuccess.listing} updated={listingSuccess.updated} onClose={() => setListingSuccess(null)} onView={() => {
+                const listingPath = "/" + listingSuccess.listing.repoFullName.split("/").map(encodeURIComponent).join("/");
+                setListingSuccess(null);
+                navigate(listingPath);
+            }} />}
             {editingListing && viewer.authenticated && <>
                 <DashboardStyle />
                 {editingRepo ? <ListModal

@@ -1,11 +1,13 @@
+import { PAYMENT_TOKENS, type PaymentToken } from "../../shared/paymentTokens";
+import { Toast } from "../components/Toast";
 import { PageLoading } from "../components/PageLoading";
 import { arcTestnet, thirdwebAppMetadata, thirdwebClient, thirdwebTheme, thirdwebWallets } from "../lib/thirdweb";
 import { useActiveAccount, useConnectModal } from "thirdweb/react";
-import { ACCESS_WINDOWS, DEFAULT_ACCESS_POLICY, accessPolicyLabel, accessWindowLabel, type AccessPolicy } from "../../shared/accessPolicy";
+import { ACCESS_WINDOWS, DEFAULT_ACCESS_POLICY, acceptedPaymentTokens, accessPolicyLabel, accessWindowLabel, type AccessPolicy } from "../../shared/accessPolicy";
 import { MakePrivateModal } from "../components/MakePrivateModal";
 import { RepoVisibilitySelect } from "../components/RepoVisibilitySelect";
 import { normalizeDemoUrl } from "../../shared/demoUrl";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     createListing,
     deleteListing,
@@ -130,8 +132,8 @@ export function DashboardStyle() {
                 border-radius: var(--_radius-m) 0 0 var(--_radius-m);
             }
             .modal-repo-details h2 { font-size: 2.8rem; color: var(--t-bright); word-break: break-word; }
-            .modal-wide .modal-body { padding: 3.2rem 2.8rem; }
-            .modal-wide .modal-footer { border-top: none; padding-top: 0.4rem; }
+            .modal-wide .modal-body { display: flex; flex-direction: column; padding: 3.2rem 2.8rem; }
+            .modal-wide .modal-footer { border-top: none; padding: 0; }
             .modal-header { padding-bottom: 1.6rem; margin-bottom: 1.6rem; border-bottom: 1px solid var(--st-muted); }
             .modal-header h2 { font-size: 2.6rem; }
             .modal-header .hint { font-size: 1.6rem; }
@@ -151,9 +153,23 @@ export function DashboardStyle() {
             .modal-close:hover { background: var(--base-tint); }
             .modal-field { display: flex; flex-direction: column; gap: 0.7rem; margin-bottom: 1.8rem; }
             .modal-field .agent-input { font-size: 1.8rem; }
+            .modal-field .agent-input[aria-invalid="true"] { border: 1px solid #ff6b6b; box-shadow: none; }
+            .modal-field .agent-input[aria-invalid="true"]:focus { outline: none; box-shadow: none; }
             .modal-field .hint { font-size: 1.4rem !important; }
             .modal-delivery-terms { min-width: 0; }
             .modal-delivery-terms .agent-input { width: 100%; min-width: 0; }
+            .modal-select-wrap { position: relative; width: 100%; min-width: 0; }
+            .modal-select-wrap select.agent-input { appearance: none; -webkit-appearance: none; padding-right: 4.8rem; }
+            .modal-select-wrap::after { content: ''; position: absolute; right: 2rem; top: 50%; width: .8rem; height: .8rem; border-right: 1.5px solid var(--t-bright); border-bottom: 1.5px solid var(--t-bright); transform: translateY(-70%) rotate(45deg); pointer-events: none; }
+            .listing-currency-picker { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; border-radius: 1.8rem; }
+            .listing-currency-card { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .6rem; padding: 1rem .6rem; min-width: 0; border: 2px solid var(--st-muted); border-radius: 1.4rem; background: var(--base); color: var(--t-medium); font: inherit; font-size: 1.5rem; font-weight: 600; }
+            .listing-currency-card.is-required:disabled { opacity: 1; cursor: default; }
+            .listing-currency-card img { width: 3.6rem; height: 3.6rem; }
+            .listing-currency-card i { position: absolute; top: .7rem; right: .7rem; font-size: 1.6rem; }
+            .listing-currency-card[aria-pressed="true"] { border-color: transparent; background: linear-gradient(var(--base), var(--base)) padding-box, linear-gradient(120deg, #69b8ed, #aa8bf2) border-box; color: var(--t-bright); }
+            .listing-currency-card[aria-pressed="true"] i { color: #aa8bf2; }
+            .listing-currency-card:focus-visible { outline: 2px solid var(--t-bright); outline-offset: 3px; }
+            .listing-currency-picker[aria-invalid="true"] { outline: 2px solid #ff6b6b; outline-offset: 3px; }
             .listing-details-tabs { display: flex; gap: .5rem; padding: .5rem; border: 1px solid var(--t-muted); border-radius: 4rem; margin-bottom: 2.4rem; }
             .modal-repo-details .listing-details-tabs { flex-direction: column; border-radius: 2.4rem; margin-top: 0; }
             .listing-sidebar-navigation { margin-top: auto; padding-top: 2.4rem; }
@@ -163,9 +179,10 @@ export function DashboardStyle() {
             .listing-details-tabs button i { flex-shrink: 0; font-size: 2rem; }
             .listing-details-tabs button[aria-selected="true"] { background: var(--t-bright); color: var(--base); }
             .listing-details-tabs button:focus-visible { outline: 2px solid var(--t-bright); outline-offset: 3px; }
-            .listing-details-panels { display: grid; }
-            .listing-details-panels > [role="tabpanel"] { grid-area: 1 / 1; min-width: 0; }
-            .listing-details-panels > [role="tabpanel"][hidden] { display: block; visibility: hidden; pointer-events: none; }
+            .listing-details-panels { display: grid; flex: 1; }
+            .listing-details-panels > [role="tabpanel"] { display: flex; flex-direction: column; grid-area: 1 / 1; min-width: 0; }
+            .listing-details-panels > [role="tabpanel"] > :is(.modal-footer, .modal-screenshot-field) { margin-top: auto; }
+            .listing-details-panels > [role="tabpanel"][hidden] { display: flex; visibility: hidden; pointer-events: none; }
             .listing-price-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
             .listing-price-presets { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; margin-left: auto; }
             .listing-price-presets button { padding: .3rem .7rem; border: 1px solid var(--t-muted); border-radius: 3rem; background: transparent; color: var(--t-bright); font: inherit; font-size: 1.25rem; }
@@ -326,12 +343,12 @@ export function ListModal({
     const connectModal = useConnectModal();
     const [connectingWallet, setConnectingWallet] = useState(false);
     const useConnectedWallet = async () => {
-        if (account) { setPayoutAddress(account.address); return; }
+        if (account) { setPayoutAddress(account.address); clearFieldError("listing-payout-address"); return; }
         setConnectingWallet(true);
         try {
             const wallet = await connectModal.connect({ client: thirdwebClient, wallets: thirdwebWallets, chain: arcTestnet, appMetadata: thirdwebAppMetadata, theme: thirdwebTheme });
             const connected = wallet.getAccount();
-            if (connected) setPayoutAddress(connected.address);
+            if (connected) { setPayoutAddress(connected.address); clearFieldError("listing-payout-address"); }
         } catch { /* Closing the wallet picker leaves the payout address unchanged. */ }
         finally { setConnectingWallet(false); }
     };
@@ -340,13 +357,33 @@ export function ListModal({
     const [payoutAddress, setPayoutAddress] = useState(listing?.payoutAddress ?? "");
     const [resolved, setResolved] = useState<string | "loading" | "error" | null>(null);
     const [detailsTab, setDetailsTab] = useState<"general" | "access">("general");
-    const [accessPolicy, setAccessPolicy] = useState<AccessPolicy>(listing?.accessPolicy ?? DEFAULT_ACCESS_POLICY);
+    const [accessPolicy, setAccessPolicy] = useState<AccessPolicy>(() => {
+        const policy = listing?.accessPolicy ?? DEFAULT_ACCESS_POLICY;
+        return { ...policy, acceptedTokens: PAYMENT_TOKENS.filter(token => token === "USDC" || acceptedPaymentTokens(policy).includes(token)) };
+    });
+    const selectedTokens = acceptedPaymentTokens(accessPolicy);
+    const toggleCurrency = (currency: PaymentToken) => {
+        if (currency === "USDC") return;
+        const tokens = selectedTokens.includes(currency) ? selectedTokens.filter(token => token !== currency) : [...selectedTokens, currency];
+        setAccessPolicy({ ...accessPolicy, acceptedTokens: tokens });
+        clearFieldError("listing-currencies");
+    };
     const [description, setDescription] = useState(listing?.sellerDescription ?? "");
     const [demoUrl, setDemoUrl] = useState(listing ? listing.demoUrl ?? "" : normalizeDemoUrl(repo.homepage) ?? "");
     const [screenshots, setScreenshots] = useState<string[]>(listing?.screenshots ?? []);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<{ message: string; id: number; field?: string } | null>(null);
+    const [invalidFields, setInvalidFields] = useState<string[]>([]);
+    const dismissError = useCallback(() => setError(null), []);
+    const clearFieldError = (field: string) => setInvalidFields(fields => fields.filter(value => value !== field));
+    const showError = (message: string, fields: string[] = []) => {
+        setInvalidFields(fields);
+        if (fields.length) setDetailsTab(["delivery-mode", "listing-currencies"].includes(fields[0]) ? "access" : "general");
+        setError(previous => ({ message, id: (previous?.id ?? 0) + 1, field: fields[0] }));
+    };
+    useEffect(() => {
+        if (error?.field) document.getElementById(error.field)?.focus();
+    }, [error]);
     const [submitting, setSubmitting] = useState(false);
-    const [descStatus, setDescStatus] = useState<string | null>(null);
     const [aiBusy, setAiBusy] = useState(false);
     const [confirmingUnlist, setConfirmingUnlist] = useState(false);
     const [unlisting, setUnlisting] = useState(false);
@@ -385,23 +422,45 @@ export function ListModal({
     const generateWithAi = async () => {
         if (aiBusy) return;
         setAiBusy(true);
-        setDescStatus(null);
         try {
             setDescription(await generateRepoDescription(repo.fullName));
-            setDescStatus(null);
         } catch (err) {
-            setDescStatus(err instanceof Error ? err.message : "Failed to generate a description");
+            showError(err instanceof Error ? err.message : "Failed to generate a description");
         } finally {
             setAiBusy(false);
         }
     };
 
     const submit = async () => {
+        if (submitting) return;
+        const normalizedDemoUrl = normalizeDemoUrl(demoUrl);
+        const fields: string[] = [];
+        const messages: string[] = [];
+        if (!/^\$\d+(\.\d{1,2})?$/.test(price.trim()) || Number(price.trim().slice(1)) <= 0) {
+            fields.push("listing-price");
+            messages.push('Enter a price greater than $0, such as $1.50.');
+        }
+        const payout = payoutAddress.trim();
+        if (!payout || (!EVM_ADDRESS_PATTERN.test(payout) && !/\.(eth|arc|circle)$/i.test(payout))) {
+            fields.push("listing-payout-address");
+            messages.push("Enter a payout wallet address or an .eth, .arc or .circle name.");
+        } else if (resolved === "error") {
+            fields.push("listing-payout-address");
+            messages.push("Could not resolve the payout name. Check it or enter a wallet address.");
+        }
+        if (demoUrl.trim() && !normalizedDemoUrl) {
+            fields.push("listing-demo-url");
+            messages.push("Enter a valid HTTP or HTTPS demo URL.");
+        }
+        if (!selectedTokens.length) {
+            fields.push("listing-currencies");
+            messages.push("Select at least one payment currency.");
+        }
+        if (fields.length) { showError(messages.join(" "), fields); return; }
         setSubmitting(true);
         setError(null);
+        setInvalidFields([]);
         try {
-            const normalizedDemoUrl = normalizeDemoUrl(demoUrl);
-            if (demoUrl.trim() && !normalizedDemoUrl) throw new Error("Enter a valid HTTP or HTTPS demo URL.");
             // No PATCH endpoint exists server-side — "editing" is delete-then-recreate under
             // the same repoFullName, which is functionally equivalent from the seller's POV.
             if (isEdit && listing) await deleteListing(listing.id);
@@ -409,15 +468,23 @@ export function ListModal({
                 repoFullName: repo.fullName,
                 demoUrl: normalizedDemoUrl ?? "",
                 accessPolicy,
-                price,
-                payoutAddress,
+                price: price.trim(),
+                payoutAddress: payout,
                 sellerDescription: description.trim() || undefined,
                 screenshots: screenshots.length > 0 ? screenshots : undefined,
             });
             onSaved(saved);
             onClose();
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to save listing");
+            const message = err instanceof Error ? err.message : "Failed to save listing";
+            const fields: string[] = [];
+            if (/price/i.test(message)) fields.push("listing-price");
+            if (/payout|resolve|\b(?:ENS|ArcNS)\b/i.test(message)) fields.push("listing-payout-address");
+            if (/demo URL/i.test(message)) fields.push("listing-demo-url");
+            if (/description/i.test(message)) fields.push("listing-description");
+            if (/payment currenc|x402 requires USDC/i.test(message)) fields.push("listing-currencies");
+            if (/delivery terms|access window|purchase channel/i.test(message)) fields.push("delivery-mode");
+            showError(message.replaceAll("payoutAddress", "Payout address").replaceAll("repoFullName", "Repository"), fields);
         } finally {
             setSubmitting(false);
         }
@@ -432,7 +499,7 @@ export function ListModal({
             onUnlisted(listing.id);
             onClose();
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to unlist");
+            showError(err instanceof Error ? err.message : "Failed to unlist");
         } finally {
             setUnlisting(false);
         }
@@ -551,15 +618,16 @@ export function ListModal({
                             <label className="modal-label" htmlFor="listing-price">Price</label>
                             <div className="listing-price-presets" role="group" aria-label="Proposed price">
                                 <span className="hint">Proposed price</span>
-                                {["$0.05", "$1.00", "$5.00", "$10.00", "$25.00"].map(preset => <button key={preset} type="button" disabled={submitting} aria-pressed={price === preset} onClick={() => setPrice(preset)}>{preset}</button>)}
+                                {["$0.05", "$1.00", "$5.00", "$10.00", "$25.00"].map(preset => <button key={preset} type="button" disabled={submitting} aria-pressed={price === preset} onClick={() => { setPrice(preset); clearFieldError("listing-price"); }}>{preset}</button>)}
                             </div>
                             </div>
                             <input
                                 id="listing-price"
+                                aria-invalid={invalidFields.includes("listing-price")}
                                 className="agent-input"
                                 placeholder="$0.05"
                                 value={price}
-                                onChange={(e) => setPrice(e.target.value)}
+                                onChange={(e) => { setPrice(e.target.value); clearFieldError("listing-price"); }}
                             />
                             <p className="hint">Publisher fee: 0.5% of each sale. Collected automatically at contract checkout; x402 fees are settled from My Portfolio. Buyers pay your listed price.</p>
 
@@ -574,15 +642,13 @@ export function ListModal({
                             </div>
                             <input
                                 id="listing-payout-address"
+                                aria-invalid={invalidFields.includes("listing-payout-address") || resolved === "error"}
                                 className="agent-input"
                                 placeholder="0x… address, name.eth, or name.arc"
                                 value={payoutAddress}
-                                onChange={(e) => setPayoutAddress(e.target.value)}
+                                onChange={(e) => { setPayoutAddress(e.target.value); clearFieldError("listing-payout-address"); }}
                             />
                             {resolved === "loading" && <span className="hint" style={{ fontSize: "1.5rem" }}>Resolving…</span>}
-                            {resolved === "error" && (
-                                <span className="hint" style={{ fontSize: "1.5rem" }}>Could not resolve that name.</span>
-                            )}
                             {resolved && resolved !== "loading" && resolved !== "error" && (
                                 <span className="hint" style={{ fontSize: "1.5rem" }}>
                                     → <code>{resolved}</code>
@@ -601,45 +667,55 @@ export function ListModal({
                                 </div>
                             </div>
                             <textarea
+                                id="listing-description"
+                                aria-invalid={invalidFields.includes("listing-description")}
                                 className="agent-input"
-                                rows={4}
+                                rows={2}
                                 placeholder={aiBusy ? "Writing your description from the README…" : "Describe what buyers get…"}
                                 value={description}
-                                onChange={(e) => setDescription(e.target.value)}
+                                onChange={(e) => { setDescription(e.target.value); clearFieldError("listing-description"); }}
                             />
-                            {descStatus && <p className="hint" style={{ fontSize: "1.4rem" }}>{descStatus}</p>}
                         </label>
 
                         <div className="modal-field">
                             <label className="modal-label" htmlFor="listing-demo-url">Live preview / Demo link</label>
-                            <input id="listing-demo-url" className="agent-input" type="url" placeholder="https://your-demo.com" value={demoUrl} onChange={event => setDemoUrl(event.target.value)} disabled={submitting} />
+                            <input id="listing-demo-url" aria-invalid={invalidFields.includes("listing-demo-url")} className="agent-input" type="url" placeholder="https://your-demo.com" value={demoUrl} onChange={event => { setDemoUrl(event.target.value); clearFieldError("listing-demo-url"); }} disabled={submitting} />
                         </div>
                         <ScreenshotPicker screenshots={screenshots} setScreenshots={setScreenshots} actions={formActions} />
                         </div>
                         <div role="tabpanel" id="listing-access-panel" aria-labelledby="listing-access-tab" hidden={detailsTab !== "access"}>
                         <div className="modal-field modal-delivery-terms">
                             <label className="modal-label" htmlFor="purchase-channel">Purchase channels</label>
-                            <select id="purchase-channel" className="agent-input" value={accessPolicy.checkout ?? "both"} disabled={submitting} onChange={event => setAccessPolicy({ ...accessPolicy, checkout: event.target.value as AccessPolicy["checkout"] })}>
+                            <div className="modal-select-wrap"><select id="purchase-channel" className="agent-input" value={accessPolicy.checkout ?? "both"} disabled={submitting} onChange={event => setAccessPolicy({ ...accessPolicy, checkout: event.target.value as AccessPolicy["checkout"] })}>
                                 <option value="both">Both · wallet and x402</option>
                                 <option value="x402">x402 only · agent checkout</option>
                                 <option value="wallet">Wallet only · direct checkout</option>
-                            </select>
+                            </select></div>
                             <p className="hint">Controls the payment method. Wallet checkout does not verify that the buyer is human, and people can also use x402.</p>
+                            <span className="modal-label" id="listing-currencies-label">Accepted currencies</span>
+                            <div id="listing-currencies" className="listing-currency-picker" role="group" aria-labelledby="listing-currencies-label" aria-invalid={invalidFields.includes("listing-currencies")} tabIndex={-1}>
+                                {PAYMENT_TOKENS.map(currency => <button key={currency} type="button" className={`listing-currency-card${currency === "USDC" ? " is-required" : ""}`} aria-label={currency === "USDC" ? "USDC (required)" : currency} aria-pressed={selectedTokens.includes(currency)} disabled={submitting || currency === "USDC"} onClick={() => toggleCurrency(currency)}>
+                                    <img src={`/icons/${currency.toLowerCase()}.svg`} width="48" height="48" alt="" />
+                                    <span>{currency}</span>
+                                    <i className={`ph ${selectedTokens.includes(currency) ? "ph-check-circle" : "ph-circle"}`} aria-hidden="true" />
+                                </button>)}
+                            </div>
                             <label className="modal-label" htmlFor="delivery-mode">Delivery terms</label>
-                            <select id="delivery-mode" className="agent-input" value={accessPolicy.mode} disabled={submitting} onChange={event => setAccessPolicy({ ...accessPolicy, mode: event.target.value as AccessPolicy["mode"] })}>
+                            <div className="modal-select-wrap"><select id="delivery-mode" aria-invalid={invalidFields.includes("delivery-mode")} className="agent-input" value={accessPolicy.mode} disabled={submitting} onChange={event => { setAccessPolicy({ ...accessPolicy, mode: event.target.value as AccessPolicy["mode"] }); clearFieldError("delivery-mode"); }}>
                                 <option value="window">Timed access · clone and ZIP with retries</option>
                                 <option value="single_download">One-time ZIP download</option>
-                            </select>
-                            <label className="modal-label" htmlFor="delivery-window">Access expires after purchase</label>
-                            <select id="delivery-window" className="agent-input" value={accessPolicy.minutes} disabled={submitting} onChange={event => setAccessPolicy({ ...accessPolicy, minutes: Number(event.target.value) })}>
+                                <option value="permanent">Permanent access · no expiry</option>
+                            </select></div>
+                            {accessPolicy.mode !== "permanent" && <><label className="modal-label" htmlFor="delivery-window">Access expires after purchase</label>
+                            <div className="modal-select-wrap"><select id="delivery-window" className="agent-input" value={accessPolicy.minutes} disabled={submitting} onChange={event => setAccessPolicy({ ...accessPolicy, minutes: Number(event.target.value) })}>
                                 {ACCESS_WINDOWS.map(minutes => <option key={minutes} value={minutes}>{accessWindowLabel(minutes)}</option>)}
-                            </select>
-                            <p className="hint">{accessPolicyLabel(accessPolicy)} Files already downloaded remain with the buyer. Changing these terms only affects new purchases.</p>
+                            </select></div></>}
+                            <p className="hint">{accessPolicyLabel(accessPolicy)} Files already downloaded remain with the buyer.</p>
                         </div>
                         {formActions}
                         </div>
                         </div>
-                        {error && <p className="error" role="alert" style={{ color: "#ff6b6b", fontSize: "1.6rem" }}>{error}</p>}
+                        {error && <Toast key={error.id} message={error.message} onDismiss={dismissError} />}
 
                     </div>
                 </div>

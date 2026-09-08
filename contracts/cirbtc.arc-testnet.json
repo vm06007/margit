@@ -1,0 +1,9 @@
+{
+  "chainId": 5042002,
+  "checkoutContract": "0x72c54ecd669acb19d6e6d5b5160f67d03b4d5b7b",
+  "token": "0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF",
+  "decimals": 8,
+  "allowed": true,
+  "transactionHash": "0x5c2be41116c613fe9cb15caf7820b2940e845b4a229d2546d7795cb78eb375f7",
+  "blockNumber": "61052949"
+}

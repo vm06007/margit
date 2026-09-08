@@ -171,3 +171,15 @@ test('a failed treasury transfer rolls back seller payment and order consumption
  await send({address:token,abi:tokenAbi,functionName:'setRejectAddress',args:[zeroAddress]});
  await send({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args});
 });
+
+
+test('small eight-decimal token payments retain satoshis and round fees down',async()=>{
+ const amount=1001n;
+ const o=await order({amount});
+ const before=await publicClient.readContract({address:token,abi:tokenAbi,functionName:'balanceOf',args:[seller.address]});
+ const receipt=await send({account:buyer,address:contract,abi:checkoutAbi,functionName:'buy',args:o.args});
+ assert.equal(await publicClient.readContract({address:token,abi:tokenAbi,functionName:'balanceOf',args:[seller.address]}),before+996n);
+ const {decodeEventLog}=await import('viem');
+ const fee=receipt.logs.filter(log=>log.address.toLowerCase()===contract.toLowerCase()).map(log=>{try{return decodeEventLog({abi:checkoutAbi,eventName:'PurchaseFeeCollected',data:log.data,topics:log.topics})}catch{return null}}).find(Boolean)!;
+ assert.equal(fee.args.feeAmount,5n);assert.equal(fee.args.sellerAmount,996n);
+});

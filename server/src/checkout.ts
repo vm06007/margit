@@ -1,10 +1,11 @@
+import { TOKEN_DECIMALS } from "../../shared/paymentTokens.js";
 import { createHash, randomBytes } from 'node:crypto';
 import { checkoutPrice } from './exchange-rates.js';
 import { Hono } from 'hono';
 import { createPublicClient, decodeEventLog, getAddress, formatUnits, http, isAddress, keccak256, stringToHex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { checkoutAmountLabel, checkoutAbi, checkoutDomain, checkoutTermsHash, orderTypes, typedOrder, type CheckoutQuote } from '../../shared/checkout.js';
-import { allowsCheckout } from '../../shared/accessPolicy.js';
+import { allowsCheckout, allowsPaymentToken } from '../../shared/accessPolicy.js';
 import { arcTestnet, ARC_TOKEN_ADDRESSES, type PaymentToken } from './payments.js';
 import { checkRepositoryDelivery, mintCloneResponse } from './purchase-access.js';
 import { getListing, type Listing } from './listings.js';
@@ -29,9 +30,11 @@ export async function createCheckoutQuote(listingId:string, buyer:string, curren
     const listing = await getListing(listingId);
     if (!listing) throw new Error('Listing not found');
     if (!allowsCheckout(listing.accessPolicy,'wallet')) throw new Error('This listing requires x402 checkout.');
+    if (!allowsPaymentToken(listing.accessPolicy, currency)) throw new Error(`This publisher does not accept ${currency}.`);
     if (!isAddress(listing.payoutAddress)) throw new Error('Seller payout address is invalid');
     const configuredSigner = await client.readContract({address:contract,abi:checkoutAbi,functionName:'quoteSigner'});
     if (configuredSigner.toLowerCase() !== signer.address.toLowerCase()) throw new Error('Checkout signing configuration does not match the contract.');
+    if (currency === 'cirBTC' && !await client.readContract({address:contract,abi:checkoutAbi,functionName:'allowedToken',args:[ARC_TOKEN_ADDRESSES.cirBTC as `0x${string}`]})) throw new Error('cirBTC checkout is not enabled on this contract.');
     const delivery = await checkRepositoryDelivery(listing);
     if (!delivery.ok) throw new Error(delivery.error);
     const pricing = await checkoutPrice(listing.price, currency);
@@ -80,7 +83,7 @@ export async function completeCheckout(claimSecret:string, transactionHash:strin
             if (args.purchaseId !== quote.order.orderId || args.token.toLowerCase() !== quote.order.token.toLowerCase()) continue;
             const gross = BigInt(quote.order.amount);
             if (args.feeAmount !== gross/200n || args.sellerAmount !== gross-args.feeAmount) throw new Error('Fee receipt mismatch');
-            fee = {platformFee:formatUnits(args.feeAmount,6),sellerNet:formatUnits(args.sellerAmount,6),feeTreasury:args.treasury};
+            fee = {platformFee:formatUnits(args.feeAmount,TOKEN_DECIMALS[currency]),sellerNet:formatUnits(args.sellerAmount,TOKEN_DECIMALS[currency]),feeTreasury:args.treasury};
         } catch (error) {
             if (error instanceof Error && error.message === 'Fee receipt mismatch') throw error;
         }
@@ -89,14 +92,14 @@ export async function completeCheckout(claimSecret:string, transactionHash:strin
     const purchasedAt = Number(block.timestamp)*1000;
     const access = await mintCloneResponse(listing,{token:stored.grantToken,purchasedAt});
     if (!access) throw new Error('Payment confirmed, but delivery credentials are unavailable. Retry receipt recovery; do not pay again.');
-    await recordPurchase(listing,{reference:`checkout:${quote.contract}:${quote.order.orderId}`,buyerWallet:quote.order.buyer,currency,channel:'wallet',transactionHash,operatorSession:stored.operatorSession,checkoutContract:quote.contract,onchainPurchaseId:quote.order.orderId,purchasedAt,amount:checkoutAmountLabel(quote.order.amount),...fee},access);
-    return {...access,transactionHash,checkoutContract:quote.contract,amount:checkoutAmountLabel(quote.order.amount)};
+    await recordPurchase(listing,{reference:`checkout:${quote.contract}:${quote.order.orderId}`,buyerWallet:quote.order.buyer,currency,channel:'wallet',transactionHash,operatorSession:stored.operatorSession,checkoutContract:quote.contract,onchainPurchaseId:quote.order.orderId,purchasedAt,amount:checkoutAmountLabel(quote.order.amount,currency),...fee},access);
+    return {...access,transactionHash,checkoutContract:quote.contract,amount:checkoutAmountLabel(quote.order.amount,currency)};
 }
 export const checkoutRoutes = new Hono();
 checkoutRoutes.use('*',async(c,next)=>{c.header('Cache-Control','no-store');await next();});
 checkoutRoutes.post('/quote',async c => {
     const body = await c.req.json<{listingId:string;buyer:string;currency:PaymentToken}>();
-    if (!body || typeof body.listingId !== 'string' || !['USDC','EURC'].includes(body.currency) || !isAddress(body.buyer ?? '')) return c.json({error:'Invalid checkout request'},400);
+    if (!body || typeof body.listingId !== 'string' || !['USDC','EURC','cirBTC'].includes(body.currency) || !isAddress(body.buyer ?? '')) return c.json({error:'Invalid checkout request'},400);
     try {return c.json(await createCheckoutQuote(body.listingId,body.buyer,body.currency));}
     catch(error) {return c.json({error:error instanceof Error?error.message:'Checkout unavailable'},503);}
 });
@@ -110,9 +113,10 @@ checkoutRoutes.get('/config',c=>c.json({chainId:arcTestnet.id,contract:process.e
 checkoutRoutes.get('/price',async c => {
     const listingId = c.req.query('listingId');
     const currency = c.req.query('currency');
-    if (!listingId || (currency !== 'USDC' && currency !== 'EURC')) return c.json({error:'Invalid price request'},400);
+    if (!listingId || (currency !== 'USDC' && currency !== 'EURC' && currency !== 'cirBTC')) return c.json({error:'Invalid price request'},400);
     const listing = await getListing(listingId);
     if (!listing) return c.json({error:'Listing not found'},404);
+    if (!allowsPaymentToken(listing.accessPolicy, currency)) return c.json({error:`This publisher does not accept ${currency}.`},400);
     try { return c.json(await checkoutPrice(listing.price,currency)); }
-    catch { return c.json({error:'EURC exchange rate is unavailable. Try again or use USDC.'},503); }
+    catch { return c.json({error:`${currency} exchange rate is unavailable. Try again or use USDC.`},503); }
 });

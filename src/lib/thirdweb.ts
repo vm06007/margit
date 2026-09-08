@@ -1,3 +1,4 @@
+import { ARC_EURC_ADDRESS, ARC_CIRBTC_ADDRESS } from "./constants";
 import { createThirdwebClient } from "thirdweb";
 import { arcTestnet } from "thirdweb/chains";
 import { darkTheme } from "thirdweb/react";
@@ -23,6 +24,14 @@ export const thirdwebAppMetadata = {
     name: "margit",
     url: typeof window !== "undefined" ? window.location.origin : "http://localhost:5173",
     description: "margit — sell access to private GitHub repos, paid in USDC on Arc",
+};
+
+// Native USDC is included automatically by Thirdweb's asset list.
+export const thirdwebSupportedTokens = {
+    [arcTestnet.id]: [
+        { address: ARC_EURC_ADDRESS, name: "EURC", symbol: "EURC", icon: `${thirdwebAppMetadata.url}/icons/eurc.svg` },
+        { address: ARC_CIRBTC_ADDRESS, name: "Circle Wrapped Bitcoin", symbol: "cirBTC", icon: `${thirdwebAppMetadata.url}/icons/cirbtc.svg` },
+    ],
 };
 
 // Injects our WalletConnect projectId + app metadata into every WalletConnect-based

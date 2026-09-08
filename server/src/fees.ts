@@ -12,14 +12,14 @@ export function feeContract() {
     return address;
 }
 export function summarizeFees(sales:Purchase[], payments:FeePayment[]):FeeSummary[] {
-    return (['USDC','EURC'] as const).map(currency=>{
+    return (['USDC','EURC','cirBTC'] as const).map(currency=>{
         const rows=sales.filter(s=>s.currency===currency);
-        const sum=(values:string[])=>values.reduce((total,value)=>total+moneyUnits(value),0n);
+        const sum=(values:string[])=>values.reduce((total,value)=>total+moneyUnits(value,currency),0n);
         const gross=sum(rows.map(s=>s.amount));
         const collected=sum(rows.filter(s=>s.feeCollection==='automatic').map(s=>s.platformFee ?? '0'));
         const deferred=sum(rows.filter(s=>s.feeCollection==='deferred').map(s=>s.platformFee ?? '0'));
         const paid=currency==='USDC' ? sum(payments.map(p=>p.amount)) : 0n;
-        return {currency,gross:money(gross),net:money(gross-collected-deferred),collected:money(collected),deferred:money(deferred),paid:money(paid),owed:money(deferred>paid?deferred-paid:0n),credit:money(paid>deferred?paid-deferred:0n)};
+        return {currency,gross:money(gross,currency),net:money(gross-collected-deferred,currency),collected:money(collected,currency),deferred:money(deferred,currency),paid:money(paid,currency),owed:money(deferred>paid?deferred-paid:0n,currency),credit:money(paid>deferred?paid-deferred:0n,currency)};
     });
 }
 export async function sellerFees(seller:string,sales:Purchase[]) {

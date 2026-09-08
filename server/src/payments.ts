@@ -8,13 +8,8 @@ export const arcTestnet = defineChain({
     rpcUrls: { default: { http: ["https://rpc.testnet.arc.io"] } },
 });
 
-export type PaymentToken = "USDC" | "EURC";
-
-// Both are Circle-issued stablecoins on Arc testnet, each with 6 decimals.
-export const ARC_TOKEN_ADDRESSES: Record<PaymentToken, string> = {
-    USDC: "0x3600000000000000000000000000000000000000",
-    EURC: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a",
-};
+import { ARC_TOKEN_ADDRESSES, type PaymentToken } from "../../shared/paymentTokens.js";
+export { ARC_TOKEN_ADDRESSES, type PaymentToken } from "../../shared/paymentTokens.js";
 
 const USED_TX_PREFIX = "margit:used-tx:";
 const TRANSFER_ABI = [parseAbiItem("event Transfer(address indexed from, address indexed to, uint256 value)")];
