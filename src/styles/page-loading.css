@@ -1,4 +1,4 @@
-.page-loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 1.6rem; width: min(32rem, calc(100vw - 4rem)); text-align: center; color: var(--t-medium); }
+.page-loading { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 1.6rem; min-height: 18rem; height: var(--page-loading-height, 50dvh); width: 100%; text-align: center; color: var(--t-medium); }
 .page-loading p { margin: 0; font-size: 1.8rem; line-height: 1.65; }
 .page-loading-spinner { width: 4rem; height: 4rem; border: 3px solid var(--t-muted); border-top-color: var(--accent, #a18be8); border-radius: 50%; animation: page-loading-spin .8s linear infinite; }
 @keyframes page-loading-spin { to { transform: rotate(360deg); } }

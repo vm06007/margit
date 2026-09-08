@@ -4,6 +4,7 @@ import { AutoConnect, ThirdwebProvider } from 'thirdweb/react'
 import { thirdwebAppMetadata, thirdwebClient, thirdwebWallets } from './lib/thirdweb'
 import './styles/site.css'
 import './styles/home.css'
+import './styles/cursors.css'
 import App from './App.tsx'
 
 createRoot(document.getElementById('root')!).render(
