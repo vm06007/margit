@@ -1,8 +1,8 @@
 # Circle Gateway agent demo on Arc testnet
 
-Margit's built-in shopping agent can pay for repository access with Circle Nanopayments using `@circle-fin/x402-batching` 3.4.0. The buyer uses `GatewayClient`; the seller uses `BatchFacilitatorClient` and `GatewayEvmScheme`. This is an actual x402 payment path, separate from MargitCheckout contract purchases.
+Margit's built-in shopping agent can pay for repository access with Circle Nanopayments using `@circle-fin/x402-batching` 3.4.0. The buyer uses `GatewayClient`; the seller uses `BatchFacilitatorClient` and `GatewayEvmScheme`. This x402 payment path is separate from MargitCheckout contract purchases.
 
-The signer is currently a funded demo EOA, not a Circle-managed Agent Wallet. There is no claim that Circle CLI, wallet policies, or all Agent Stack components are integrated. The implementation uses the same buyer/payment SDK as [Circle's Arc Nanopayments reference](https://github.com/circlefin/arc-nanopayments). We retain Margit's Hono backend, Redis storage, and repository delivery rather than copying the sample's Next.js/Supabase stack.
+The signer can be the funded shared demo EOA or a personal EOA whose key is stored encrypted by Margit. The implementation uses the same buyer/payment SDK as [Circle's Arc Nanopayments reference](https://github.com/circlefin/arc-nanopayments), with a Hono backend, Redis storage, and GitHub repository delivery.
 
 ## Verified test, September 8, 2026
 
@@ -20,16 +20,16 @@ The deposit transaction is onchain funding evidence. The Gateway reference ident
 1. Open the agent from Catalog. GitHub sign-in is needed for seller tools, not Circle purchases.
 2. Click **Find repositories** or **Check Circle balance**. Clicking a suggestion sends its request immediately.
 3. Click **Try Circle x402**. This immediately sends the suggested purchase request. To use different instructions or a budget, type a custom message instead.
-4. Send. The model browses listings and calls `buy_listing_x402`; the server validates the payment independently.
+4. The model browses listings and calls `buy_listing_x402`; the server validates the payment independently.
 5. Inspect the payment evidence card and repository access. No contract-checkout fallback is permitted for a Circle request.
 
-The live test above called the same backend purchase function used by the model tool. It verifies the payment and delivery path; it does not claim an end-to-end model-selected purchase was recorded. Suggestions now send immediately when clicked.
+The recorded test called the same backend purchase function used by the model tool. The subsequent chat-initiated purchase has a Circle receipt linked below.
 
 ## Controls and limits
 
 - Arc testnet only; USDC only. There is no fixed purchase cap, daily quota, or extra authorization checkbox.
 - Ask the agent to purchase in chat. Prompt suggestions can include a budget; edit it as needed.
-- GitHub sign-in is not required for buying with the demo wallet. Buyer intents are scoped to the GitHub identity when signed in, otherwise the chat session.
+- GitHub sign-in is not required for buying with the demo wallet. Buyer intents are scoped to the chat session and selected wallet.
 - Redis atomically reserves the user/listing purchase intent before signing to prevent duplicate payment.
 - The SDK hook checks amount, asset, chain, seller, Gateway verifying contract, and current listing terms before signing.
 - Completed access receipts are encrypted in Redis. Repeating the same user/listing purchase returns the original receipt, including its original expiry; it does not renew access or charge again.

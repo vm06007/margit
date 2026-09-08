@@ -4,23 +4,21 @@
 
 Sell access to a private repo. Get paid in **USDC**, **EURC**, or optionally **cirBTC** on [Arc](https://arc.io) (Circle's L1). Buyers — human or AI agent — pay once and get an authenticated `git clone` URL instantly. An agent sidebar with its own funded wallet can browse, buy, list, and unlist repos on command.
 
-Built for **ETHGlobal ETHOnline 2026**.
+## Arc Deployment
 
-## Arc track — for judges
-
-**[Open the dedicated Arc judge guide](arc-track/README.md)** for the architecture, source links, testnet walkthrough, spending controls, and current mainnet readiness status.
+[Arc Details](arc-track/README.md) covers the architecture, payment flow, source links, and deployment status.
 
 A live Circle Gateway x402 purchase was verified on **September 8, 2026**: **0.20 testnet USDC deposited**, **0.05 USDC paid for repository access**, and successful Git delivery (HTTP 200). Inspect the [onchain deposit](https://testnet.arcscan.app/tx/0xf4b2ccbe10bc27a8f2f563dcc2dace756775eb44546e9eafc9b105e02041386b) and [recorded payment evidence](public/proofs/circle-arc-testnet.json).
 
-The purchase uses Circle's Nanopayments SDK with a demo EOA on Arc testnet. Its Gateway batch reference is not an individual transaction hash. The recorded test verifies the payment backend and delivery, rather than claiming a recorded end-to-end model-selected purchase or Circle-managed Agent Wallet integration.
+The purchase uses Circle's Nanopayments SDK with an EOA on Arc testnet. Its Gateway batch reference identifies the payment; the deposit has a separate onchain transaction hash. The recorded test covers the payment backend and repository delivery.
 
-### Arc mainnet readiness — September 30 launch track
+### Mainnet deployment status
 
-**Primary target: Launch on Arc Testnet & Push to Mainnet.** Margit has a working Arc testnet MVP and a mainnet deployment preparation kit. **Mainnet deployment and application cutover are not yet complete**; we do not claim to be live or fully production-ready on mainnet.
+Margit runs on Arc testnet. The mainnet deployment preparation kit is available; **mainnet deployment and application cutover are still pending**.
 
 Run `npm run arc:readiness` for a read-only, machine-readable assessment (exit 1 means blocked). Run `npm run arc:test-release` to validate release safeguards. Once Circle confirms mainnet settings, `npm run arc:prepare-mainnet -- MANIFEST.json OUTPUT.json` checks RPC/token metadata and gas budget and prepares an unsigned deployment transaction without handling private keys or sending funds.
 
-See the [mainnet runbook](docs/arc-mainnet-readiness.md) for configuration, immutable treasury custody, state isolation, acceptance tests and rollback. See the [Arc track evidence and demo guide](docs/arc-track-submission.md) for bounty fit, architecture, a three-minute video outline and the highest-value improvements. Official addresses are deliberately left blank in [the manifest template](config/arc-mainnet.example.json) until verified.
+See the [mainnet runbook](docs/arc-mainnet-readiness.md) for configuration, immutable treasury custody, state isolation, acceptance tests and rollback. The [Arc integration overview](docs/arc-integration.md) describes the implemented payment and delivery flows. Official addresses are deliberately left blank in [the manifest template](config/arc-mainnet.example.json) until verified.
 
 
 **Current checkout contract — Arc Testnet (chain ID 5042002):**
@@ -37,7 +35,12 @@ See the [mainnet runbook](docs/arc-mainnet-readiness.md) for configuration, immu
 
 On a **1 USDC** contract purchase, the publisher receives **0.995 USDC** and Margit receives **0.005 USDC**. An x402 sale of the same amount records **0.005 USDC owed**. Fees round down to token units; gas is separate. Contract fees never also become deferred debt.
 
-My Portfolio shows gross sales, net earnings, fees collected, x402 fees accrued, paid and owed. Publishers settle x402 fees with one native-USDC transaction; the backend verifies its publisher-bound receipt and credits it once. New listings disclose the fee. Pre-launch sales remain fee-free. Deferred fees currently rely on publisher settlement; no listing restriction is enabled.
+My Portfolio shows gross sales, net earnings, fees collected, x402 fees accrued, paid and owed. Publishers settle x402 fees with one native-USDC transaction; the backend verifies its publisher-bound receipt and credits it once. New listings disclose the fee. Pre-launch sales remain fee-free. Deferred fees are settled by publishers. At 1.00 USDC owed, the backend blocks new x402 purchases across all of that publisher’s listings before payment. Contract checkout and previously purchased access are unaffected.
+
+**Why deferred fees for x402?** Contract checkout collects our fee automatically. Circle x402 pays sellers directly, and we track the platform fee against their seller account for later settlement. This keeps the payment flow simple. New x402 purchases pause at 1.00 USDC in unpaid fees and resume once the balance is below that threshold. The debt belongs to the publisher, not the buyer's agent wallet; eligibility is bound to the permanent GitHub account ID, with historical usernames retained for ledger and receipt compatibility. Reputation is an incentive to settle, not a guarantee of collection.
+
+The Circle Nanopayments SDK we integrate (`@circle-fin/x402-batching` 3.4.0) uses a single payment recipient. We found no documented native marketplace commission split in its [SDK reference](https://developers.circle.com/gateway/nanopayments/references/sdk). This is narrower than saying Circle or x402 cannot support fees: the [standard x402 seller flow](https://docs.x402.org/getting-started/quickstart-for-sellers) also specifies a recipient, while marketplace revenue allocation requires additional application or settlement logic. A buyer-authorized seller/platform split with receipts would be a useful SDK enhancement. See [fee design and alternatives](docs/fee-model.md#why-this-model-and-how-it-compares-with-other-x402-integrations).
+
 
 **Admin and treasury:** `0x4d2A622F53a2ac4D3Ee1c06bCeB4641a8a6fE6aa`. The 0.5% rate and treasury are fixed for this deployment; transferring admin does not change the treasury.
 
@@ -49,7 +52,7 @@ See [contract and deployment details](contracts/README.md), [fee accounting](doc
 
 ## Table of Contents
 
-- [Arc track — for judges](#arc-track--for-judges)
+- [Arc Deployment](#arc-deployment)
 - [What is this?](#what-is-this)
 - [The Big Picture](#the-big-picture)
 - [How It Works](#how-it-works)
@@ -247,7 +250,7 @@ flowchart LR
 
 Margit now exposes a working **Streamable HTTP MCP server at `/api/mcp`** with seven tools: `browse_catalog`, `get_listing`, `create_checkout_quote`, `confirm_checkout`, `list_my_repos`, `create_listing`, and `unlist_repo`. Its `margit://skill` resource explains the workflows. Public tools need no key; seller tools use `Authorization: Bearer MARGIT_API_KEY` and reuse the existing seller ownership checks. The server never signs or broadcasts payments.
 
-Judges can open **`/agents`** from the homepage, click **Test live MCP connection**, read **`/SKILLS.md`** or **`/skills/margit/SKILL.md`**, and inspect **`/api/agent-docs`**. `/api/agent-docs/checkout-abi` exposes the checkout ABI. The native Arc USDC payment value is the six-decimal order amount multiplied by `10^12`; ERC-20 checkout attaches zero native value.
+Open **`/agents`** from the homepage to test the MCP connection, read **`/SKILLS.md`** or **`/skills/margit/SKILL.md`**, and inspect **`/api/agent-docs`**. `/api/agent-docs/checkout-abi` exposes the checkout ABI. The native Arc USDC payment value is the six-decimal order amount multiplied by `10^12`; ERC-20 checkout attaches zero native value.
 
 Use `npm run mcp:check -- http://localhost:5173` (or your deployed origin) to run an official MCP client against initialization, tools/list, resources/read, and the real catalog. This check never buys or changes a listing. Run `node --import tsx --test server/tests/mcp.test.ts` for isolated protocol and credential tests.
 

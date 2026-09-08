@@ -1,6 +1,6 @@
 # Arc mainnet readiness and launch runbook
 
-Status as of September 8, 2026: **working Arc testnet MVP; mainnet deployment tooling prepared; application cutover and production sign-off pending.** Do not describe the current website as running on mainnet or fully production-ready.
+Status as of September 8, 2026: **working Arc testnet MVP; mainnet deployment tooling prepared; application cutover and production sign-off pending.** The application currently runs on testnet.
 
 Circle's [August 5 announcement](https://www.circle.com/es/pressroom/circle-announces-founding-validator-cohort-and-major-integrations-for-arc-ahead-of-september-16-mainnet-launch) targets public mainnet on September 16. The [network reference](https://docs.arc.io/arc/references/connect-to-arc) currently documents testnet connection parameters. Populate mainnet values from Circle's official release information when available; do not substitute guessed chain IDs, testnet tokens, or third-party rumours.
 
@@ -29,7 +29,7 @@ The command recompiles the actual contract, validates the manifest, verifies RPC
 5. Independently review the plan and submit it through the declared deployment wallet. Re-estimate if delayed; a plan is not a reserved gas price. Record the chain ID, successful receipt, deployed address, source hash, constructor values and start block. Verify source code and read back `quoteSigner`, `admin`, `treasury`, `FEE_BPS`, and `allowedToken` before accepting money.
 6. Enable optional cirBTC only after official mainnet support/address verification. The existing `enable-cirbtc.ts` is TESTNET-ONLY. Do not reuse it for mainnet or assume testnet assets are available there.
 
-## Application cutover requirements
+## Application cutover
 
 | Area | Required before real funds |
 | --- | --- |
@@ -45,6 +45,6 @@ The command recompiles the actual contract, validates the manifest, verifies RPC
 
 Preserve receipt recovery during an incident. Stop new payment initiation before disabling confirmations/access. Never recommend paying again when receipt confirmation is pending.
 
-## Readiness evidence for submission
+## Release record
 
 Keep a release record with the deployed app URL, Git revision, build/test results, mainnet configuration source links, deployment/verification links, contract start block, treasury/signer decision, isolation/monitoring review, smoke-test evidence and rollback owner. The current `arc:readiness` command intentionally reports the source-level blockers and operational sign-off still required; it does not certify a production release automatically.
