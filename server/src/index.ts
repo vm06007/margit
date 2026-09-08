@@ -1,3 +1,4 @@
+import { createX402FeeGate } from "./x402-fee-gate.js";
 import { selectAgentWallet, depositAgentGateway } from "./agent-wallet.js";
 import { createMcpRoutes } from "./mcp.js";
 import { createAgentDocs } from "./agent-docs.js";
@@ -90,6 +91,7 @@ app.use("/api/listings/unlock", async (c, next) => {
     if (!delivery.ok) return c.json({ error: delivery.error }, 503);
     await next();
 });
+app.use("/api/listings/unlock", createX402FeeGate());
 
 app.post("/api/listings/:id/check-delivery", async c => {
     c.header("Cache-Control", "no-store");

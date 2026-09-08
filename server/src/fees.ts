@@ -22,26 +22,30 @@ export function summarizeFees(sales:Purchase[], payments:FeePayment[]):FeeSummar
         return {currency,gross:money(gross,currency),net:money(gross-collected-deferred,currency),collected:money(collected,currency),deferred:money(deferred,currency),paid:money(paid,currency),owed:money(deferred>paid?deferred-paid:0n,currency),credit:money(paid>deferred?paid-deferred:0n,currency)};
     });
 }
-export async function sellerFees(seller:string,sales:Purchase[]) {
-    const ids=await redis.smembers('margit:fees:payments:'+seller.toLowerCase());
+export async function sellerFees(seller:string,sales:Purchase[],aliases:string[]=[seller.toLowerCase()]) {
+    const ids=[...new Set((await Promise.all(aliases.map(login=>redis.smembers('margit:fees:payments:'+login)))).flat())];
     const payments=await Promise.all(ids.map(id=>redis.get<FeePayment>('margit:fee-payment:'+id)));
-    return summarizeFees(sales,payments.filter((p):p is FeePayment=>!!p && p.seller===seller.toLowerCase()));
+    return summarizeFees(sales,payments.filter((p):p is FeePayment=>!!p && aliases.includes(p.seller)));
 }
-export async function confirmFeePayment(seller:string,hash:string) {
+export async function confirmFeePayment(seller:string,hash:string,aliases:string[]=[seller.toLowerCase()]) {
     if (!/^0x[0-9a-f]{64}$/i.test(hash)) throw new Error('Invalid transaction hash');
     const contract=feeContract();
     const receipt=await client.getTransactionReceipt({hash:hash as Hex});
     if (receipt.status !== 'success') throw new Error('Fee payment failed');
     let amount:bigint|undefined;
+    let matchedSellerId:string|undefined;
     for (const log of receipt.logs) {
         if (log.address.toLowerCase() !== contract.toLowerCase()) continue;
         try {
             const {args}=decodeEventLog({abi:checkoutAbi,eventName:'DeferredFeesPaid',data:log.data,topics:log.topics});
-            if (args.sellerId===sellerFeeId(seller)) amount=(amount??0n)+args.amount;
+            if (aliases.some(login=>args.sellerId===sellerFeeId(login))) {
+                if (matchedSellerId && matchedSellerId !== args.sellerId) throw new Error("Mixed seller receipt identifiers");
+                matchedSellerId=args.sellerId; amount=(amount??0n)+args.amount;
+            }
         } catch { /* Other event */ }
     }
     if (amount===undefined || amount<=0n) throw new Error('No fee payment for this publisher found');
-    const id=contract.toLowerCase()+':'+hash.toLowerCase()+':'+sellerFeeId(seller);
+    const id=contract.toLowerCase()+':'+hash.toLowerCase()+':'+matchedSellerId;
     await redis.set('margit:fee-payment:'+id,{seller:seller.toLowerCase(),amount:money(amount),transactionHash:hash,contract},{nx:true});
     // Repeated confirmation repairs indexing without adding another credit.
     await redis.sadd('margit:fees:payments:'+seller.toLowerCase(),id);

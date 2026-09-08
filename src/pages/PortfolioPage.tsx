@@ -3,7 +3,7 @@ import { sortPortfolio, type PortfolioSort, type PortfolioSortKey } from "../lib
 import { resolveArcNsReverse } from "../api";
 import { getContract, prepareContractCall, sendTransaction, waitForReceipt } from 'thirdweb';
 import { checkoutAbi } from '../../shared/checkout';
-import { moneyUnits, sellerFeeId, type FeeSummary } from '../../shared/fees';
+import { moneyUnits, type FeeSummary } from '../../shared/fees';
 import { useEffect, useRef, useState } from 'react';
 import { useActiveAccount, useConnectModal } from 'thirdweb/react';
 import { arcTestnet, thirdwebAppMetadata, thirdwebClient, thirdwebTheme, thirdwebWallets } from '../lib/thirdweb';
@@ -12,7 +12,7 @@ import { PageLoading } from '../components/PageLoading';
 import { CloneResult } from '../components/CloneResult';
 import '../styles/repository.css';
 import '../styles/portfolio.css';
-interface History {fees:FeeSummary[];wallet:string|null;seller:string|null;purchases:Purchase[];sales:Purchase[];graph?:{configured:boolean;available:boolean;ids:string[]}}
+interface History {feeSellerId?:string|null;x402FeePolicy?:{threshold:string;paused:boolean};fees:FeeSummary[];wallet:string|null;seller:string|null;purchases:Purchase[];sales:Purchase[];graph?:{configured:boolean;available:boolean;ids:string[]}}
 async function request<T>(path:string,body?:unknown):Promise<T> {
     const response = await fetch(`/api/portfolio${path}`, {method:body ? 'POST':'GET', credentials:'include',headers:body ? {'Content-Type':'application/json'}:undefined,body:body ? JSON.stringify(body):undefined});
     const result = await response.json();
@@ -113,7 +113,7 @@ export function PortfolioPage() {
             let hash = localStorage.getItem(feePaymentKey);
             if (!hash) {
                 const payment = await request<{contract:string;sellerId:`0x${string}`;amount:string}>('/fees/prepare',{});
-                if (payment.sellerId !== sellerFeeId(history.seller)) throw new Error('Publisher changed. Refresh before paying.');
+                if (payment.sellerId !== history.feeSellerId) throw new Error('Publisher changed. Refresh before paying.');
                 if (moneyUnits(payment.amount) <= 0n) {await refresh(); return;}
                 const signer = account ?? (await connect.connect({client:thirdwebClient,wallets:thirdwebWallets,chain:arcTestnet,theme:thirdwebTheme,appMetadata:thirdwebAppMetadata})).getAccount();
                 if (!signer) return;
@@ -133,6 +133,7 @@ export function PortfolioPage() {
             await refresh();
         } catch(e){setError(e instanceof Error?e.message:'Could not settle fees');} finally {setBusy(false);}
     };
+    const usdcFees = history?.fees?.find(fee => fee.currency === "USDC");
     const rows = sortPortfolio(history?.[tab] ?? [], sort, buyerNames);
     const hasCirBTC = rows.filter(p => p.currency === "cirBTC").reduce((total, p) => total + moneyUnits(p.amount, "cirBTC"), 0n) > 0n;
     const showCirBTC = hasCirBTC || showZeroCirBTC;
@@ -155,7 +156,10 @@ export function PortfolioPage() {
         </div>}
         {tab==='sales' && !history?.seller && <p>Connect GitHub to view your sales. <a href="/api/auth/github/login">Connect GitHub ↗</a></p>}
         {error && <p className="error" role="alert">{error}</p>}
-        {history && <div className="portfolio-totals">{PAYMENT_TOKENS.filter(currency => currency !== "cirBTC" || showCirBTC).map(currency=><span className="portfolio-total" key={currency}><img className="portfolio-token-icon" src={`/icons/${currency.toLowerCase()}.svg`} width="32" height="32" alt="" /><strong>{rows.filter(p=>p.currency===currency).reduce((sum,p)=>sum+Number(p.amount),0).toFixed(currency==='cirBTC'?8:2)}</strong><span className="portfolio-total-label">{currency} {tab==='sales'?'gross sales':'spent'}</span></span>)}<span className="portfolio-total"><i className={`ph ${tab==='sales'?'ph-tag':'ph-shopping-cart'}`} aria-hidden="true" /><strong>{rows.length}</strong><span className="portfolio-total-label">{tab==='sales'?'sales':'purchases'}</span></span></div>}
+        {tab==='sales' && history?.seller && history.x402FeePolicy && <p className="hint" role="status">{history.x402FeePolicy.paused ? `Your x402 sales are paused. Pay fees to bring the balance below ${history.x402FeePolicy.threshold} USDC and resume sales.` : `x402 sales pause when unpaid fees reach ${history.x402FeePolicy.threshold} USDC.`} Existing purchases remain accessible under their original terms. Contract checkout continues.</p>}
+        {history && <div className="portfolio-totals">{PAYMENT_TOKENS.filter(currency => currency !== "cirBTC" || showCirBTC).map(currency=><span className="portfolio-total" key={currency}><img className="portfolio-token-icon" src={`/icons/${currency.toLowerCase()}.svg`} width="32" height="32" alt="" /><strong>{rows.filter(p=>p.currency===currency).reduce((sum,p)=>sum+Number(p.amount),0).toFixed(currency==='cirBTC'?8:2)}</strong><span className="portfolio-total-label">{currency} {tab==='sales'?'gross sales':'spent'}</span></span>)}<span className="portfolio-total"><i className={`ph ${tab==='sales'?'ph-tag':'ph-shopping-cart'}`} aria-hidden="true" /><strong>{rows.length}</strong><span className="portfolio-total-label">{tab==='sales'?'sales':'purchases'}</span></span>
+            {tab==='sales' && history.seller && usdcFees && (moneyUnits(usdcFees.owed)>0n || pendingFee) && <button type="button" className="btn btn-primary portfolio-pay-fees" disabled={busy} onClick={settleFees}>{busy?'Confirming…':pendingFee?'Recover fee payment':'Pay '+usdcFees.owed+' USDC fees'}</button>}
+        </div>}
         {tab==='sales' && history?.seller && <section className={`portfolio-fees${earningsOpen ? ' is-open' : ''}`} aria-labelledby="publisher-earnings-heading">
             <h3 id="publisher-earnings-heading" className="portfolio-fees-heading"><button type="button" className="portfolio-fees-summary" aria-expanded={earningsOpen} aria-controls="publisher-earnings-content" onClick={() => setEarningsOpen(open => !open)}>Publisher earnings<i className="ph ph-caret-down" aria-hidden="true" /></button></h3>
             <div id="publisher-earnings-content" className="portfolio-fees-reveal" aria-hidden={!earningsOpen} inert={!earningsOpen}><div className="portfolio-fees-clip"><div className="portfolio-fees-content">
@@ -171,7 +175,6 @@ export function PortfolioPage() {
                     <div><dt>Fees owed</dt><dd>{fee.owed}</dd></div>
                     {moneyUnits(fee.credit,fee.currency)>0n && <div><dt>Fee credit</dt><dd>{fee.credit}</dd></div>}
                 </dl>
-                {fee.currency==='USDC' && (moneyUnits(fee.owed)>0n || pendingFee) && <button className="btn btn-primary" disabled={busy} onClick={settleFees}>{busy?'Confirming…':pendingFee?'Recover fee payment':'Pay '+fee.owed+' USDC fees'}</button>}
             </div>)}
             <p className="hint">Fees apply to sales made after launch. Prior sales remain fee-free. Network gas is separate.</p>
             </div></div></div>

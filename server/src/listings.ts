@@ -1,3 +1,4 @@
+import { authenticateSellerIdentity } from "./seller-identity.js";
 import type { AccessPolicy } from "../../shared/accessPolicy.js";
 import { randomBytes } from "node:crypto";
 import { redis } from "./redis.js";
@@ -54,6 +55,7 @@ export async function createListing(input: {
     demoUrl?: string | null;
     accessPolicy?: AccessPolicy;
 }): Promise<Listing> {
+    await authenticateSellerIdentity(input.ownerGithubToken, input.ownerLogin);
     const id = randomBytes(8).toString("hex");
     const stored: StoredListing = {
         id,
