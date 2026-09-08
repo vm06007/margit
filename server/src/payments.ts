@@ -24,9 +24,8 @@ const publicClient = createPublicClient({ chain: arcTestnet, transport: http() }
 /**
  * Converts a "$0.05"-style price string to atomic token units.
  *
- * The numeric amount is treated as currency-agnostic (no live USD/EUR FX rate
- * is applied) — a "$0.05" listing accepts either 0.05 USDC or 0.05 EURC. Both
- * are Circle-issued stablecoins with 6 decimals.
+ * Parses USD-denominated listing prices. Contract checkout converts EURC
+ * separately using the exchange-rate service before creating a signed order.
  */
 export function priceToAtomicUnits(price: string): bigint {
     const amount = Number(price.replace("$", ""));

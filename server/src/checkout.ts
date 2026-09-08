@@ -1,10 +1,11 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { checkoutPrice } from './exchange-rates.js';
 import { Hono } from 'hono';
 import { createPublicClient, decodeEventLog, getAddress, formatUnits, http, isAddress, keccak256, stringToHex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { checkoutAbi, checkoutDomain, checkoutTermsHash, orderTypes, typedOrder, type CheckoutQuote } from '../../shared/checkout.js';
+import { checkoutAmountLabel, checkoutAbi, checkoutDomain, checkoutTermsHash, orderTypes, typedOrder, type CheckoutQuote } from '../../shared/checkout.js';
 import { allowsCheckout } from '../../shared/accessPolicy.js';
-import { arcTestnet, ARC_TOKEN_ADDRESSES, priceToAtomicUnits, type PaymentToken } from './payments.js';
+import { arcTestnet, ARC_TOKEN_ADDRESSES, type PaymentToken } from './payments.js';
 import { checkRepositoryDelivery, mintCloneResponse } from './purchase-access.js';
 import { getListing, type Listing } from './listings.js';
 import { recordPurchase } from './purchases.js';
@@ -33,12 +34,13 @@ export async function createCheckoutQuote(listingId:string, buyer:string, curren
     if (configuredSigner.toLowerCase() !== signer.address.toLowerCase()) throw new Error('Checkout signing configuration does not match the contract.');
     const delivery = await checkRepositoryDelivery(listing);
     if (!delivery.ok) throw new Error(delivery.error);
+    const pricing = await checkoutPrice(listing.price, currency);
     const order = {
         orderId: `0x${randomBytes(32).toString('hex')}` as `0x${string}`,
         listingId: keccak256(stringToHex(listing.id)),
         termsHash: checkoutTermsHash(listing.price,currency,listing.payoutAddress,listing.accessPolicy),
         buyer:getAddress(buyer),seller:getAddress(listing.payoutAddress),token:getAddress(ARC_TOKEN_ADDRESSES[currency]),
-        amount:priceToAtomicUnits(listing.price).toString(),deadline:String(Math.floor(Date.now()/1000)+300),
+        amount:pricing.amount,deadline:String(Math.floor(Date.now()/1000)+300),
     };
     if (BigInt(order.amount) <= 0n) throw new Error('Invalid listing price');
     const signature = await signer.signTypedData({domain:checkoutDomain(contract),types:orderTypes,primaryType:'Order',message:typedOrder(order)});
@@ -87,8 +89,8 @@ export async function completeCheckout(claimSecret:string, transactionHash:strin
     const purchasedAt = Number(block.timestamp)*1000;
     const access = await mintCloneResponse(listing,{token:stored.grantToken,purchasedAt});
     if (!access) throw new Error('Payment confirmed, but delivery credentials are unavailable. Retry receipt recovery; do not pay again.');
-    await recordPurchase(listing,{reference:`checkout:${quote.contract}:${quote.order.orderId}`,buyerWallet:quote.order.buyer,currency,channel:'wallet',transactionHash,operatorSession:stored.operatorSession,checkoutContract:quote.contract,onchainPurchaseId:quote.order.orderId,purchasedAt,...fee},access);
-    return {...access,transactionHash,checkoutContract:quote.contract};
+    await recordPurchase(listing,{reference:`checkout:${quote.contract}:${quote.order.orderId}`,buyerWallet:quote.order.buyer,currency,channel:'wallet',transactionHash,operatorSession:stored.operatorSession,checkoutContract:quote.contract,onchainPurchaseId:quote.order.orderId,purchasedAt,amount:checkoutAmountLabel(quote.order.amount),...fee},access);
+    return {...access,transactionHash,checkoutContract:quote.contract,amount:checkoutAmountLabel(quote.order.amount)};
 }
 export const checkoutRoutes = new Hono();
 checkoutRoutes.use('*',async(c,next)=>{c.header('Cache-Control','no-store');await next();});
@@ -104,3 +106,13 @@ checkoutRoutes.post('/confirm',async c => {
     catch(error) {return c.json({error:error instanceof Error?error.message:'Could not confirm checkout'},400);}
 });
 checkoutRoutes.get('/config',c=>c.json({chainId:arcTestnet.id,contract:process.env.CHECKOUT_CONTRACT_ADDRESS ?? null}));
+
+checkoutRoutes.get('/price',async c => {
+    const listingId = c.req.query('listingId');
+    const currency = c.req.query('currency');
+    if (!listingId || (currency !== 'USDC' && currency !== 'EURC')) return c.json({error:'Invalid price request'},400);
+    const listing = await getListing(listingId);
+    if (!listing) return c.json({error:'Listing not found'},404);
+    try { return c.json(await checkoutPrice(listing.price,currency)); }
+    catch { return c.json({error:'EURC exchange rate is unavailable. Try again or use USDC.'},503); }
+});

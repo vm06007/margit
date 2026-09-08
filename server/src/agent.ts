@@ -11,7 +11,7 @@ import { createApiKey } from "./api-keys.js";
 import { createListing, deleteListing, getListing, listListings, type Listing } from "./listings.js";
 import { resolvePayoutAddress } from "./names.js";
 import type { SessionData } from "./session.js";
-import { ARC_TOKEN_ADDRESSES, arcTestnet, priceToAtomicUnits, type PaymentToken } from "./payments.js";
+import { ARC_TOKEN_ADDRESSES, arcTestnet, type PaymentToken } from "./payments.js";
 
 const HISTORY_PREFIX = "margit:agent-chat:";
 const HISTORY_TTL_SECONDS = 60 * 60 * 24;
@@ -102,7 +102,8 @@ async function buyListing(listingId: string, token: PaymentToken, operatorSessio
     // The built-in agent uses contract checkout, which follows the wallet channel.
     if (!allowsCheckout(listing.accessPolicy, "wallet")) return { ok: false, reason: "This listing requires x402 checkout. This agent's contract checkout tool cannot buy it." };
 
-    const amount = priceToAtomicUnits(listing.price);
+    const quote = await createCheckoutQuote(listingId,agentAccount.address,token,operatorSession);
+    const amount = BigInt(quote.order.amount);
     const tokenAddress = ARC_TOKEN_ADDRESSES[token] as `0x${string}`;
 
     const balance = (await publicClient.readContract({
@@ -120,7 +121,6 @@ async function buyListing(listingId: string, token: PaymentToken, operatorSessio
         };
     }
 
-    const quote = await createCheckoutQuote(listingId,agentAccount.address,token,operatorSession);
     if (quote.order.termsHash !== checkoutTermsHash(listing.price,token,listing.payoutAddress,listing.accessPolicy)) return {ok:false,reason:"Listing changed. Review its latest terms before purchasing."};
     const allowance = token === "USDC" ? BigInt(quote.order.amount) : await publicClient.readContract({address:tokenAddress,abi:[parseAbiItem("function allowance(address owner,address spender) view returns (uint256)")],functionName:"allowance",args:[agentAccount.address,quote.contract]});
     if (allowance < BigInt(quote.order.amount)) {

@@ -35,6 +35,7 @@ beforeEach(()=>{
    };
    return Response.json(Array.isArray(commands[0])?commands.map(run):run(commands));
   }
+  if(String(url).includes('api.frankfurter.dev')) return Response.json({base:'USD',quote:'EUR',rate:0.875,date:new Date().toISOString().slice(0,10)});
   if(String(url).includes('github.com'))return new Response('archive',{status:deliveryOk?200:401});
   const req=JSON.parse(String(init?.body));let result;
   if(req.method==='eth_call')result=encodeAbiParameters(parseAbiParameters('address'),[signer.address]);
@@ -102,4 +103,15 @@ test('x402 fees accrue once after launch, settlement credits are publisher-bound
  const summary=(await sellerFees('seller',sales))[0];
  assert.equal(summary.paid,'0.005');assert.equal(summary.owed,'0');assert.equal(summary.collected,'0');
  delete process.env.PLATFORM_FEES_STARTED_AT;
+});
+
+test('EURC quote, confirmation and history use the converted amount and fees',async()=>{
+ const q=await createCheckoutQuote('test',buyer,'EURC');
+ assert.equal(q.order.amount,'875000');
+ receipt=receiptFor(q);
+ receipt.logs.push({...receipt.logs[0],logIndex:'0x1',topics:encodeEventTopics({abi:checkoutAbi,eventName:'PurchaseFeeCollected',args:{purchaseId:q.order.orderId,token:q.order.token,treasury:signer.address}}),data:encodeAbiParameters(parseAbiParameters('uint256,uint256'),[4375n,870625n])});
+ const result=await completeCheckout(q.claimSecret,hash);
+ assert.equal(result.amount,'0.875');
+ const [sale]=await listPurchaseHistory('seller','seller');
+ assert.equal(sale.amount,'0.875');assert.equal(sale.currency,'EURC');assert.equal(sale.platformFee,'0.004375');assert.equal(sale.sellerNet,'0.870625');
 });

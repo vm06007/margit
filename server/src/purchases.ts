@@ -7,6 +7,7 @@ import type { Purchase } from '../../shared/purchase.js';
 import type { Listing } from './listings.js';
 export interface PaymentRecord {
     reference: string;
+    amount?: string;
     buyerWallet: string;
     currency: 'USDC' | 'EURC';
     channel: 'wallet' | 'x402';
@@ -23,13 +24,13 @@ interface StoredPurchase extends Purchase { encryptedAccessUrl: string; operator
 export const purchaseId = (reference: string) => createHash('sha256').update(`arc-testnet:${reference.toLowerCase()}`).digest('hex');
 export async function recordPurchase(listing: Listing, payment: PaymentRecord, access: { cloneUrl: string; expiresAt: string }) {
     const id = purchaseId(payment.reference);
-    const gross = moneyUnits(listing.price);
+    const gross = moneyUnits(payment.amount ?? listing.price);
     const started = Date.parse(process.env.PLATFORM_FEES_STARTED_AT ?? '');
     const deferred = payment.channel === 'x402' && Number.isFinite(started) && (payment.purchasedAt ?? Date.now()) >= started;
     const fee = deferred ? money(feeUnits(gross)) : payment.platformFee;
     const record: StoredPurchase = {
         id, listingId: listing.id, repoFullName: listing.repoFullName, seller: listing.ownerLogin.toLowerCase(), buyerWallet: payment.buyerWallet.toLowerCase(),
-        amount: listing.price.replace('$', ''), currency: payment.currency, channel: payment.channel,
+        amount: payment.amount ?? listing.price.replace('$', ''), currency: payment.currency, channel: payment.channel,
         status: payment.channel === 'x402' ? 'gateway_accepted' : 'confirmed', transactionHash: payment.transactionHash,
         createdAt: new Date(payment.purchasedAt ?? Date.now()).toISOString(), expiresAt: access.expiresAt, accessPolicy: parseAccessPolicy(listing.accessPolicy),
         checkoutContract: payment.checkoutContract, onchainPurchaseId: payment.onchainPurchaseId,

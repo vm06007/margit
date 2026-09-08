@@ -5,7 +5,7 @@ import { checkoutAbi, typedOrder, checkoutTermsHash, type CheckoutQuote } from '
 import { arcTestnet, thirdwebClient } from './thirdweb';
 import { ARC_TOKEN_ADDRESSES, type PaymentToken } from './constants';
 import type { Listing } from '../api';
-export interface CheckoutResult { cloneUrl:string; expiresAt:string; transactionHash:string; checkoutContract:string }
+export interface CheckoutResult { amount:string; cloneUrl:string; expiresAt:string; transactionHash:string; checkoutContract:string }
 interface Pending { claimSecret:string; transactionHash:string; currency:PaymentToken }
 const pendingKey = (listingId:string,buyer:string) => `margit:pending-checkout:${buyer.toLowerCase()}:${listingId}`;
 async function api<T>(path:string,body:unknown):Promise<T> {
@@ -17,7 +17,7 @@ async function api<T>(path:string,body:unknown):Promise<T> {
 export function pendingCheckout(listingId:string,buyer:string):Pending|null {
     try {return JSON.parse(localStorage.getItem(pendingKey(listingId,buyer)) ?? 'null');} catch {return null;}
 }
-export async function purchaseWithContract(listing:Listing,currency:PaymentToken,account:Account,onStatus:(status:'checking'|'sending'|'verifying')=>void):Promise<CheckoutResult & {currency:PaymentToken}> {
+export async function purchaseWithContract(listing:Listing,currency:PaymentToken,account:Account,onStatus:(status:'checking'|'sending'|'verifying')=>void, expectedAmount?:string):Promise<CheckoutResult & {currency:PaymentToken}> {
     const listingId = listing.id;
     const key = pendingKey(listingId,account.address);
     let pending = pendingCheckout(listingId,account.address);
@@ -25,7 +25,7 @@ export async function purchaseWithContract(listing:Listing,currency:PaymentToken
         onStatus('checking');
         const quote = await api<CheckoutQuote>('quote',{listingId,buyer:account.address,currency});
         if (quote.chainId !== arcTestnet.id || quote.order.buyer.toLowerCase() !== account.address.toLowerCase()) throw new Error('Checkout quote does not match this wallet or network');
-        if (quote.order.amount !== parseUnits(listing.price.replace('$',''),6).toString() || quote.order.token.toLowerCase() !== ARC_TOKEN_ADDRESSES[currency].toLowerCase() || quote.order.seller.toLowerCase() !== listing.payoutAddress.toLowerCase() || quote.order.termsHash !== checkoutTermsHash(listing.price,currency,listing.payoutAddress,listing.accessPolicy)) throw new Error('The listing changed. Refresh to review its latest price and access terms before paying.');
+        if (quote.order.amount !== (expectedAmount ?? (currency === 'USDC' ? parseUnits(listing.price.replace('$',''),6).toString() : '')) || quote.order.token.toLowerCase() !== ARC_TOKEN_ADDRESSES[currency].toLowerCase() || quote.order.seller.toLowerCase() !== listing.payoutAddress.toLowerCase() || quote.order.termsHash !== checkoutTermsHash(listing.price,currency,listing.payoutAddress,listing.accessPolicy)) throw new Error('The price or access terms changed. Review the updated amount and try again.');
         const token = getContract({client:thirdwebClient,chain:arcTestnet,address:quote.order.token});
         const amount = BigInt(quote.order.amount);
         const allowance = currency === 'USDC' ? amount : await readContract({contract:token,method:'function allowance(address owner,address spender) view returns (uint256)',params:[account.address,quote.contract]});

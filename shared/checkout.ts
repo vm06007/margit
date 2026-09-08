@@ -1,4 +1,4 @@
-import { parseAbi, keccak256, stringToHex } from 'viem';
+import { formatUnits, parseAbi, keccak256, stringToHex } from 'viem';
 import { parseAccessPolicy, type AccessPolicy } from './accessPolicy.js';
 export const CHECKOUT_CHAIN_ID = 5042002;
 export const checkoutAbi = parseAbi([
@@ -50,3 +50,8 @@ export const typedOrder = (order: CheckoutOrder) => ({...order, amount: BigInt(o
 export const checkoutDomain = (contract: `0x${string}`, chainId = CHECKOUT_CHAIN_ID) => ({name:'MargitCheckout',version:'1',chainId,verifyingContract:contract} as const);
 
 export const checkoutTermsHash = (price:string,currency:string,payout:string,policy?:AccessPolicy) => keccak256(stringToHex(JSON.stringify({version:1,policy:parseAccessPolicy(policy),price,currency,payout:payout.toLowerCase()})));
+
+export function checkoutAmountLabel(amount: string): string {
+    const [whole, fraction = ''] = formatUnits(BigInt(amount), 6).split('.');
+    return `${whole}.${fraction.padEnd(2, '0')}`;
+}
