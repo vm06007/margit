@@ -15,6 +15,7 @@ export interface Purchase {
     channel: 'wallet' | 'x402';
     status: 'confirmed' | 'gateway_accepted';
     transactionHash?: string;
+    gatewayReference?: string;
     checkoutContract?: string;
     onchainPurchaseId?: string;
     createdAt: string;

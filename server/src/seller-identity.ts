@@ -33,3 +33,16 @@ export async function authenticateSellerIdentity(token: string, historicalLogin:
     await identityStorage.set('margit:seller-ledger-login:'+id,alias,{nx:true});
     return {id,ledgerLogin:(await identityStorage.get<string>('margit:seller-ledger-login:'+id))!,aliases:await identityStorage.smembers('margit:seller-aliases:'+id)};
 }
+
+// Reading an authenticated portfolio does not require a fresh GitHub API call.
+// OAuth-bound sessions may use the identity already verified during backfill/login.
+export async function sessionSellerIdentity(session: {login:string;githubAccessToken:string;githubId?:number}): Promise<SellerIdentity> {
+    const savedId = session.githubId ?? await identityStorage.get<string | number>('margit:seller-login-id:'+session.login.toLowerCase());
+    if (savedId !== null && savedId !== undefined) {
+        const id = String(savedId);
+        const ledgerLogin = await identityStorage.get<string>('margit:seller-ledger-login:'+id);
+        const aliases = await identityStorage.smembers('margit:seller-aliases:'+id);
+        if (ledgerLogin && aliases.includes(session.login.toLowerCase())) return {id,ledgerLogin,aliases};
+    }
+    return authenticateSellerIdentity(session.githubAccessToken,session.login);
+}

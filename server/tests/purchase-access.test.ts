@@ -188,3 +188,17 @@ test("every nonempty currency combination is supported and x402 follows USDC acc
     const explicit=parseAccessPolicy({mode:"window",minutes:10,acceptCirBTC:true,acceptedTokens:["EURC"]});
     assert.equal(allowsPaymentToken(explicit,"cirBTC"),false);
 });
+
+test('x402 history retains a valid Circle receipt without exposing access credentials', async () => {
+    const {recordPurchase,listPurchaseHistory}=await import('../src/purchases.js');
+    const {circleReceiptUrl}=await import('../../shared/paymentReceipt.js');
+    const reference='7d5d3d90-96db-414c-a7e7-560524f6bc33';
+    const listing={id:'receipt-test',repoFullName:'seller/repo',ownerLogin:'seller',price:'$0.05',accessPolicy:{mode:'window',minutes:10}} as any;
+    await recordPurchase(listing,{reference:'receipt-test',buyerWallet:'0xbuyer',currency:'USDC',channel:'x402',gatewayReference:reference},{cloneUrl:'https://margit.example/api/access/private/repo.git',expiresAt:null});
+    const history=await listPurchaseHistory('seller','seller');
+    assert.equal(history[0].gatewayReference,reference);
+    assert.equal(circleReceiptUrl(history[0].gatewayReference),`https://gateway-api-testnet.circle.com/v1/x402/transfers/${reference}`);
+    assert.equal(circleReceiptUrl('https://example.com'),undefined);
+    assert.equal(circleReceiptUrl('0x'+'ab'.repeat(32)),undefined);
+    assert.ok(!JSON.stringify(history).includes('/access/private'));
+});

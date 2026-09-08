@@ -1,3 +1,4 @@
+import { circleReceiptUrl } from "../../shared/paymentReceipt.js";
 import type { PaymentToken } from "../../shared/paymentTokens.js";
 import { feeUnits, money, moneyUnits } from '../../shared/fees.js';
 import { createHash } from 'node:crypto';
@@ -13,6 +14,7 @@ export interface PaymentRecord {
     currency: PaymentToken;
     channel: 'wallet' | 'x402';
     transactionHash?: string;
+    gatewayReference?: string;
     operatorSession?: string;
     checkoutContract?: string;
     onchainPurchaseId?: string;
@@ -33,6 +35,7 @@ export async function recordPurchase(listing: Listing, payment: PaymentRecord, a
         id, listingId: listing.id, repoFullName: listing.repoFullName, seller: listing.ownerLogin.toLowerCase(), buyerWallet: payment.buyerWallet.toLowerCase(),
         amount: payment.amount ?? listing.price.replace('$', ''), currency: payment.currency, channel: payment.channel,
         status: payment.channel === 'x402' ? 'gateway_accepted' : 'confirmed', transactionHash: payment.transactionHash,
+        gatewayReference: payment.channel === 'x402' && circleReceiptUrl(payment.gatewayReference) ? payment.gatewayReference : undefined,
         createdAt: new Date(payment.purchasedAt ?? Date.now()).toISOString(), expiresAt: access.expiresAt, accessPolicy: parseAccessPolicy(listing.accessPolicy),
         checkoutContract: payment.checkoutContract, onchainPurchaseId: payment.onchainPurchaseId,
         ...(fee !== undefined ? {platformFee:fee, sellerNet:deferred ? money(gross-feeUnits(gross), payment.currency) : payment.sellerNet, feeCollection:deferred ? 'deferred' as const : 'automatic' as const, feeTreasury:payment.feeTreasury} : {}),

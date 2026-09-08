@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test, mock } from 'node:test';
-import { authenticateSellerIdentity, identityStorage } from '../src/seller-identity.js';
+import { authenticateSellerIdentity, identityStorage, sessionSellerIdentity } from '../src/seller-identity.js';
 
 test('verified GitHub ID preserves ledger and historical aliases across renames; rejects account reuse',async()=>{
     const values=new Map<string,unknown>(); const sets=new Map<string,Set<string>>();
@@ -18,6 +18,11 @@ test('verified GitHub ID preserves ledger and historical aliases across renames;
         assert.equal(renamed.id,initial.id);
         assert.equal(renamed.ledgerLogin,'original');
         assert.deepEqual(new Set(renamed.aliases),new Set(['original','renamed']));
+        mock.method(globalThis,'fetch',async()=>{throw new Error('GitHub unavailable');});
+        assert.deepEqual(await sessionSellerIdentity({login:'renamed',githubId:123,githubAccessToken:'expired'}),renamed);
+        assert.deepEqual(await sessionSellerIdentity({login:'original',githubAccessToken:'expired'}),renamed);
+        await assert.rejects(sessionSellerIdentity({login:'original',githubId:999,githubAccessToken:'unverified'}),/GitHub unavailable/);
+        mock.method(globalThis,'fetch',async()=>Response.json(user));
         user={id:999,login:'original'};
         await assert.rejects(authenticateSellerIdentity('fixture-token-3','original'),/identity changed/);
         assert.equal(String(values.get('margit:seller-login-id:original')),'123');

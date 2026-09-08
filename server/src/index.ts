@@ -24,7 +24,7 @@ import {
     deleteListing,
     getListing,
     listListings,
-    refreshSellerCredential,
+    refreshSellerCredential, getRefreshedSellerCredential,
     type Listing,
 } from "./listings.js";
 import { resolveArcNsReverse, resolvePayoutAddress } from "./names.js";
@@ -118,7 +118,7 @@ app.use("/api/listings/unlock", async (c, next) => {
     if (typeof payer !== "string" || !/^0x[0-9a-f]{40}$/i.test(payer)) throw new Error("Settled payment has no verifiable payer");
     const access = await c.res.clone().json() as {cloneUrl:string;expiresAt:string|null};
     const reference = `x402:${createHash("sha256").update(`${payer.toLowerCase()}:${authorization?.nonce ?? signedHeader}`).digest("hex")}`;
-    await recordPurchase(listing, {reference,buyerWallet:payer,currency:"USDC",channel:"x402",transactionHash: /^0x[0-9a-f]{64}$/i.test(settlement.transaction ?? "") ? settlement.transaction : undefined}, access);
+    await recordPurchase(listing, {reference,buyerWallet:payer,currency:"USDC",channel:"x402",gatewayReference:settlement.transaction,transactionHash: /^0x[0-9a-f]{64}$/i.test(settlement.transaction ?? "") ? settlement.transaction : undefined}, access);
 });
 
 // x402 paywall on Arc testnet, settled via Circle's Gateway facilitator. Price and
@@ -296,12 +296,13 @@ app.get("/api/auth/github/callback", async (c) => {
         },
     });
     if (!userRes.ok) return c.text("GitHub could not verify your account. Please reconnect.", 502);
-    const user = (await userRes.json()) as { login: string; name: string | null; avatar_url: string };
+    const user = (await userRes.json()) as { id: number; login: string; name: string | null; avatar_url: string };
     await refreshSellerCredential(user.login, tokenJson.access_token);
 
     const sessionId = await createSession({
         githubAccessToken: tokenJson.access_token,
         login: user.login,
+        githubId: user.id,
         name: user.name,
         avatarUrl: user.avatar_url,
     });
@@ -365,18 +366,19 @@ app.get("/api/repos", async (c) => {
     const session = await getSession(getCookie(c, SESSION_COOKIE));
     if (!session) return c.json({ error: "Not authenticated" }, 401);
 
+    const token = await getRefreshedSellerCredential(session.login) ?? session.githubAccessToken;
     const reposRes = await fetch(
         "https://api.github.com/user/repos?sort=updated&per_page=100&affiliation=owner",
         {
             headers: {
-                Authorization: `Bearer ${session.githubAccessToken}`,
+                Authorization: `Bearer ${token}`,
                 Accept: "application/vnd.github+json",
             },
         },
     );
 
     if (!reposRes.ok) {
-        return c.json({ error: "Failed to fetch repos from GitHub" }, 502);
+        return c.json({ error: reposRes.status === 401 ? "GitHub access has expired. Reconnect GitHub to load your repositories." : "GitHub could not load repositories. Please try again." }, reposRes.status === 401 ? 401 : 502);
     }
 
     const repos = (await reposRes.json()) as Array<{

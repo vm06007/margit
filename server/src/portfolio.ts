@@ -1,4 +1,4 @@
-import { authenticateSellerIdentity } from "./seller-identity.js";
+import { sessionSellerIdentity } from "./seller-identity.js";
 import { identitySales, identityFees, x402FeesPaused, X402_FEE_DEBT_LIMIT } from "./fee-eligibility.js";
 import { confirmFeePayment, feeContract } from './fees.js';
 import { sellerFeeId } from '../../shared/fees.js';
@@ -39,11 +39,13 @@ portfolio.post('/verify', async c => {
     return c.json({address:challenge.address});
 });
 async function walletFor(session?:string) {return session ? await redis.get<string>(`margit:portfolio:session:${session}`) : undefined;}
+portfolio.onError((_error,c) => c.json({error:'Could not load portfolio data. Try again; reconnect GitHub if your session has expired.'},503));
 portfolio.get('/',async c => {
+    c.header('Cache-Control','no-store');
     const wallet = await walletFor(getCookie(c,'margit_portfolio'));
     const github = await getSession(getCookie(c,'margit_session'));
     const operator = getCookie(c,'margit_agent_session');
-    const identity = github ? await authenticateSellerIdentity(github.githubAccessToken,github.login) : null;
+    const identity = github ? await sessionSellerIdentity(github) : null;
     const fees = identity ? await identityFees(identity) : [];
     const [purchases,sales,agentPurchases] = await Promise.all([
         wallet ? listPurchaseHistory('buyer',wallet) : [],
@@ -64,7 +66,7 @@ portfolio.post('/fees/prepare',async c=>{
     const github=await getSession(getCookie(c,'margit_session'));
     if (!github) return c.json({error:'Connect GitHub to settle publisher fees.'},401);
     try {
-        const identity=await authenticateSellerIdentity(github.githubAccessToken,github.login);
+        const identity=await sessionSellerIdentity(github);
         const summary=await identityFees(identity);
         return c.json({contract:feeContract(),sellerId:sellerFeeId(identity.ledgerLogin),amount:summary.find(s=>s.currency==='USDC')!.owed});
     } catch(e){return c.json({error:e instanceof Error?e.message:'Could not prepare payment'},400);}
@@ -74,7 +76,7 @@ portfolio.post('/fees/confirm',async c=>{
     if (!github) return c.json({error:'Connect GitHub to confirm publisher fees.'},401);
     try {
         const {transactionHash}=await c.req.json<{transactionHash:string}>();
-        const identity=await authenticateSellerIdentity(github.githubAccessToken,github.login);
+        const identity=await sessionSellerIdentity(github);
         return c.json(await confirmFeePayment(identity.ledgerLogin,transactionHash,identity.aliases));
     } catch(e){return c.json({error:e instanceof Error?e.message:'Could not confirm payment'},400);}
 });

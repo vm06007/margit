@@ -8,6 +8,7 @@ const SESSION_TTL_SECONDS = 60 * 60 * 8;
 export interface SessionData {
     githubAccessToken: string;
     login: string;
+    githubId?: number;
     name: string | null;
     avatarUrl: string;
 }
@@ -15,6 +16,7 @@ export interface SessionData {
 interface StoredSession {
     encryptedGithubAccessToken: string;
     login: string;
+    githubId?: number;
     name: string | null;
     avatarUrl: string;
 }
@@ -24,6 +26,7 @@ export async function createSession(data: SessionData): Promise<string> {
     const stored: StoredSession = {
         encryptedGithubAccessToken: encryptToken(data.githubAccessToken),
         login: data.login,
+        githubId: data.githubId,
         name: data.name,
         avatarUrl: data.avatarUrl,
     };
@@ -38,6 +41,7 @@ export async function getSession(id: string | undefined): Promise<SessionData | 
     return {
         githubAccessToken: decryptToken(stored.encryptedGithubAccessToken),
         login: stored.login,
+        githubId: stored.githubId,
         name: stored.name,
         avatarUrl: stored.avatarUrl,
     };
