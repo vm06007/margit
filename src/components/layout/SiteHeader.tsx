@@ -8,7 +8,7 @@ export function SiteHeader({ home, me, onLogout, agentOpen, onToggleAgent, path 
   home: boolean; me: Me; onLogout: () => void; agentOpen: boolean; onToggleAgent: () => void; path: string;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [theme, setTheme] = useState(() => localStorage.getItem('template.theme') || 'light');
+  const [theme, setTheme] = useState(() => localStorage.getItem('template.theme') || 'dark');
   const menuRef = useRef<HTMLDivElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
