@@ -1,3 +1,5 @@
+import { PublisherFeeInfo } from '../components/PublisherFeeInfo';
+import { circleReceiptUrl } from "../../shared/paymentReceipt";
 import { PAYMENT_TOKENS } from "../../shared/paymentTokens";
 import { sortPortfolio, type PortfolioSort, type PortfolioSortKey } from "../lib/portfolioSort";
 import { resolveArcNsReverse } from "../api";
@@ -15,10 +17,15 @@ import '../styles/portfolio.css';
 interface History {feeSellerId?:string|null;x402FeePolicy?:{threshold:string;paused:boolean};fees:FeeSummary[];wallet:string|null;seller:string|null;purchases:Purchase[];sales:Purchase[];graph?:{configured:boolean;available:boolean;ids:string[]}}
 async function request<T>(path:string,body?:unknown):Promise<T> {
     const response = await fetch(`/api/portfolio${path}`, {method:body ? 'POST':'GET', credentials:'include',headers:body ? {'Content-Type':'application/json'}:undefined,body:body ? JSON.stringify(body):undefined});
-    const result = await response.json();
+    const result = await response.json().catch(() => { throw new Error(`Could not load portfolio (HTTP ${response.status}). Please try again.`); });
     if (!response.ok) throw new Error(result.error ?? 'Could not load portfolio');
     return result as T;
 }
+const paymentReceiptUrl = (purchase: Purchase) =>
+    (purchase.channel === 'x402' ? circleReceiptUrl(purchase.gatewayReference) : undefined)
+    ?? (purchase.transactionHash ? `${arcTestnet.blockExplorers?.[0]?.url}/tx/${purchase.transactionHash}` : undefined);
+const paymentReceiptTitle = (purchase: Purchase) => purchase.channel === 'x402' && circleReceiptUrl(purchase.gatewayReference)
+    ? 'Verify x402 payment on Circle' : 'View transaction on Arc explorer';
 const purchaseDateFormat = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 const relativeTimeFormat = new Intl.RelativeTimeFormat('en-US', { numeric: 'always' });
 function relativePurchaseTime(createdAt: string, now: number) {
@@ -50,9 +57,17 @@ export function PortfolioPage() {
     const account = useActiveAccount();
     const connect = useConnectModal();
     const [history,setHistory] = useState<History|null>(null);
-    const [tab,setTab] = useState<'purchases'|'sales'>('purchases');
+    const [tab,setTab] = useState<'purchases'|'sales'>(() => {
+        try { return localStorage.getItem('margit:portfolio-tab') === 'sales' ? 'sales' : 'purchases'; }
+        catch { return 'purchases'; }
+    });
+    useEffect(() => {
+        try { localStorage.setItem('margit:portfolio-tab', tab); }
+        catch { /* Keep tab switching available when browser storage is disabled. */ }
+    }, [tab]);
     const [sort, setSort] = useState<PortfolioSort>({ key: 'date', direction: 'desc' });
     const [earningsOpen, setEarningsOpen] = useState(false);
+    const [feeInfoOpen, setFeeInfoOpen] = useState(false);
     const [showZeroCirBTC, setShowZeroCirBTC] = useState(false);
     const [buyerNames, setBuyerNames] = useState<Record<string, string | null>>({});
     const buyerLookups = useRef(new Map<string, Promise<string | null>>());
@@ -89,7 +104,13 @@ export function PortfolioPage() {
     }, [access, tab]);
 
     const refresh = () => request<History>('').then(setHistory);
-    useEffect(() => { let active = true; request<History>('').then(data => {if(active)setHistory(data)}).catch(e=>{if(active)setError(e.message)});return()=>{active=false}; },[]);
+    useEffect(() => {
+        let active = true;
+        const reload = () => { void request<History>('').then(data => { if(active){setHistory(data);setError(null);} }).catch(e => { if(active)setError(e.message); }); };
+        reload();
+        window.addEventListener('focus',reload);
+        return () => {active=false;window.removeEventListener('focus',reload);};
+    },[tab]);
     const signIn = async () => {
         setBusy(true);setError(null);setAccess(null);
         try {
@@ -152,13 +173,15 @@ export function PortfolioPage() {
         {tab==='purchases' && history && (!history.wallet || (account && history.wallet.toLowerCase() !== account.address.toLowerCase())) && <p className="hint portfolio-verify-prompt">To view purchases for your wallet, <button type="button" className="portfolio-verify-link" disabled={busy} onClick={signIn}>{busy ? 'verifying…' : 'verify wallet ownership'}</button>.</p>}
         {history && <div className="portfolio-wallet-row">
             {history.wallet && <p className="hint">Verified wallet: {history.wallet.slice(0,8)}…{history.wallet.slice(-6)}</p>}
-            {!hasCirBTC && <button type="button" className="portfolio-currency-toggle" aria-pressed={showZeroCirBTC} onClick={() => setShowZeroCirBTC(show => !show)}>{showZeroCirBTC ? 'Hide cirBTC' : 'Show cirBTC'}</button>}
+            {!hasCirBTC && <button type="button" className="portfolio-currency-toggle" aria-pressed={showZeroCirBTC} onClick={() => setShowZeroCirBTC(show => !show)}>{showZeroCirBTC ? 'Show Less' : 'Show More'}</button>}
         </div>}
         {tab==='sales' && !history?.seller && <p>Connect GitHub to view your sales. <a href="/api/auth/github/login">Connect GitHub ↗</a></p>}
         {error && <p className="error" role="alert">{error}</p>}
-        {tab==='sales' && history?.seller && history.x402FeePolicy && <p className="hint" role="status">{history.x402FeePolicy.paused ? `Your x402 sales are paused. Pay fees to bring the balance below ${history.x402FeePolicy.threshold} USDC and resume sales.` : `x402 sales pause when unpaid fees reach ${history.x402FeePolicy.threshold} USDC.`} Existing purchases remain accessible under their original terms. Contract checkout continues.</p>}
         {history && <div className="portfolio-totals">{PAYMENT_TOKENS.filter(currency => currency !== "cirBTC" || showCirBTC).map(currency=><span className="portfolio-total" key={currency}><img className="portfolio-token-icon" src={`/icons/${currency.toLowerCase()}.svg`} width="32" height="32" alt="" /><strong>{rows.filter(p=>p.currency===currency).reduce((sum,p)=>sum+Number(p.amount),0).toFixed(currency==='cirBTC'?8:2)}</strong><span className="portfolio-total-label">{currency} {tab==='sales'?'gross sales':'spent'}</span></span>)}<span className="portfolio-total"><i className={`ph ${tab==='sales'?'ph-tag':'ph-shopping-cart'}`} aria-hidden="true" /><strong>{rows.length}</strong><span className="portfolio-total-label">{tab==='sales'?'sales':'purchases'}</span></span>
-            {tab==='sales' && history.seller && usdcFees && (moneyUnits(usdcFees.owed)>0n || pendingFee) && <button type="button" className="btn btn-primary portfolio-pay-fees" disabled={busy} onClick={settleFees}>{busy?'Confirming…':pendingFee?'Recover fee payment':'Pay '+usdcFees.owed+' USDC fees'}</button>}
+            {tab==='sales' && history.seller && usdcFees && <div className="portfolio-fee-actions">
+                {history.x402FeePolicy?.paused && <span className="hint" role="status">x402 sales paused</span>}
+                {(moneyUnits(usdcFees.owed)>0n || pendingFee) && <button type="button" className="btn btn-primary portfolio-pay-fees" disabled={busy} aria-haspopup="dialog" onClick={() => setFeeInfoOpen(true)}>{busy?'Confirming…':pendingFee?'Recover fee payment':'Pay '+usdcFees.owed+' USDC fees'}</button>}
+            </div>}
         </div>}
         {tab==='sales' && history?.seller && <section className={`portfolio-fees${earningsOpen ? ' is-open' : ''}`} aria-labelledby="publisher-earnings-heading">
             <h3 id="publisher-earnings-heading" className="portfolio-fees-heading"><button type="button" className="portfolio-fees-summary" aria-expanded={earningsOpen} aria-controls="publisher-earnings-content" onClick={() => setEarningsOpen(open => !open)}>Publisher earnings<i className="ph ph-caret-down" aria-hidden="true" /></button></h3>
@@ -179,23 +202,24 @@ export function PortfolioPage() {
             <p className="hint">Fees apply to sales made after launch. Prior sales remain fee-free. Network gas is separate.</p>
             </div></div></div>
         </section>}
-        {!history ? (error ? null : <PageLoading label="Loading portfolio…" />) : !rows.length ? <p className="hint portfolio-empty" role="status">No {tab} recorded yet. History starts with purchases made after this feature was added.</p> : <div className="portfolio-table-wrap"><table><thead><tr>{columns.map(column => <th key={column.key} scope="col" aria-sort={sort.key === column.key ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}><button className="portfolio-sort-button" type="button" onClick={() => changeSort(column.key)} title={column.key === 'access' ? 'Sort by access expiry' : column.key === 'amount' ? 'Sort by token amount' : `Sort by ${column.label.toLowerCase()}`}><span>{column.label}</span><i aria-hidden="true" className={`ph ${sort.key === column.key ? sort.direction === 'asc' ? 'ph-arrow-up' : 'ph-arrow-down' : 'ph-arrows-down-up'}`} /></button></th>)}</tr></thead><tbody>{rows.map(p=><tr key={p.id}
-            className={p.transactionHash ? "portfolio-transaction-row" : undefined}
-            tabIndex={p.transactionHash ? 0 : undefined}
-            title={p.transactionHash ? "View transaction on Arc explorer" : undefined}
+        {!history ? (error ? null : <PageLoading label="Loading portfolio…" />) : !rows.length ? <p className="hint portfolio-empty" role="status">No {tab} recorded yet. History starts with purchases made after this feature was added.</p> : <div className="portfolio-table-wrap"><div className="portfolio-table-scroll" role="region" aria-label={tab === "sales" ? "Sales history" : "Purchase history"} tabIndex={0} data-lenis-prevent><table><thead><tr>{columns.map(column => <th key={column.key} scope="col" aria-sort={sort.key === column.key ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}><button className="portfolio-sort-button" type="button" onClick={() => changeSort(column.key)} title={column.key === 'access' ? 'Sort by access expiry' : column.key === 'amount' ? 'Sort by token amount' : `Sort by ${column.label.toLowerCase()}`}><span>{column.label}</span><i aria-hidden="true" className={`ph ${sort.key === column.key ? sort.direction === 'asc' ? 'ph-arrow-up' : 'ph-arrow-down' : 'ph-arrows-down-up'}`} /></button></th>)}</tr></thead><tbody>{rows.map(p=><tr key={p.id}
+            className={paymentReceiptUrl(p) ? "portfolio-transaction-row" : undefined}
+            tabIndex={paymentReceiptUrl(p) ? 0 : undefined}
+            title={paymentReceiptUrl(p) ? paymentReceiptTitle(p) : undefined}
             onClick={event => {
-                if (!p.transactionHash || event.defaultPrevented || (event.target as Element).closest('a, button, input, select, textarea, [role="button"]') || window.getSelection()?.toString()) return;
+                if (!paymentReceiptUrl(p) || event.defaultPrevented || (event.target as Element).closest('a, button, input, select, textarea, [role="button"]') || window.getSelection()?.toString()) return;
                 event.currentTarget.querySelector<HTMLAnchorElement>(".portfolio-payment-link")?.click();
             }}
             onKeyDown={event => {
-                if (event.target !== event.currentTarget || !p.transactionHash || (event.key !== "Enter" && event.key !== " ")) return;
+                if (event.target !== event.currentTarget || !paymentReceiptUrl(p) || (event.key !== "Enter" && event.key !== " ")) return;
                 event.preventDefault();
                 event.currentTarget.querySelector<HTMLAnchorElement>(".portfolio-payment-link")?.click();
             }}>
 
-            <td><PortfolioRepository purchase={p} /></td><td>{p.amount} {p.currency}{tab==='sales' && (p.platformFee !== undefined && moneyUnits(p.platformFee,p.currency)>0n ? <small>Fee {p.platformFee} · Net {p.sellerNet}<br/>{p.feeCollection==='automatic'?'Fee collected':'Fee billed separately'}</small> : <small aria-label="No fee">—</small>)}</td><td>{p.transactionHash ? <a className="portfolio-payment-label portfolio-payment-link" href={`${arcTestnet.blockExplorers?.[0]?.url}/tx/${p.transactionHash}`} target="_blank" rel="noopener noreferrer" title="View transaction on Arc explorer"><span>{p.channel==='x402'?'x402':p.checkoutContract?'Margit checkout':'Wallet'}</span><span className="portfolio-explorer-link" aria-hidden="true">↗</span></a> : <span>{p.channel==='x402'?'x402':p.checkoutContract?'Margit checkout':'Wallet'}</span>}{p.status==='gateway_accepted' && <small>Gateway accepted</small>}<small>{p.onchainPurchaseId && history.graph?.ids.includes(p.id) ? 'Indexed by The Graph' : '—'}</small></td><td><time dateTime={p.createdAt} title={new Date(p.createdAt).toLocaleString()}>{purchaseDateFormat.format(new Date(p.createdAt))}</time><small>{relativePurchaseTime(p.createdAt, now)}</small></td>
+            <td><PortfolioRepository purchase={p} /></td><td>{p.amount} {p.currency}{tab==='sales' && (p.platformFee !== undefined && moneyUnits(p.platformFee,p.currency)>0n ? <small>Fee {p.platformFee} · Net {p.sellerNet}<br/>{p.feeCollection==='automatic'?'Fee collected':'Fee billed separately'}</small> : <small aria-label="No fee">—</small>)}</td><td>{paymentReceiptUrl(p) ? <a className="portfolio-payment-label portfolio-payment-link" href={paymentReceiptUrl(p)} target="_blank" rel="noopener noreferrer" title={paymentReceiptTitle(p)}><span>{p.channel==='x402'?'x402':p.checkoutContract?'Margit checkout':'Wallet'}</span><span className="portfolio-explorer-link" aria-hidden="true">↗</span></a> : <span>{p.channel==='x402'?'x402':p.checkoutContract?'Margit checkout':'Wallet'}</span>}{p.status==='gateway_accepted' && <small>Gateway accepted</small>}<small>{p.onchainPurchaseId && history.graph?.ids.includes(p.id) ? 'Indexed by The Graph' : '—'}</small></td><td><time dateTime={p.createdAt} title={new Date(p.createdAt).toLocaleString()}>{purchaseDateFormat.format(new Date(p.createdAt))}</time><small>{relativePurchaseTime(p.createdAt, now)}</small></td>
             <td>{tab==='sales'?<><a className="portfolio-buyer-link" href={`${arcTestnet.blockExplorers?.[0]?.url}/address/${p.buyerWallet}`} target="_blank" rel="noopener noreferrer" title={`View ${p.buyerWallet} on Arc explorer`}>{buyerNames[p.buyerWallet.toLowerCase()] ?? `${p.buyerWallet.slice(0,8)}…${p.buyerWallet.slice(-6)}`}</a>{buyerNames[p.buyerWallet.toLowerCase()] && <small title={p.buyerWallet}>{`${p.buyerWallet.slice(0,8)}…${p.buyerWallet.slice(-6)}`}</small>}</>:p.expiresAt !== null && Date.parse(p.expiresAt)<=now?<><span>Expired</span><small>On {new Date(p.expiresAt).toLocaleString('en-US', {month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})}</small></>:<><button type="button" className="portfolio-access-link" disabled={busy} onClick={()=>openAccess(p)}>Get code</button><small>{p.expiresAt === null ? "Permanent access" : `Until ${new Date(p.expiresAt).toLocaleString('en-US', {month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})}`}{p.accessPolicy.mode==='single_download'?' · One download start':''}</small></>}</td>
-        </tr>)}</tbody></table></div>}
+        </tr>)}</tbody></table></div></div>}
+        {feeInfoOpen && <PublisherFeeInfo owed={usdcFees?.owed ?? '0'} threshold={history?.x402FeePolicy?.threshold ?? '1.00'} paused={history?.x402FeePolicy?.paused ?? false} recovering={Boolean(pendingFee)} onClose={() => setFeeInfoOpen(false)} onProceed={() => { setFeeInfoOpen(false); void settleFees(); }} />}
         {access && tab==='purchases' && <div className="portfolio-access" ref={accessSection} tabIndex={-1} role="region" aria-label={`Code access for ${access.repoFullName}`}><h3>{access.repoFullName}</h3><p className="hint">Original purchase access. Opening it does not extend expiry or reset a one-time download.</p><CloneResult key={access.id} cloneUrl={access.cloneUrl} repoFullName={access.repoFullName}/></div>}
     </section>;
 }
