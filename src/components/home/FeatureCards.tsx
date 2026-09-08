@@ -9,55 +9,6 @@ export function FeatureCards() {
             <div className="container-fluid px-0">
               <div className="row gx-0">
 
-                <div className="col-12 col-xl-8 mxd-features-cards__item features-item-01 mxd-grid-item anim-uni-scale-in-right">
-                  <div className="mxd-features-cards__inner justify-between bg-base-tint radius-l padding-4">
-                    <div className="mxd-features-cards__gradient features-gradient-01">
-                      <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200">
-                        <style type="text/css">{"\n                            .mxd-card-bg{fill:url(#purple-radial-grad);}\n                          "}</style>
-                        <g>
-                          <radialGradient id="purple-radial-grad" cx="600" cy="600" r="600" gradientUnits="userSpaceOnUse">
-                            <stop offset="0" style={{ "stopColor": "#9F8BE7", "stopOpacity": "0.6" }}></stop>
-                            <stop offset="1" style={{ "stopColor": "#9F8BE7", "stopOpacity": "0" }}></stop>
-                          </radialGradient>
-                          <circle className="mxd-card-bg" cx="600" cy="600" r="600"></circle>
-                        </g>
-                      </svg>
-                    </div>
-                    <div className="mxd-features-cards__image features-image-01">
-                      <img src="/site/img/demo/02_fea-img.webp" alt="Margit Illustration" />
-                    </div>
-                    <div className="mxd-features-cards__title">
-                      <h3 className="anim-uni-in-up">{"Dynamic & stylish design"}</h3>
-                    </div>
-                    <div className="mxd-features-cards__info">
-                      <div className="mxd-features-cards__tags">
-                        <span className="tag tag-default tag-outline anim-uni-in-up">{"Design"}</span>
-                        <span className="tag tag-default tag-outline anim-uni-in-up">{"Layouts"}</span>
-                        <span className="tag tag-default tag-outline anim-uni-in-up">{"Visuals"}</span>
-                      </div>
-                      <p className="anim-uni-in-up">{"Modern, eye-catching layouts crafted to make your brand stand \n                          out and keep visitors engaged."}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="col-12 col-xl-4 mxd-features-cards__item mxd-grid-item anim-uni-scale-in-left">
-                  <div className="mxd-features-cards__inner justify-end bg-accent radius-l padding-4">
-                    <div className="mxd-features-cards__image features-image-02">
-                      <img src="/site/img/demo/03_fea-img.webp" alt="Margit Illustration" />
-                    </div>
-                    <div className="mxd-features-cards__title">
-                      <h3 className="opposite anim-uni-in-up">{"Dark / light"}<br />{"mode"}</h3>
-                    </div>
-                    <div className="mxd-features-cards__info">
-                      <div className="mxd-features-cards__tags">
-                        <span className="tag tag-default tag-outline-opposite anim-uni-in-up">{"Theme Choice"}</span>
-                        <span className="tag tag-default tag-outline-opposite anim-uni-in-up">{"Interactive"}</span>
-                      </div>
-                      <p className="t-opposite anim-uni-in-up">{"Switch effortlessly between light and dark modes \n                          for a user-friendly experience."}</p>
-                    </div>
-                  </div>
-                </div>
-
                 <div className="col-12 col-xl-4 mxd-features-cards__item mxd-grid-item anim-uni-scale-in-right">
                   <div className="mxd-features-cards__inner bg-additional radius-l padding-4">
                     <div className="mxd-features-cards__title">

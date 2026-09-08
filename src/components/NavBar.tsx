@@ -1,3 +1,4 @@
+import { GithubConnectButton } from "./GithubConnectButton";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useActiveAccount, useConnectModal, useWalletDetailsModal } from "thirdweb/react";
 import { shortenAddress } from "thirdweb/utils";
@@ -140,7 +141,7 @@ export function ProfileDropdown({ me, onLogout }: { me: Me; onLogout: () => void
         }
     };
 
-    if (!me.authenticated) return <a className="btn btn-anim btn-default btn-mobile-icon btn-outline slide-right-up" href="/api/auth/github/login" aria-label="Account"><span className="btn-caption">Connect With GitHub</span><i className="ph-bold ph-github-logo" /></a>;
+    if (!me.authenticated) return <GithubConnectButton className="btn btn-anim btn-default btn-mobile-icon btn-outline slide-right-up" />;
 
     return (
         <div className="profile-dropdown" ref={ref}>

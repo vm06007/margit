@@ -12,9 +12,6 @@ export function ResponsivePromo() {
     <section className="mxd-section">
       <div className="mxd-container">
         <div className="market-directions">
-          <div className="market-directions-copy">
-            <p className="reveal-type"><RevealText text="A marketplace in every direction — human to human, human to agent, agent to human, and agent to agent." /></p>
-          </div>
           <div className="market-directions-grid">
             {directions.map(([from, to, fromIcon, toIcon]) => (
               <div className="market-direction" key={`${from}-${to}`}>
@@ -22,6 +19,9 @@ export function ResponsivePromo() {
                 <p>{from} <span aria-hidden="true">→</span> {to}</p>
               </div>
             ))}
+          </div>
+          <div className="market-directions-copy">
+            <p className="reveal-type"><RevealText text="A marketplace in every direction — human to human, human to agent, agent to human, and agent to agent." /></p>
           </div>
         </div>
       </div>

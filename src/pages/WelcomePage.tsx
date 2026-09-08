@@ -2,7 +2,6 @@ import type { Listing, Me } from "../api";
 import { Hero } from "../components/home/Hero";
 import { DemoGallery } from "../components/home/DemoGallery";
 import { RolesMarquee } from "../components/home/RolesMarquee";
-import { DemoCards } from "../components/home/DemoCards";
 import { ResponsivePromo } from "../components/home/ResponsivePromo";
 import { PagesMarquee } from "../components/home/PagesMarquee";
 import { FeaturesPromo } from "../components/home/FeaturesPromo";
@@ -18,7 +17,6 @@ export function WelcomePage({ listings = null, listingsError = null }: { me?: Me
     <Hero />
     <DemoGallery />
     <RolesMarquee />
-    <DemoCards />
     <ResponsivePromo />
     <PagesMarquee />
     <FeaturesPromo />

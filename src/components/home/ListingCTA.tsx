@@ -1,3 +1,4 @@
+import { GithubConnectButton } from "../GithubConnectButton";
 import { RevealText } from "./RevealText";
 
 export function ListingCTA() {
@@ -11,10 +12,7 @@ export function ListingCTA() {
               <h2 className="h2-small reveal-type"><RevealText text={"List your first repo and let agents find it."} /></h2>
             </div>
             <div className="mxd-demo-cta__btn anim-uni-in-up">
-              <a className="btn btn-anim btn-default btn-large btn-additional slide-right" href="/api/auth/github/login">
-                <span className="btn-caption">{"Connect with GitHub"}</span>
-                <i className="ph-bold ph-github-logo"></i>
-              </a>
+              <GithubConnectButton className="btn btn-anim btn-default btn-large btn-additional slide-right" label="Connect with GitHub" />
             </div>
           </div>
         </div>
