@@ -367,6 +367,31 @@
 .site-app .agent-header h3 { display: flex; align-items: center; gap: .5rem; margin: 0; }
 .site-app .agent-header .hint { margin-top: .4rem; font-size: 1.4rem; color: var(--t-medium); }
 .site-app .agent-wallet-meta { margin-top: .5rem; font-size: 1.6rem; line-height: 1.45; color: var(--t-medium); }
+.site-app .agent-wallet-balances {
+    display: inline-flex;
+    align-items: center;
+    gap: .55rem;
+}
+.site-app .agent-refresh-balances {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: .15rem;
+    border: 0;
+    background: transparent;
+    color: var(--t-medium);
+    cursor: pointer;
+    border-radius: .3rem;
+    line-height: 1;
+}
+.site-app .agent-refresh-balances i { font-size: 1.6rem; }
+.site-app .agent-refresh-balances:hover:not(:disabled) { color: var(--accent); }
+.site-app .agent-refresh-balances:disabled { opacity: .45; cursor: wait; }
+.site-app .agent-refresh-balances:focus-visible { outline: 2px solid var(--t-bright); outline-offset: 2px; }
+.site-app .agent-refresh-balances .is-spinning { animation: agent-loading-spin .8s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+    .site-app .agent-refresh-balances .is-spinning { animation: none; }
+}
 .site-app .agent-wallet-line { display: inline-flex; align-items: center; gap: .55rem; color: var(--t-bright); font-size: 1.7rem; }
 .site-app .agent-wallet-label { color: var(--t-medium); }
 .site-app .agent-wallet-line .ph-wallet { font-size: 1.8rem; color: var(--accent); }
@@ -661,9 +686,23 @@
     background: var(--base-tint);
 }
 .site-app .agent-prompt-suggestions button:hover { color: var(--base); background: var(--accent); }
-.site-app .agent-circle-status,.site-app .agent-payment-proof { display:grid; gap:.5rem; padding:1.2rem; border:1px solid var(--st-muted); border-radius:1.2rem; font-size:1.4rem; }
-.site-app .agent-circle-status small,.site-app .agent-payment-proof small { color:var(--t-medium); }
+.site-app .agent-circle-status,.site-app .agent-payment-proof { display:grid; gap:.5rem; padding:1.2rem; border:1px solid var(--st-muted); border-radius:1.2rem; font-size:1.7rem; }
+.site-app .agent-circle-status small { color:var(--t-medium); font-size: inherit; }
 .site-app .agent-payment-proof { margin:1rem 0; }
+.site-app .agent-payment-proof strong,
+.site-app .agent-payment-proof span,
+.site-app .agent-payment-proof summary,
+.site-app .agent-payment-proof .agent-payment-meta,
+.site-app .agent-payment-proof .agent-payment-note {
+    font: inherit;
+    font-size: 1.7rem;
+    line-height: 1.5;
+}
+.site-app .agent-payment-proof .agent-payment-meta,
+.site-app .agent-payment-proof .agent-payment-note {
+    margin: 0;
+    color: var(--t-medium);
+}
 .site-app .agent-payment-proof dd { overflow-wrap:anywhere; margin:0 0 .8rem; }
 .site-app .agent-payment-proof dt { color:var(--t-medium); }
 .site-app .agent-transaction-link { display:block; margin:1rem 0; color:var(--accent); }

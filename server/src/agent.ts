@@ -745,5 +745,7 @@ export async function runAgentTurn(
         ex: HISTORY_TTL_SECONDS,
     });
 
-    return { reply: finalText || "(no response)", purchase, listingChange };
+    return { reply: finalText.trim() || (purchase
+        ? "Purchase completed. Payment proof and repository access are shown below."
+        : "(no response)"), purchase, listingChange };
 }

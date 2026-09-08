@@ -48,8 +48,8 @@ sequenceDiagram
     participant GitHub
     User->>Agent: Send purchase request
     Agent->>API: Discover listings and terms
-    Agent->>Buyer: buy_listing_x402(listing ID)
-    Note over Buyer: Reserve purchase intent; Arc testnet only
+    Agent->>Buyer: buy_listing_x402 with listing ID
+    Note over Buyer: Reserve purchase intent - Arc testnet only
     Buyer->>API: GET repository access
     API-->>Buyer: HTTP 402 and payment requirements
     Note over Buyer: Validate terms, recipient, amount and Gateway contract

@@ -166,6 +166,7 @@ export function AgentSidebar({
     const account = useActiveAccount();
     const { mutateAsync: sendFunding } = useSendTransaction();
     const [walletBusy, setWalletBusy] = useState(false);
+    const [balancesRefreshing, setBalancesRefreshing] = useState(false);
     const [fundAmount, setFundAmount] = useState("1");
     const [fundHash, setFundHash] = useState<string | null>(null);
     const [walletError, setWalletError] = useState<string | null>(null);
@@ -305,6 +306,18 @@ export function AgentSidebar({
         finally { setWalletBusy(false); }
     };
 
+    const refreshBalances = async () => {
+        if (balancesRefreshing || walletBusy) return;
+        setBalancesRefreshing(true);
+        try {
+            setWallet(await fetchAgentWallet());
+        } catch {
+            /* keep current balances on refresh failure */
+        } finally {
+            setBalancesRefreshing(false);
+        }
+    };
+
     useEffect(() => {
         scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
     }, [messages, sending]);
@@ -404,8 +417,22 @@ export function AgentSidebar({
                                     </button>
                                 </span>
                                 <br />
-                                {Number(wallet.usdc ?? "0").toFixed(2)} USDC ·{" "}
-                                {Number(wallet.eurc ?? "0").toFixed(2)} EURC
+                                <span className="agent-wallet-balances">
+                                    {Number(wallet.usdc ?? "0").toFixed(2)} USDC ·{" "}
+                                    {Number(wallet.eurc ?? "0").toFixed(2)} EURC
+                                    <button
+                                        type="button"
+                                        className="agent-refresh-balances"
+                                        aria-label="Refresh balances"
+                                        title="Refresh balances"
+                                        disabled={balancesRefreshing || walletBusy || sending}
+                                        onClick={() => {
+                                            void refreshBalances();
+                                        }}
+                                    >
+                                        <i className={`ph ph-arrows-clockwise${balancesRefreshing ? " is-spinning" : ""}`} aria-hidden="true" />
+                                    </button>
+                                </span>
                             </p>
                         ) : wallet?.error ? (
                             <p className="hint">{wallet.error}</p>
@@ -564,7 +591,7 @@ export function AgentSidebar({
                             setFundHash(receipt.depositTxHash);
                         }); }}>{walletBusy ? 'Working…' : 'Add to x402 Gateway'}</button>
                         <small>Moves this amount from the selected wallet into Gateway. Leave some USDC in the wallet for gas. You can also send /gateway 1 in chat to deposit 1 USDC.</small>
-                        <button type="button" disabled={walletBusy} onClick={() => { void walletAction(async () => {}); }}>Refresh balances</button>
+                        <button type="button" disabled={walletBusy || balancesRefreshing} onClick={() => { void refreshBalances(); }}>Refresh balances</button>
                     </>}
                     {fundHash && <a href={`https://testnet.arcscan.app/tx/${fundHash}`} target="_blank" rel="noreferrer">View funding transaction ↗</a>}
                     {walletError && <p role="alert">{walletError}</p>}
@@ -573,15 +600,23 @@ export function AgentSidebar({
                 <div className="agent-messages" ref={scrollRef}>
                     {messages.map((m, i) => (
                         <div key={i} className={`agent-message agent-message-${m.role}`}>
-                            {m.role === "assistant" ? <div className="agent-markdown"><Markdown remarkPlugins={[remarkGfm]} skipHtml components={{
-                                a: ({children, href}) => <a href={href} target={href?.startsWith('/') ? undefined : "_blank"} rel="noopener noreferrer">{children}</a>,
-                                table: ({children}) => <div className="agent-table-wrap"><table>{children}</table></div>,
-                            }}>{m.text}</Markdown></div> : <p>{m.text}</p>}
+                            {m.role === "assistant" ? (
+                                m.text.trim() && m.text.trim() !== "(no response)" ? (
+                                    <div className="agent-markdown"><Markdown remarkPlugins={[remarkGfm]} skipHtml components={{
+                                        a: ({children, href}) => <a href={href} target={href?.startsWith('/') ? undefined : "_blank"} rel="noopener noreferrer">{children}</a>,
+                                        table: ({children}) => <div className="agent-table-wrap"><table>{children}</table></div>,
+                                    }}>{m.text}</Markdown></div>
+                                ) : m.purchase ? (
+                                    <p>Purchase completed. Payment proof and repository access are shown below.</p>
+                                ) : (
+                                    <p className="hint">(no response)</p>
+                                )
+                            ) : <p>{m.text}</p>}
                             {m.purchase?.proof && <div className="agent-payment-proof">
                                 <strong>Circle Gateway payment accepted</strong>
                                 <span>{m.purchase.proof.amountUsdc} USDC · x402 · Arc testnet</span>
-                                <small>Executed with {m.purchase.proof.sdk}</small>
-                                <small>Signer: {m.purchase.proof.walletType} · {shortenAddress(m.purchase.proof.buyer)}</small>
+                                <span className="agent-payment-meta">Executed with {m.purchase.proof.sdk}</span>
+                                <span className="agent-payment-meta">Signer: {m.purchase.proof.walletType} · {shortenAddress(m.purchase.proof.buyer)}</span>
                                 <details><summary>Payment evidence</summary>
                                     <dl><dt>Payment fingerprint</dt><dd>{m.purchase.proof.paymentId}</dd>
                                         <dt>Buyer</dt><dd>{m.purchase.proof.buyer}</dd><dt>Seller</dt><dd>{m.purchase.proof.seller}</dd>
@@ -590,7 +625,7 @@ export function AgentSidebar({
                                     </dl>
                                 </details>
                                 {m.purchase.proof.settlementReference && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(m.purchase.proof.settlementReference) && <a className="agent-transaction-link" href={`https://gateway-api-testnet.circle.com/v1/x402/transfers/${m.purchase.proof.settlementReference}`} target="_blank" rel="noreferrer">Verify payment on Circle ↗</a>}
-                                {!m.purchase.txHash && <small>Gateway batches payments. Check Circle’s receipt for the current status and transaction hash when available.</small>}
+                                {!m.purchase.txHash && <p className="agent-payment-note">Gateway batches payments. Check Circle’s receipt for the current status and transaction hash when available.</p>}
                             </div>}
                             {m.purchase?.txHash && /^0x[0-9a-f]{64}$/i.test(m.purchase.txHash) && <a className="agent-transaction-link" href={`https://testnet.arcscan.app/tx/${m.purchase.txHash}`} target="_blank" rel="noreferrer">View transaction on Arc ↗</a>}
                             {m.purchase && (
