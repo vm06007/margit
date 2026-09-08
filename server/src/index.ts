@@ -1,3 +1,4 @@
+import { serve } from "@hono/node-server";
 import { createX402FeeGate } from "./x402-fee-gate.js";
 import { selectAgentWallet, depositAgentGateway } from "./agent-wallet.js";
 import { createMcpRoutes } from "./mcp.js";
@@ -10,7 +11,6 @@ import { accessRoutes, mintCloneResponse, checkRepositoryDelivery } from "./purc
 import { allowsCheckout, parseAccessPolicy } from "../../shared/accessPolicy.js";
 import { normalizeDemoUrl } from "../../shared/demoUrl.js";
 import { randomBytes } from "node:crypto";
-import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
@@ -46,7 +46,6 @@ const {
     GITHUB_CLIENT_SECRET,
     GITHUB_REDIRECT_URI,
     APP_URL = "http://localhost:5173",
-    PORT = "8787",
 } = process.env;
 
 if (!GITHUB_CLIENT_ID || !GITHUB_CLIENT_SECRET || !GITHUB_REDIRECT_URI) {
@@ -63,7 +62,7 @@ const MAX_DESCRIPTION_LENGTH = 4000;
 const MAX_SCREENSHOTS = 4;
 const MAX_SCREENSHOT_CHARS = 2_000_000; // ~1.5MB decoded
 
-const app = new Hono();
+export const app = new Hono();
 app.route("/api/mcp", createMcpRoutes(async (path, init) => app.request(path, init), APP_URL));
 app.route("/api/agent-docs", createAgentDocs(APP_URL));
 
@@ -689,7 +688,10 @@ app.get("/api/resolve-address", async (c) => {
     return c.json({ name });
 });
 
-const port = Number(PORT);
-serve({ fetch: app.fetch, port }, (info) => {
-    console.log(`[margit] API server listening on http://localhost:${info.port}`);
-});
+
+// Vercel invokes the exported app through api/index.ts instead of opening a port.
+if (!process.env.VERCEL) {
+    serve({ fetch: app.fetch, port: Number(process.env.PORT ?? '8787') }, info => {
+        console.log(`[margit] API server listening on http://localhost:${info.port}`);
+    });
+}

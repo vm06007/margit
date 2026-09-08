@@ -7,7 +7,7 @@
     "dev": "concurrently -n web,api -c blue,green \"npm:dev:web\" \"npm:dev:api\"",
     "dev:web": "vite",
     "dev:api": "tsx watch --env-file=.env server/src/index.ts",
-    "build": "tsc -b && vite build",
+    "build": "node scripts/check-site-assets.mjs && tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
     "contracts:compile": "node scripts/compile-checkout.mjs",

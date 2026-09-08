@@ -6,13 +6,7 @@ function formatListedDate(iso: string): string {
     return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
 }
 
-/**
- * Catalog page — a faithful React port of the finished design/behavior prototyped in
- * public/site/catalog2.html (a static copy of the "Rayo" vendor template, made dynamic
- * against this same backend). The vendor CSS (main.min.css / plugins.min.css / loader.css)
- * is loaded globally in src/main.tsx, so the class names below (mxd-*, post-featured,
- * post-simple, tag-*, widget__*, etc.) are the real vendor classes, not invented ones.
- */
+/** Repository catalog with filtering and listing previews. */
 
 const POSTS_PER_PAGE = 6;
 

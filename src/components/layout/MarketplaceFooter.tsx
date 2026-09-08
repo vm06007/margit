@@ -116,7 +116,7 @@ return <>
 
             <div className="footer-blocks__links anim-uni-in-up">
               <p className="t-xsmall t-muted">
-                <a className="no-effect" href="#0" target="_blank">{"Mix_Design"}</a>
+                <a className="no-effect" href="/">Margit</a>
                 <i className="ph-bold ph-copyright"></i>{"\n                2026\n              "}</p>
             </div>
           </div>

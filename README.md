@@ -479,7 +479,7 @@ flowchart LR
 - **The Graph**: receipt schema/mapping and Studio deployment scripts are implemented for MargitArc. Configure the deployed query endpoint to enable portfolio enrichment; x402 Gateway is not indexed by this contract subgraph.
 - **Bazantic**: `/api/agent-api/*` exists as the intended wrap target, but no Gateway/Recipe has been registered yet — blocked on a real Bazantic API key (the JWT currently in `.env` doesn't authenticate against `api.bazantic.com`).
 - **Hedera**: explicitly out of scope for now (see [Sponsor Integrations](#sponsor-integrations)).
-- **Landing page production serving**: `/` is only intercepted in the Vite **dev** server; `npm run build` doesn't yet copy/serve it for a static production deploy.
+- **Production deployment**: Vercel serves the Vite build and Hono API through `vercel.json`. See [Vercel setup](docs/vercel-deployment.md) for environment configuration.
 - **Landing page leftover content**: the mid-body "demo showcase" sections (ported from the source HTML template) still contain unrelated template-vendor marketing copy and dead links to pages that were never copied over — nav, footer, hero, and header CTAs are all real and wired to margit routes; the deep body content is a separate, larger content-authoring pass.
 - **Network scope**: this implementation targets Arc Testnet only; mainnet deployment is out of scope.
 

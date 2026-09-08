@@ -19,21 +19,7 @@ import {
 } from "../api";
 
 
-/**
- * Dashboard ("My Repos") page — a faithful React port of the finished design/behavior
- * prototyped in public/landing/works2.html (a static copy of the "Rayo" vendor template,
- * made dynamic against this same backend). The vendor CSS (main.min.css/plugins.min.css/
- * loader.css) is loaded globally in src/main.tsx, so classes below (mxd-*, tag-*, btn-*)
- * are the real vendor classes. The page-scoped rules below (pill-select, modal-wide,
- * modal-grid, etc.) mirror works2.html's own inline <style> block verbatim, since those
- * rules don't exist anywhere in the vendor CSS and were hand-tuned against the vendor's
- * CSS custom properties (--base, --st-muted, --t-bright, --accent, …).
- *
- * Note: works2.html's markup includes vendor "hover-reveal"/"anim-uni-in-up"/"reveal-type"
- * classes for a cursor-following thumbnail-preview + scroll-in animation. Those classes
- * have zero rules in main.min.css — all their behavior comes from app.min.js, which (like
- * catalog2.html's port) is never loaded in the real app. They're intentionally dropped here.
- */
+/** Manage GitHub repositories and their marketplace listings. */
 
 const MAX_SCREENSHOTS = 4;
 const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
