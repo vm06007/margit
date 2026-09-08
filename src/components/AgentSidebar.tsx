@@ -2,7 +2,8 @@ import { useActiveAccount, useSendTransaction } from "thirdweb/react";
 import { prepareTransaction, toWei } from "thirdweb";
 import { thirdwebClient, arcTestnet } from "../lib/thirdweb";
 import Markdown from "react-markdown";
-import { useEffect, useRef, useState } from "react";
+import remarkGfm from "remark-gfm";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { shortenAddress } from "thirdweb/utils";
 import {
     fetchAgentModels,
@@ -21,8 +22,9 @@ import {
 import { useVoiceInput } from "../hooks/useVoiceInput";
 import { CloneResult } from "./CloneResult";
 import { MicIcon } from "./icons";
+import { Toast } from "./Toast";
 
-export function AgentSettingsPanel({ onSaved }: { onSaved: (settings: AgentSettings) => void }) {
+export function AgentSettingsPanel({ onSaved, onClose }: { onSaved: (settings: AgentSettings) => void; onClose: () => void }) {
     const [models, setModels] = useState<AgentModel[] | null>(null);
     const [settings, setSettings] = useState<AgentSettings | null>(null);
     const [model, setModel] = useState("");
@@ -62,6 +64,12 @@ export function AgentSettingsPanel({ onSaved }: { onSaved: (settings: AgentSetti
 
     return (
         <div className="agent-settings-panel open">
+            <div className="agent-settings-header">
+                <strong>AI Model Settings</strong>
+                <button type="button" className="agent-icon-btn" onClick={onClose} aria-label="Close settings">
+                    <i className="ph ph-x" />
+                </button>
+            </div>
             <label className="agent-settings-label" htmlFor="agent-model-input">
                 Model
             </label>
@@ -99,7 +107,7 @@ export function AgentSettingsPanel({ onSaved }: { onSaved: (settings: AgentSetti
             <p className="hint">
                 Bring your own for any model —{" "}
                 <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">
-                    get a free key at openrouter.ai/keys
+                    get a free key
                 </a>
                 .{" "}
                 {settings && !settings.hasCustomKey && !settings.hasSharedDefault && (
@@ -139,13 +147,47 @@ export function AgentSidebar({
     const [fundAmount, setFundAmount] = useState("1");
     const [fundHash, setFundHash] = useState<string | null>(null);
     const [walletError, setWalletError] = useState<string | null>(null);
+    const [notification, setNotification] = useState<{ message: string; tone: "error" | "success"; id: number } | null>(null);
+    const dismissNotification = useCallback(() => setNotification(null), []);
+    const notify = (message: string, tone: "error" | "success") => setNotification(previous => ({ message, tone, id: (previous?.id ?? 0) + 1 }));
+    const [menuOpen, setMenuOpen] = useState(false);
+    const menuRoot = useRef<HTMLDivElement>(null);
+    const menuTrigger = useRef<HTMLButtonElement>(null);
+    const menuPanel = useRef<HTMLDivElement>(null);
     const [showCircleInfo, setShowCircleInfo] = useState(false);
+    const [expanded, setExpanded] = useState(false);
+    const [expandClosing, setExpandClosing] = useState(false);
+    const expandOverlay = expanded || expandClosing;
     const [messages, setMessages] = useState<AgentMessage[]>([]);
     const [input, setInput] = useState("");
     const [sending, setSending] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
     const voice = useVoiceInput(setInput);
+
+    useEffect(() => {
+        if (!open) {
+            setExpanded(false);
+            setExpandClosing(false);
+        }
+    }, [open]);
+
+    const collapseExpanded = useCallback(() => {
+        if (!expanded || expandClosing) return;
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+            setExpanded(false);
+            setExpandClosing(false);
+            return;
+        }
+        setExpandClosing(true);
+    }, [expanded, expandClosing]);
+
+    const finishExpandClose = useCallback(() => {
+        if (!expandClosing) return;
+        setExpanded(false);
+        setExpandClosing(false);
+    }, [expandClosing]);
 
     useEffect(() => {
         if (!open) return;
@@ -164,6 +206,16 @@ export function AgentSidebar({
         window.addEventListener('focus', refresh);
         return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh); };
     }, [open]);
+
+    useEffect(() => {
+        if (!menuOpen) return;
+        menuPanel.current?.querySelector<HTMLButtonElement>('button')?.focus();
+        const outside = (event: PointerEvent) => {
+            if (!menuRoot.current?.contains(event.target as Node)) setMenuOpen(false);
+        };
+        document.addEventListener("pointerdown", outside);
+        return () => document.removeEventListener("pointerdown", outside);
+    }, [menuOpen]);
 
     const walletAction = async (action: () => Promise<void>) => {
         setWalletBusy(true); setWalletError(null); setFundHash(null);
@@ -200,51 +252,178 @@ export function AgentSidebar({
     };
 
     return (
-        <aside id="agent-sidebar" className={`agent-sidebar ${open ? "open" : ""}`} inert={!open}>
-            <div className="agent-sidebar-inner">
+        <>
+        {open && expandOverlay && (
+            <button
+                type="button"
+                className={`agent-expand-backdrop${expandClosing ? " is-collapsing" : ""}`}
+                aria-label="Collapse agent"
+                onClick={collapseExpanded}
+                onAnimationEnd={(event) => {
+                    if (event.currentTarget === event.target) finishExpandClose();
+                }}
+            />
+        )}
+        <aside id="agent-sidebar" className={`agent-sidebar ${open ? "open" : ""}${expandOverlay ? " expanded" : ""}${expandClosing ? " is-collapsing" : ""}`} inert={!open}>
+            <div
+                className={`agent-sidebar-inner${wallet === null || walletBusy ? " is-loading" : ""}`}
+                onAnimationEnd={(event) => {
+                    if (event.currentTarget === event.target) finishExpandClose();
+                }}
+            >
+                <div className="agent-sidebar-content" aria-busy={wallet === null || walletBusy}>
                 <div className="agent-header">
                     <div>
                         <h3>
-                            <i className="ph-fill ph-robot" /> margit agent
+                            <i className="ph-fill ph-robot" /> Margit Agent
                         </h3>
                         {wallet?.address ? (
-                            <p className="hint">
-                                {wallet.mode === "personal" ? "Your agent wallet" : "Shared demo wallet"} · {shortenAddress(wallet.address)}<br />
+                            <p className="agent-wallet-meta">
+                                <span className="agent-wallet-line">
+                                    <i className="ph ph-wallet" aria-hidden="true" />
+                                    <span className="agent-wallet-label">{wallet.mode === "personal" ? "Your agent wallet" : "Demo Wallet"}</span>
+                                    <span className="agent-wallet-arrow" aria-hidden="true">→</span>
+                                    <code>{shortenAddress(wallet.address)}</code>
+                                    <button
+                                        type="button"
+                                        className="agent-copy-address"
+                                        aria-label="Copy wallet address"
+                                        title="Copy address"
+                                        onClick={() => {
+                                            void navigator.clipboard.writeText(wallet.address!)
+                                                .then(() => notify("Address copied", "success"))
+                                                .catch(() => notify("Could not copy address", "error"));
+                                        }}
+                                    >
+                                        <i className="ph ph-copy" aria-hidden="true" />
+                                    </button>
+                                </span>
+                                <br />
                                 {Number(wallet.usdc ?? "0").toFixed(2)} USDC ·{" "}
                                 {Number(wallet.eurc ?? "0").toFixed(2)} EURC
                             </p>
                         ) : wallet?.error ? (
                             <p className="hint">{wallet.error}</p>
-                        ) : (
-                            <p className="hint">Loading wallet…</p>
-                        )}
+                        ) : null}
                     </div>
-                    <div className="agent-header-actions">
-                        <button type="button" className={`agent-icon-btn ${showCircleInfo ? "active" : ""}`} onClick={() => setShowCircleInfo((value) => !value)} aria-label="Circle Gateway information" aria-expanded={showCircleInfo} aria-controls="agent-circle-info">
-                            <i className="ph ph-info" />
-                        </button>
-<button type="button" className="agent-icon-btn" onClick={onClose} aria-label="Close agent">
-                            <i className="ph ph-x" />
-                        </button>
-<button
+                    <div
+                        className="agent-header-actions"
+                        ref={menuRoot}
+                        onBlur={(event) => {
+                            if (!event.currentTarget.contains(event.relatedTarget)) setMenuOpen(false);
+                        }}
+                    >
+                        <button
+                            ref={menuTrigger}
                             type="button"
-                            className={`agent-icon-btn ${showSettings ? "active" : ""}`}
-                            onClick={() => setShowSettings((v) => !v)}
-                            aria-label="Agent settings"
-                            title="Configure model / API key"
+                            className={`agent-icon-btn ${menuOpen || showCircleInfo || showSettings || expanded ? "active" : ""}`}
+                            aria-label="Agent options"
+                            aria-haspopup="menu"
+                            aria-expanded={menuOpen}
+                            onClick={() => setMenuOpen((value) => !value)}
                         >
-                            <i className="ph ph-gear" />
+                            <i className="ph ph-dots-three-vertical" />
                         </button>
+                        {menuOpen && (
+                            <div
+                                ref={menuPanel}
+                                className="profile-menu agent-options-menu"
+                                role="menu"
+                                aria-label="Agent options"
+                                onKeyDown={(event) => {
+                                    if (event.key === "Escape") {
+                                        event.preventDefault();
+                                        setMenuOpen(false);
+                                        menuTrigger.current?.focus();
+                                    }
+                                    if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+                                        event.preventDefault();
+                                        const options = Array.from(menuPanel.current!.querySelectorAll<HTMLButtonElement>("button"));
+                                        const index = options.indexOf(document.activeElement as HTMLButtonElement);
+                                        options[
+                                            event.key === "Home"
+                                                ? 0
+                                                : event.key === "End"
+                                                  ? options.length - 1
+                                                  : (index + (event.key === "ArrowUp" ? -1 : 1) + options.length) % options.length
+                                        ]?.focus();
+                                    }
+                                }}
+                            >
+                                <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="profile-menu-item"
+                                    aria-pressed={showCircleInfo}
+                                    onClick={() => {
+                                        setShowCircleInfo((value) => !value);
+                                        setShowSettings(false);
+                                        setMenuOpen(false);
+                                        menuTrigger.current?.focus();
+                                    }}
+                                >
+                                    <i className="ph ph-info" aria-hidden="true" />
+                                    <span>Circle Gateway</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="profile-menu-item"
+                                    aria-pressed={showSettings}
+                                    onClick={() => {
+                                        setShowSettings((value) => !value);
+                                        setShowCircleInfo(false);
+                                        setMenuOpen(false);
+                                        menuTrigger.current?.focus();
+                                    }}
+                                >
+                                    <i className="ph ph-gear" aria-hidden="true" />
+                                    <span>AI Model Settings</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="profile-menu-item"
+                                    aria-pressed={expanded}
+                                    onClick={() => {
+                                        if (expanded) collapseExpanded();
+                                        else {
+                                            setExpandClosing(false);
+                                            setExpanded(true);
+                                        }
+                                        setMenuOpen(false);
+                                        menuTrigger.current?.focus();
+                                    }}
+                                >
+                                    <i className={`ph ${expanded ? "ph-arrows-in-simple" : "ph-arrows-out-simple"}`} aria-hidden="true" />
+                                    <span>{expanded ? "Collapse" : "Expand"}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="profile-menu-item profile-menu-danger"
+                                    onClick={() => {
+                                        setMenuOpen(false);
+                                        setExpandClosing(false);
+                                        setExpanded(false);
+                                        onClose();
+                                    }}
+                                >
+                                    <i className="ph ph-x" aria-hidden="true" />
+                                    <span>Close agent</span>
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
                 <div className="agent-wallet-choice" aria-label="Agent wallet">
-                    <button type="button" disabled={sending || walletBusy} aria-pressed={wallet?.mode !== 'personal'} onClick={() => { void walletAction(async () => { setWallet(await selectAgentWallet('shared')); setMessages([]); }); }}>Shared wallet</button>
+                    <button type="button" disabled={sending || walletBusy} aria-pressed={wallet?.mode !== 'personal'} onClick={() => { void walletAction(async () => { setWallet(await selectAgentWallet('shared')); setMessages([]); }); }}>Demo Wallet</button>
                     <button type="button" disabled={sending || walletBusy} aria-pressed={wallet?.mode === 'personal'} onClick={() => { setShowCircleInfo(true); void walletAction(async () => { setWallet(await selectAgentWallet('personal')); setMessages([]); }); }}>My agent wallet</button>
                 </div>
                 {showCircleInfo && <div id="agent-circle-info" className="agent-circle-status">
                     <strong>Circle Gateway · Arc testnet</strong>
                     <span>{wallet?.circle?.availableUsdc !== undefined ? `${wallet.circle.availableUsdc} USDC available for x402` : wallet?.circle?.error ?? 'Checking Gateway balance…'}</span>
-                    <small>{wallet?.mode === "personal" ? "Personal agent wallet" : "Shared demo wallet"} · Circle Nanopayments SDK</small>
+                    <small>{wallet?.mode === "personal" ? "Personal agent wallet" : "Demo Wallet"} · Circle Nanopayments SDK</small>
                     <small>x402 purchases reduce this Gateway balance. The header shows funds held in the wallet.</small>
                     {wallet?.address && <>
                         <code className="agent-wallet-address">{wallet.address}</code>
@@ -271,18 +450,14 @@ export function AgentSidebar({
                     {walletError && <p role="alert">{walletError}</p>}
                     <a href="/proofs/circle-arc-testnet.json" target="_blank" rel="noreferrer">View recorded test evidence ↗</a>
                 </div>}
-                {showSettings && <AgentSettingsPanel onSaved={setSettings} />}
-                <div className="agent-prompt-suggestions" aria-label="Suggested agent requests">
-                    {[
-                        ['Find repositories', 'Find repositories accepting x402 for at most 0.10 USDC. Compare their language, price, and delivery terms. Do not buy yet.'],
-                        ['Check Circle balance', 'Check the demo wallet and Circle Gateway balances on Arc testnet. Explain whether an x402 purchase is ready.'],
-                        ['Try Circle x402', 'Choose the cheapest available x402-enabled repository costing at most 0.10 USDC. Explain its delivery terms, buy it with Circle Gateway x402 on Arc testnet, and show the returned payment proof. Do not use contract checkout.'],
-                    ].map(([label, prompt]) => <button type="button" key={label} disabled={sending || walletBusy} onClick={() => { void send(prompt); }}>{label}</button>)}
-                </div>
+                {showSettings && <AgentSettingsPanel onSaved={setSettings} onClose={() => setShowSettings(false)} />}
                 <div className="agent-messages" ref={scrollRef}>
                     {messages.map((m, i) => (
                         <div key={i} className={`agent-message agent-message-${m.role}`}>
-                            {m.role === "assistant" ? <div className="agent-markdown"><Markdown skipHtml components={{a: ({children, href}) => <a href={href} target={href?.startsWith('/') ? undefined : "_blank"} rel="noopener noreferrer">{children}</a>}}>{m.text}</Markdown></div> : <p>{m.text}</p>}
+                            {m.role === "assistant" ? <div className="agent-markdown"><Markdown remarkPlugins={[remarkGfm]} skipHtml components={{
+                                a: ({children, href}) => <a href={href} target={href?.startsWith('/') ? undefined : "_blank"} rel="noopener noreferrer">{children}</a>,
+                                table: ({children}) => <div className="agent-table-wrap"><table>{children}</table></div>,
+                            }}>{m.text}</Markdown></div> : <p>{m.text}</p>}
                             {m.purchase?.proof && <div className="agent-payment-proof">
                                 <strong>Circle Gateway payment accepted</strong>
                                 <span>{m.purchase.proof.amountUsdc} USDC · x402 · Arc testnet</span>
@@ -307,6 +482,22 @@ export function AgentSidebar({
                     {sending && <p className="hint agent-typing" role="status"><span className="agent-thinking-spinner" aria-hidden="true" />Thinking…</p>}
                 </div>
                 {error && <p className="error agent-error">{error}</p>}
+                <div className="agent-prompt-suggestions" aria-label="Suggested agent requests">
+                    {[
+                        ['Find repositories', 'Find repositories accepting x402 for at most 0.10 USDC. Compare their language, price, and delivery terms. Do not buy yet.'],
+                        ['Check Circle balance', 'Check the demo wallet and Circle Gateway balances on Arc testnet. Explain whether an x402 purchase is ready.'],
+                        ['Try Circle x402', 'Choose the cheapest available x402-enabled repository costing at most 0.10 USDC. Explain its delivery terms, buy it with Circle Gateway x402 on Arc testnet, and show the returned payment proof. Do not use contract checkout.'],
+                    ].map(([label, prompt]) => <button type="button" key={label} disabled={sending || walletBusy} onClick={() => {
+                        setInput(prompt);
+                        queueMicrotask(() => {
+                            const field = inputRef.current;
+                            if (!field) return;
+                            field.focus();
+                            field.setSelectionRange(0, 0);
+                            field.scrollLeft = 0;
+                        });
+                    }}>{label}</button>)}
+                </div>
                 <form
                     className="agent-input-row"
                     onSubmit={(e) => {
@@ -315,6 +506,7 @@ export function AgentSidebar({
                     }}
                 >
                     <input
+                        ref={inputRef}
                         type="text"
                         className="agent-input"
                         placeholder={voice.listening ? "Listening…" : "Ask the agent to find or buy a repo…"}
@@ -337,7 +529,15 @@ export function AgentSidebar({
                         Send
                     </button>
                 </form>
+                {notification && <Toast key={notification.id} message={notification.message} tone={notification.tone} onDismiss={dismissNotification} />}
+                </div>
+                {(wallet === null || walletBusy) && (
+                    <div className="agent-loading-overlay" role="status" aria-live="polite" aria-label="Loading wallet">
+                        <span className="agent-loading-spinner" aria-hidden="true" />
+                    </div>
+                )}
             </div>
         </aside>
+        </>
     );
 }

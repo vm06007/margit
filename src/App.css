@@ -1392,6 +1392,12 @@
 .agent-sidebar.open {
     width: min(440px, 100vw);
     border-left-color: var(--border);
+    position: relative;
+}
+
+.agent-sidebar.open.expanded {
+    overflow: visible;
+    z-index: 120;
 }
 
 .agent-sidebar-inner {
@@ -1400,6 +1406,97 @@
     background: var(--surface);
     display: flex;
     flex-direction: column;
+    position: relative;
+}
+
+.agent-sidebar.open.expanded .agent-sidebar-inner {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(968px, calc(100vw - 1.5rem));
+    z-index: 121;
+    box-shadow: -16px 0 40px rgba(0, 0, 0, 0.45);
+    animation: agent-expand-in 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.agent-sidebar.open.expanded.is-collapsing .agent-sidebar-inner {
+    animation: agent-expand-out 0.28s ease forwards;
+}
+
+.agent-expand-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 119;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    cursor: pointer;
+    background: rgba(8, 10, 14, 0.62);
+    backdrop-filter: blur(2px);
+    animation: agent-backdrop-in 0.28s ease;
+}
+
+.agent-expand-backdrop.is-collapsing {
+    animation: agent-backdrop-out 0.28s ease forwards;
+    pointer-events: none;
+}
+
+@keyframes agent-expand-in {
+    from { transform: translateX(calc(100% - min(440px, 100vw))); }
+    to { transform: translateX(0); }
+}
+
+@keyframes agent-expand-out {
+    from { transform: translateX(0); }
+    to { transform: translateX(calc(100% - min(440px, 100vw))); }
+}
+
+@keyframes agent-backdrop-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes agent-backdrop-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+.agent-sidebar-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.agent-sidebar-inner.is-loading .agent-sidebar-content {
+    filter: blur(4px);
+    opacity: 0.55;
+    pointer-events: none;
+    user-select: none;
+}
+
+.agent-loading-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--surface, #161616) 35%, transparent);
+}
+
+.agent-loading-spinner {
+    width: 2.4rem;
+    height: 2.4rem;
+    border: 3px solid var(--border, #333);
+    border-top-color: var(--accent, #c8f060);
+    border-radius: 50%;
+    animation: agent-loading-spin 0.8s linear infinite;
+}
+
+@keyframes agent-loading-spin {
+    to { transform: rotate(360deg); }
 }
 
 .agent-header {
@@ -1407,6 +1504,7 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 0.5rem;
+    margin-top: 10px;
     padding: 1.1rem 1.25rem;
     border-bottom: 1px solid var(--border);
 }
@@ -1423,12 +1521,63 @@
     margin-top: 0.3rem;
 }
 
+.agent-wallet-meta {
+    margin-top: 0.4rem;
+    font-size: 0.95rem;
+    line-height: 1.45;
+    color: var(--text-muted);
+}
+
+.agent-wallet-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--text);
+    font-size: 1rem;
+}
+
+.agent-wallet-label {
+    color: var(--text-muted);
+}
+
+.agent-wallet-line .ph-wallet {
+    color: var(--accent, #c8f060);
+}
+
+.agent-wallet-line code {
+    font: inherit;
+    font-weight: 600;
+}
+
+.agent-copy-address {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.15rem;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    border-radius: 0.3rem;
+    line-height: 1;
+}
+
+.agent-copy-address:hover {
+    color: var(--t-bright, inherit);
+}
+
+.agent-copy-address:focus-visible {
+    outline: 2px solid var(--t-bright, currentColor);
+    outline-offset: 2px;
+}
+
 .agent-model-line {
     font-size: 0.75rem;
     opacity: 0.8;
 }
 
 .agent-header-actions {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 0.4rem;
@@ -1500,15 +1649,17 @@
 
 .agent-message {
     max-width: 90%;
-    padding: 0.6rem 0.85rem;
+    padding: 0.85rem 1.1rem;
     border-radius: 10px;
-    font-size: 0.88rem;
-    line-height: 1.4;
+    font-size: 1.0625rem;
+    line-height: 1.55;
+    font-weight: 400;
 }
 
 .agent-message p {
     margin: 0;
     white-space: pre-wrap;
+    font: inherit;
 }
 
 .agent-message-user {
@@ -1523,12 +1674,17 @@
     border: 1px solid var(--border);
 }
 
+.agent-message-assistant .agent-markdown {
+    font: inherit;
+}
+
 .agent-message-assistant .buy-result {
     margin-top: 0.6rem;
 }
 
 .agent-typing {
     align-self: flex-start;
+    margin-top: 1.25rem;
 }
 
 .agent-error {

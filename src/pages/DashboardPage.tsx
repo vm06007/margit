@@ -8,6 +8,7 @@ import { MakePrivateModal } from "../components/MakePrivateModal";
 import { RepoVisibilitySelect } from "../components/RepoVisibilitySelect";
 import { normalizeDemoUrl } from "../../shared/demoUrl";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import {
     createListing,
     deleteListing,
@@ -244,6 +245,16 @@ export function DashboardStyle() {
             }
             .dashboard-pagination { display: flex; align-items: center; gap: 1rem; }
             .dashboard-per-page { display: flex; align-items: center; gap: 0.8rem; font-size: 1.8rem; color: var(--t-medium); }
+            .dashboard-connect-empty {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: min(60vh, 48rem);
+                padding: 2rem 1.5rem;
+                text-align: center;
+                opacity: 0.6;
+            }
+            .dashboard-connect-empty p { margin: 0; }
         `}</style>
     );
 }
@@ -888,6 +899,13 @@ export function DashboardPage({
     const [page, setPage] = useState(1);
     const [privacyRepo, setPrivacyRepo] = useState<Repo | null>(null);
     const [modalRepo, setModalRepo] = useState<Repo | null>(null);
+    const [connectingGithub, setConnectingGithub] = useState(false);
+
+    useEffect(() => {
+        const reset = () => setConnectingGithub(false);
+        window.addEventListener("pageshow", reset);
+        return () => window.removeEventListener("pageshow", reset);
+    }, []);
 
     // Org-owned repos aren't the signed-in account's to sell — the server already asks
     // GitHub for owner-affiliated repos only, but this filters defensively in case that
@@ -915,25 +933,46 @@ export function DashboardPage({
             <div className="mxd-section-title dashboard-heading">
                 <div className="container-fluid p-0">
                     <div className="row g-0 dashboard-heading-row">
-                        <div className="col-12 col-xl-8 mxd-grid-item no-margin">
+                        <div className={`col-12 ${me.authenticated ? "col-xl-8" : ""} mxd-grid-item no-margin`}>
                             <div className="mxd-section-title__hrtitle">
                                 <h1>Your repositories</h1>
                             </div>
                         </div>
-                        <div className="col-12 col-xl-4 mxd-grid-item no-margin">
-                            <div className="mxd-section-title__hrcontrols pre-title">
-                                <RepoVisibilitySelect value={view} onChange={value => {setView(value); setPage(1)}} />
+                        {me.authenticated && (
+                            <div className="col-12 col-xl-4 mxd-grid-item no-margin">
+                                <div className="mxd-section-title__hrcontrols pre-title">
+                                    <RepoVisibilitySelect value={view} onChange={value => {setView(value); setPage(1)}} />
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 </div>
             </div>
 
             </div><div className="mxd-block">
-            {!me.authenticated && <p style={{padding: "2rem 0", opacity: .6}}><a href="/api/auth/github/login">Connect with GitHub</a> to see your repositories here.</p>}
-            {reposError && <p className="error">{reposError}</p>}
+            {!me.authenticated && (
+                <div className="dashboard-connect-empty" aria-busy={connectingGithub}>
+                    {connectingGithub ? (
+                        <p role="status">Connecting…</p>
+                    ) : (
+                        <p>
+                            <a
+                                href="/api/auth/github/login"
+                                onClick={(event) => {
+                                    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                                    flushSync(() => setConnectingGithub(true));
+                                }}
+                            >
+                                Connect with GitHub
+                            </a>
+                            {" "}to see your repositories here.
+                        </p>
+                    )}
+                </div>
+            )}
+            {me.authenticated && reposError && <p className="error">{reposError}</p>}
 
-            {repos && (
+            {me.authenticated && repos && (
                 <>
                     {view === "public" && (
                         <p className="hint" style={{ margin: "0 0 2rem", fontSize: "1.4rem" }}>
@@ -999,7 +1038,6 @@ export function DashboardPage({
                 </>
             )}
 
-            {!me.authenticated && <div className="dashboard-pagination-row"><div /><label className="dashboard-per-page">Per page <span className="pill-select-wrap"><select aria-label="Per page" className="pill-select" value={pageSize} onChange={e => setPageSize(Number(e.target.value))}><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option></select></span></label></div>}
             </div>
             {privacyRepo && <MakePrivateModal repo={privacyRepo} onClose={() => setPrivacyRepo(null)} onSuccess={() => {onMadePrivate(privacyRepo.id); setPage(1)}} />}
             {modalRepo && (

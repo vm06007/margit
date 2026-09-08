@@ -63,7 +63,6 @@ See [contract and deployment details](contracts/README.md), [fee accounting](doc
   - [5. External-agent API + Bazantic](#5-external-agent-api--bazantic)
 - [Architecture](#architecture)
 - [Tech Stack](#tech-stack)
-- [Sponsor Integrations](#sponsor-integrations)
 - [API Reference](#api-reference)
 - [Project Structure](#project-structure)
 - [Getting Started](#getting-started)
@@ -337,18 +336,6 @@ flowchart TB
 
 ---
 
-## Sponsor Integrations
-
-| Sponsor | Status | Detail |
-|---|---|---|
-| **Arc / Circle** | ✅ Built | Native chain for both payment paths; USDC + EURC support; real Circle Gateway facilitator for x402 |
-| **The Graph** | ⏸️ Planned | Confirmed Arc Testnet is a real, supported Subgraph Studio network. Blocked on a Deploy Key for a new subgraph project |
-| **MCP / Skills** | ✅ Implemented | Public Streamable HTTP MCP, seven tools, readable skill, homepage connection test |
-| **Bazantic** | ⏸️ Registration pending | MCP gateway draft and verified setup at `/api/agent-docs/bazantic`; requires a valid Bazantic API key, account ID and public deployment |
-| **Hedera** | ❌ Deprioritized | Researched: Circle Gateway doesn't support Hedera at all; USDC there is a native HTS token (needs association, not a plain ERC-20 swap); would need a fully separate direct-payment path with `@hashgraph/sdk`. Set aside by explicit user decision |
-
----
-
 ## API Reference
 
 | Endpoint | Method | Auth | Purpose |
@@ -478,7 +465,6 @@ flowchart LR
 - **Reviews/ratings are UI placeholders only** (`StarRating`, `ReviewsSection`) — intentionally honest "not built yet" rather than fake data. Planned basis: ERC-8004 (Trustless Agents — Identity/Reputation/Validation registries).
 - **The Graph**: receipt schema/mapping and Studio deployment scripts are implemented for MargitArc. Configure the deployed query endpoint to enable portfolio enrichment; x402 Gateway is not indexed by this contract subgraph.
 - **Bazantic**: `/api/agent-api/*` exists as the intended wrap target, but no Gateway/Recipe has been registered yet — blocked on a real Bazantic API key (the JWT currently in `.env` doesn't authenticate against `api.bazantic.com`).
-- **Hedera**: explicitly out of scope for now (see [Sponsor Integrations](#sponsor-integrations)).
 - **Production deployment**: Vercel serves the Vite build and Hono API through `vercel.json`. See [Vercel setup](docs/vercel-deployment.md) for environment configuration.
 - **Landing page leftover content**: the mid-body "demo showcase" sections (ported from the source HTML template) still contain unrelated template-vendor marketing copy and dead links to pages that were never copied over — nav, footer, hero, and header CTAs are all real and wired to margit routes; the deep body content is a separate, larger content-authoring pass.
 - **Network scope**: this implementation targets Arc Testnet only; mainnet deployment is out of scope.

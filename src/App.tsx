@@ -54,7 +54,11 @@ function App() {
     }, []);
 
     useEffect(() => {
-        if (!me?.authenticated) return;
+        if (!me?.authenticated) {
+            setRepos(null);
+            setReposError(null);
+            return;
+        }
         fetchRepos()
             .then(setRepos)
             .catch(() => setReposError("Could not load repositories."));
@@ -101,7 +105,11 @@ function App() {
                 <SiteHeader key={path} home={home}
                     path={path}
                     me={viewer}
-                    onLogout={() => logout().then(() => setMe({ authenticated: false }))}
+                    onLogout={() => logout().then(() => {
+                        setMe({ authenticated: false });
+                        setRepos(null);
+                        setReposError(null);
+                    })}
                     agentOpen={agentOpen}
                     onToggleAgent={() => setAgentOpen((v) => !v)}
                 />
@@ -131,7 +139,7 @@ function App() {
                 )}
                 {path === "/catalog" && <CatalogCTA />}
                 </main>
-                {path !== "/agents" && path !== "/portfolio" && path !== "/works" && path !== "/profile" && !(repoMatch && !publisherMatch) && <SiteFooter variant={home ? "home" : path === "/catalog" ? "catalog" : "works"} />}
+                {home && <SiteFooter variant="home" />}
             </div>
             <AgentSidebar
                 open={!home && agentOpen}

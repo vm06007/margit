@@ -47,4 +47,15 @@ Preserve receipt recovery during an incident. Stop new payment initiation before
 
 ## Release record
 
-Keep a release record with the deployed app URL, Git revision, build/test results, mainnet configuration source links, deployment/verification links, contract start block, treasury/signer decision, isolation/monitoring review, smoke-test evidence and rollback owner. The current `arc:readiness` command intentionally reports the source-level blockers and operational sign-off still required; it does not certify a production release automatically.
+Before calling a mainnet launch done, write down the release facts in one place:
+
+- Deployed app URL and Git commit
+- Build and test results
+- Links to mainnet config sources, deployment, and contract verification
+- Contract start block
+- Who owns the treasury and signing keys
+- Isolation / monitoring review notes
+- Smoke-test evidence
+- Who can roll back
+
+`npm run arc:readiness` only lists remaining blockers. A passing run is not production approval.
