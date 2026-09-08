@@ -12,3 +12,44 @@
 .portfolio-fee-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1.6rem; margin: 1rem 0 2rem; }
 .portfolio-fee-grid dt { font-size: 1.4rem; color: var(--t-medium); }
 .portfolio-fee-grid dd { margin: .4rem 0 0; font-size: 2.2rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+.portfolio-repository-name { display: flex; flex-wrap: wrap; }
+.portfolio-repository-name a:hover { text-decoration: underline; }
+.portfolio-page .portfolio-repository-publisher { display: flex; align-items: center; gap: .5rem; margin-top: .6rem; }
+.portfolio-repository-publisher a { display: inline-flex; align-items: center; gap: .6rem; color: inherit; }
+.portfolio-repository-publisher a:hover { text-decoration: underline; }
+.portfolio-repository-publisher img { width: 2rem; height: 2rem; border-radius: 50%; object-fit: cover; }
+
+.portfolio-fees-heading { margin: 0; }
+.portfolio-fees-summary { display: flex; align-items: center; justify-content: space-between; gap: 1rem; cursor: pointer; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+.portfolio-fees-summary i { font-size: 2.4rem; transition: transform .35s ease; }
+.portfolio-fees.is-open .portfolio-fees-summary i { transform: rotate(180deg); }
+.portfolio-fees-summary:focus-visible { outline: 2px solid var(--accent); outline-offset: .5rem; border-radius: .5rem; }
+.portfolio-fees-reveal { display: grid; grid-template-rows: 0fr; opacity: 0; visibility: hidden; transition: grid-template-rows .35s ease, opacity .25s ease, visibility .35s; }
+.portfolio-fees.is-open .portfolio-fees-reveal { grid-template-rows: 1fr; opacity: 1; visibility: visible; }
+.portfolio-fees-clip { min-height: 0; overflow: hidden; }
+.portfolio-fees-content { padding-top: 1rem; }
+@media (prefers-reduced-motion: reduce) { .portfolio-fees-summary i, .portfolio-fees-reveal { transition: none; } }
+
+.portfolio-payment-link { width: fit-content; }
+.portfolio-payment-link:hover { text-decoration: underline; }
+
+.portfolio-buyer-link { display: inline; }
+.portfolio-buyer-link:hover { text-decoration: underline; }
+
+.portfolio-total { display: inline-flex; align-items: center; gap: .8rem; }
+.portfolio-totals .portfolio-total strong { margin: 0; line-height: 1; }
+.portfolio-total > i { font-size: 3.2rem; flex-shrink: 0; }
+.portfolio-token-icon { width: 3.2rem; height: 3.2rem; flex-shrink: 0; }
+
+/* Optically align the labels with the larger numerals. */
+.portfolio-total-label { line-height: 1; transform: translateY(.08em); }
+
+.portfolio-sort-button { display: inline-flex; align-items: center; gap: .8rem; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.portfolio-sort-button i { font-size: 1.6rem; opacity: .5; }
+.portfolio-sort-button:hover, .portfolio-page th[aria-sort="ascending"], .portfolio-page th[aria-sort="descending"] { color: var(--t-bright); }
+.portfolio-page th[aria-sort="ascending"] i, .portfolio-page th[aria-sort="descending"] i { color: var(--accent); opacity: 1; }
+.portfolio-sort-button:focus-visible { outline: 2px solid var(--accent); outline-offset: .5rem; border-radius: .3rem; }
+
+.portfolio-verify-prompt { margin-bottom: 2rem; }
+.portfolio-empty { display: flex; align-items: center; justify-content: center; min-height: 30dvh; width: min(56rem, 100%); margin: 0 auto; padding: 4rem 0; text-align: center; }
