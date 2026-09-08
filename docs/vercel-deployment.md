@@ -4,7 +4,7 @@ The root Vercel project uses the Vite preset, `npm run build`, and `dist` output
 
 Set nonempty values in Vercel Project Settings → Environment Variables for the environments you deploy. Adding names with empty values is not sufficient.
 
-- `VITE_THIRDWEB_CLIENT_ID`: public Thirdweb client ID, embedded during the frontend build. Never use a Thirdweb secret key here. Allow `margit.vercel.app` in the Thirdweb client's domain settings.
+- `VITE_THIRDWEB_CLIENT_ID`: Thirdweb client ID, embedded during the frontend build. Set it in Vercel; do not commit it. Never use a Thirdweb secret key here. Allow `margit.vercel.app` in the Thirdweb client's domain settings. An empty value fails the build.
 - `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`: GitHub OAuth app credentials.
 - `APP_URL`: `https://margit.vercel.app`.
 - `GITHUB_REDIRECT_URI`: `https://margit.vercel.app/api/auth/github/callback`. Set this exact callback on the GitHub OAuth app too.

@@ -20,10 +20,13 @@ if (missing.length || extra.length) {
     throw new Error(`Site asset manifest mismatch. Missing: ${missing.join(', ') || 'none'}. Unlisted: ${extra.join(', ') || 'none'}. Update config/site-assets.json and .gitignore together when adding runtime assets.`);
 }
 
-const gitignore = readFileSync(new URL('.gitignore', root), 'utf8');
-const missingIgnore = [...expected].filter(path => !gitignore.includes(`!/public/${path}`));
-if (missingIgnore.length) {
-    throw new Error(`Site assets are listed in config/site-assets.json but not un-ignored in .gitignore: ${missingIgnore.join(', ')}.`);
+const gitignoreUrl = new URL('.gitignore', root);
+if (existsSync(gitignoreUrl)) {
+    const gitignore = readFileSync(gitignoreUrl, 'utf8');
+    const missingIgnore = [...expected].filter(path => !gitignore.includes(`!/public/${path}`));
+    if (missingIgnore.length) {
+        throw new Error(`Site assets are listed in config/site-assets.json but not un-ignored in .gitignore: ${missingIgnore.join(', ')}.`);
+    }
 }
 
 if (existsSync(new URL('.git', root))) {

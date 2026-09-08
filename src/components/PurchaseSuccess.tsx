@@ -36,7 +36,7 @@ export function PurchaseSuccess({ receipt, listing }: { receipt: PurchaseReceipt
     useEffect(() => {
         dialog.current?.showModal();
         if (!canvas.current || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-        // Vitenix's burn explosion, rendered in the dialog's top layer.
+        // Confetti burst, rendered in the dialog's top layer.
         const fire = confetti.create(canvas.current, { resize: true });
         const replay = () => {
             fireCelebrationBurst(fire);

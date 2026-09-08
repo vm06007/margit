@@ -4,15 +4,13 @@ import { arcTestnet } from "thirdweb/chains";
 import { darkTheme } from "thirdweb/react";
 import { createWallet, inAppWallet } from "thirdweb/wallets";
 
-// Mirrors vitenix's src/lib/thirdweb.ts setup (same account/client ID).
 const clientId = import.meta.env.VITE_THIRDWEB_CLIENT_ID?.trim() ?? "";
 const walletConnectProjectId =
     import.meta.env.VITE_WALLETCONNECT_PROJECT_ID?.trim() || "9bfbc3dd1bc5aa9fb800471ee00c0eb5";
 
 if (!clientId) {
-    console.warn(
-        "[margit] Missing VITE_THIRDWEB_CLIENT_ID in .env — the Connect Wallet button will fail. " +
-        "Get one free at https://thirdweb.com/dashboard (Settings > API Keys).",
+    throw new Error(
+        "Missing VITE_THIRDWEB_CLIENT_ID. Set it in .env locally and in Vercel Project Settings.",
     );
 }
 
@@ -36,7 +34,7 @@ export const thirdwebSupportedTokens = {
 
 // Injects our WalletConnect projectId + app metadata into every WalletConnect-based
 // connect() call — without this, external wallets' WalletConnect flow (and often their
-// icon/name metadata) fails to load. Mirrors vitenix's withWalletConnect wrapper.
+// icon/name metadata) fails to load.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function withWalletConnect(wallet: any): any {
     const orig = wallet.connect.bind(wallet);
@@ -68,7 +66,7 @@ export const thirdwebWallets = [
     withWalletConnect(createWallet("com.coinbase.wallet", { appMetadata: thirdwebAppMetadata })),
 ];
 
-// Same accent as our own .btn-primary (--accent), not vitenix's teal branding.
+// Same accent as our own .btn-primary (--accent).
 export const thirdwebTheme = darkTheme({
     colors: {
         modalBg: "#16171c",
