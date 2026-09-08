@@ -56,31 +56,43 @@ function AgentInstructions({ listingId }: { listingId: string }) {
     );
 }
 
+interface CachedEurcPrice { key: string; amount: string; expiresAt: number }
+const eurcPriceStorageKey = 'margit:eurc-price';
+function readEurcPrice(key: string): CachedEurcPrice | null {
+    try {
+        const cached = JSON.parse(localStorage.getItem(eurcPriceStorageKey) ?? 'null') as CachedEurcPrice | null;
+        return cached?.key === key && cached.expiresAt > Date.now() && /^[1-9][0-9]*$/.test(cached.amount) ? cached : null;
+    } catch { return null; }
+}
+
 function DirectBuyButton({ listing, onPurchased }: { listing: Listing; onPurchased: (receipt: PurchaseReceipt) => void }) {
     const account = useActiveAccount();
     const [token, setToken] = useState<PaymentToken>("USDC");
     const [status, setStatus] = useState<"idle" | "checking" | "sending" | "verifying" | "done" | "error">("idle");
     const [error, setError] = useState<string | null>(null);
-    const [pricing, setPricing] = useState<{ key: string; amount: string } | null>(null);
+    const priceKey = `${listing.id}:${listing.price}:EURC`;
+    const [pricing, setPricing] = useState<CachedEurcPrice | null>(() => readEurcPrice(priceKey));
     const [priceError, setPriceError] = useState<string | null>(null);
     const [priceRevision, setPriceRevision] = useState(0);
-    const priceKey = `${listing.id}:${listing.price}:${token}`;
     useEffect(() => {
-        setPricing(null);
         setPriceError(null);
-        if (token !== "EURC") return;
+        // Preload while USDC is selected; keep a cached amount visible during refresh.
         const controller = new AbortController();
         fetch(`/api/checkout/price?listingId=${encodeURIComponent(listing.id)}&currency=EURC`, { signal: controller.signal })
             .then(async response => {
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.error ?? "Could not load EURC price.");
                 if (data.currency !== "EURC" || !/^[1-9][0-9]*$/.test(data.amount)) throw new Error("Invalid EURC price.");
-                if (!controller.signal.aborted) setPricing({ key: priceKey, amount: data.amount });
+                if (!controller.signal.aborted) {
+                    const cached = { key: priceKey, amount: data.amount, expiresAt: Date.now() + 60 * 60 * 1000 };
+                    setPricing(cached);
+                    try { localStorage.setItem(eurcPriceStorageKey, JSON.stringify(cached)); } catch { /* In-memory pricing still works when storage is unavailable. */ }
+                }
             })
             .catch(err => { if (!controller.signal.aborted) setPriceError(err instanceof Error ? err.message : "Could not load EURC price."); });
         return () => controller.abort();
-    }, [listing.id, token, priceKey, priceRevision]);
-    const amount = token === "USDC" ? parseUnits(listing.price.replace("$", ""), 6).toString() : pricing?.key === priceKey ? pricing.amount : null;
+    }, [listing.id, priceKey, priceRevision]);
+    const amount = token === "USDC" ? parseUnits(listing.price.replace("$", ""), 6).toString() : pricing?.key === priceKey && pricing.expiresAt > Date.now() ? pricing.amount : null;
     const displayAmount = amount ? checkoutAmountLabel(amount) : null;
 
     if (!account) {
@@ -97,6 +109,10 @@ function DirectBuyButton({ listing, onPurchased }: { listing: Listing; onPurchas
         } catch (err) {
             setError(err instanceof Error ? err.message : "Purchase failed");
             setStatus("error");
+            if (token === 'EURC') {
+                setPricing(null);
+                try { localStorage.removeItem(eurcPriceStorageKey); } catch { /* Storage may be disabled. */ }
+            }
             setPriceRevision(value => value + 1);
         }
     };
@@ -124,7 +140,7 @@ function DirectBuyButton({ listing, onPurchased }: { listing: Listing; onPurchas
                 {(status === "verifying" || (!amount && !priceError && !pendingCheckout(listing.id, account.address))) && <span className="payment-spinner" aria-hidden="true" />}
                 {label}
             </button>
-            {(error || priceError) && <p className="error">{error ?? priceError}</p>}
+            {(error || (token === "EURC" && priceError)) && <p className="error">{error ?? priceError}</p>}
         </div>
     );
 }
