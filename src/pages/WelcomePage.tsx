@@ -19,8 +19,8 @@ export function WelcomePage({ listings = null, listingsError = null }: { me?: Me
     <ResponsivePromo />
     <AgentIntegration />
     <FeatureCards />
-    <RecentSection listings={listings} listingsError={listingsError} />
     <ListingCTA />
+    <RecentSection listings={listings} listingsError={listingsError} />
     <AmbientVideo />
     <FeedbackCTA />
   </>;

@@ -374,3 +374,8 @@
 .site-app .agent-circle-status button { border:1px solid var(--st-muted); border-radius:1rem; padding:.7rem 1rem; color:var(--t-bright); }
 .site-app .agent-circle-status button:disabled { opacity:.5; }
 .site-app .agent-circle-status { max-height:45dvh; overflow-y:auto; flex-shrink:0; }
+
+.site-app .profile-trigger, .site-app .header-agent-trigger { transition: background-color .18s ease, box-shadow .18s ease; }
+.site-app .profile-trigger:hover, .site-app .header-agent-trigger:hover { background-color: rgb(255 255 255 / .1); box-shadow: 0 0 0 4px rgb(255 255 255 / .08); }
+.site-app .profile-trigger:focus-visible, .site-app .header-agent-trigger:focus-visible { outline: 2px solid var(--t-bright) !important; outline-offset: 4px; }
+@media (prefers-reduced-motion: reduce) { .site-app .profile-trigger, .site-app .header-agent-trigger { transition: none; } }

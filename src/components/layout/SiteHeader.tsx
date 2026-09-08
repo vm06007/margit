@@ -45,7 +45,7 @@ export function SiteHeader({ home, me, onLogout, agentOpen, onToggleAgent, path 
       <div className="mxd-header__controls">
         <button className="mxd-color-switcher" type="button" role="switch" aria-label="light/dark mode" aria-checked={theme === 'dark'} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}><i className={theme === 'dark' ? 'ph ph-sun' : 'ph ph-moon-stars'} /></button>
         {home ? <a className="btn btn-anim btn-default btn-mobile-icon btn-outline slide-right" href="/catalog" aria-label="Browse Catalog"><span className="btn-caption">Catalog</span><i className="ph-bold ph-shopping-cart-simple" /></a> : <>
-          <button type="button" className="btn btn-anim btn-default btn-mobile-icon btn-outline slide-right-up" aria-label="Agent" aria-expanded={agentOpen} onClick={onToggleAgent}><span className="btn-caption">Agent</span><i className="ph-fill ph-robot" /></button>
+          <button type="button" className="btn btn-anim btn-default btn-mobile-icon btn-outline slide-right-up header-agent-trigger" aria-label="Agent" aria-expanded={agentOpen} onClick={onToggleAgent}><span className="btn-caption">Agent</span><i className="ph-fill ph-robot" /></button>
           <ProfileDropdown me={me} onLogout={onLogout} />
         </>}
         <button ref={toggleRef} type="button" className={`header-hamburger-proxy ${menuOpen ? 'is-open' : ''}`} aria-label={menuOpen ? 'Close menu' : 'Menu'} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}><div className="hamburger__base" /><div className="hamburger__line" /><div className="hamburger__line" /></button>
