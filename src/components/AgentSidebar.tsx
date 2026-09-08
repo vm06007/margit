@@ -3,7 +3,7 @@ import { prepareTransaction, toWei } from "thirdweb";
 import { thirdwebClient, arcTestnet } from "../lib/thirdweb";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { shortenAddress } from "thirdweb/utils";
 import {
     fetchAgentModels,
@@ -179,7 +179,11 @@ export function AgentSidebar({
     const [showCircleInfo, setShowCircleInfo] = useState(false);
     const [expanded, setExpanded] = useState(false);
     const [expandClosing, setExpandClosing] = useState(false);
+    const [expandEntering, setExpandEntering] = useState(false);
     const expandOverlay = expanded || expandClosing;
+    const [expandedWidthPx, setExpandedWidthPx] = useState<number | null>(null);
+    const [isResizing, setIsResizing] = useState(false);
+    const resizeDrag = useRef<{ startX: number; startWidth: number } | null>(null);
     const [messages, setMessages] = useState<AgentMessage[]>([]);
     const [input, setInput] = useState("");
     const [sending, setSending] = useState(false);
@@ -192,11 +196,60 @@ export function AgentSidebar({
         if (!open) {
             setExpanded(false);
             setExpandClosing(false);
+            setExpandEntering(false);
+            setIsResizing(false);
+            resizeDrag.current = null;
         }
     }, [open]);
 
+    useEffect(() => {
+        if (!expanded || expandedWidthPx !== null) return;
+        setExpandedWidthPx(Math.round(window.innerWidth * 0.66));
+    }, [expanded, expandedWidthPx]);
+
+    useEffect(() => {
+        if (!expandEntering) return;
+        const timer = window.setTimeout(() => setExpandEntering(false), 400);
+        return () => window.clearTimeout(timer);
+    }, [expandEntering]);
+
+    const clampExpandedWidth = useCallback((width: number) => {
+        const min = Math.max(360, Math.round(window.innerWidth * 0.34));
+        const max = Math.max(min, window.innerWidth - 24);
+        return Math.min(max, Math.max(min, Math.round(width)));
+    }, []);
+
+    const onExpandResizePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+        if (!expanded || expandClosing) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setExpandEntering(false);
+        const panel = event.currentTarget.parentElement;
+        const startWidth = panel?.getBoundingClientRect().width ?? window.innerWidth * 0.66;
+        resizeDrag.current = { startX: event.clientX, startWidth };
+        setIsResizing(true);
+        event.currentTarget.setPointerCapture(event.pointerId);
+    }, [expanded, expandClosing]);
+
+    const onExpandResizePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+        if (!resizeDrag.current) return;
+        const delta = resizeDrag.current.startX - event.clientX;
+        setExpandedWidthPx(clampExpandedWidth(resizeDrag.current.startWidth + delta));
+    }, [clampExpandedWidth]);
+
+    const onExpandResizePointerUp = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+        if (!resizeDrag.current) return;
+        resizeDrag.current = null;
+        setExpandEntering(false);
+        setIsResizing(false);
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+    }, []);
+
     const collapseExpanded = useCallback(() => {
         if (!expanded || expandClosing) return;
+        setExpandEntering(false);
         if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
             setExpanded(false);
             setExpandClosing(false);
@@ -209,7 +262,13 @@ export function AgentSidebar({
         if (!expandClosing) return;
         setExpanded(false);
         setExpandClosing(false);
+        setExpandEntering(false);
     }, [expandClosing]);
+
+    const finishExpandEnter = useCallback(() => {
+        if (!expandEntering) return;
+        setExpandEntering(false);
+    }, [expandEntering]);
 
     useEffect(() => {
         if (!open) return;
@@ -288,11 +347,27 @@ export function AgentSidebar({
         )}
         <aside id="agent-sidebar" className={`agent-sidebar ${open ? "open" : ""}${expandOverlay ? " expanded" : ""}${expandClosing ? " is-collapsing" : ""}`} inert={!open}>
             <div
-                className={`agent-sidebar-inner${wallet === null || walletBusy ? " is-loading" : ""}${showSettings ? " is-settings-open" : ""}`}
+                className={`agent-sidebar-inner${wallet === null || walletBusy ? " is-loading" : ""}${showSettings ? " is-settings-open" : ""}${expandEntering ? " is-expanding" : ""}${isResizing ? " is-resizing" : ""}`}
+                style={expandOverlay && expandedWidthPx != null ? { width: `${expandedWidthPx}px` } : undefined}
                 onAnimationEnd={(event) => {
-                    if (event.currentTarget === event.target) finishExpandClose();
+                    if (event.currentTarget !== event.target) return;
+                    finishExpandEnter();
+                    finishExpandClose();
                 }}
             >
+                {expandOverlay && (
+                    <div
+                        className="agent-expand-resize"
+                        role="separator"
+                        aria-orientation="vertical"
+                        aria-label="Resize agent panel"
+                        aria-valuenow={expandedWidthPx ?? undefined}
+                        onPointerDown={onExpandResizePointerDown}
+                        onPointerMove={onExpandResizePointerMove}
+                        onPointerUp={onExpandResizePointerUp}
+                        onPointerCancel={onExpandResizePointerUp}
+                    />
+                )}
                 <div className="agent-sidebar-content" aria-busy={wallet === null || walletBusy}>
                 <div className="agent-header">
                     <div>
@@ -364,6 +439,7 @@ export function AgentSidebar({
                                 if (expanded) collapseExpanded();
                                 else {
                                     setExpandClosing(false);
+                                    setExpandEntering(!window.matchMedia("(prefers-reduced-motion: reduce)").matches);
                                     setExpanded(true);
                                 }
                             }}

@@ -1417,7 +1417,16 @@
     width: min(968px, calc(100vw - 1.5rem));
     z-index: 121;
     box-shadow: -16px 0 40px rgba(0, 0, 0, 0.45);
+    animation: none;
+}
+
+.agent-sidebar.open.expanded .agent-sidebar-inner.is-expanding {
     animation: agent-expand-in 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.agent-sidebar.open.expanded .agent-sidebar-inner.is-resizing {
+    animation: none !important;
+    transition: none;
 }
 
 .agent-sidebar.open.expanded.is-collapsing .agent-sidebar-inner {

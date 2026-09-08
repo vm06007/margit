@@ -1,6 +1,6 @@
 .app-toast {
     position: fixed;
-    inset: auto 2rem 2rem auto;
+    inset: 2rem 2rem auto auto;
     margin: 0;
     width: max-content;
     max-width: min(48rem, calc(100vw - 4rem));
