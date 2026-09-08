@@ -3,7 +3,6 @@ import { Hero } from "../components/home/Hero";
 import { DemoGallery } from "../components/home/DemoGallery";
 import { RolesMarquee } from "../components/home/RolesMarquee";
 import { ResponsivePromo } from "../components/home/ResponsivePromo";
-import { PagesMarquee } from "../components/home/PagesMarquee";
 import { FeaturesPromo } from "../components/home/FeaturesPromo";
 import { FeatureCards } from "../components/home/FeatureCards";
 import { ListingCTA } from "../components/home/ListingCTA";
@@ -18,7 +17,6 @@ export function WelcomePage({ listings = null, listingsError = null }: { me?: Me
     <DemoGallery />
     <RolesMarquee />
     <ResponsivePromo />
-    <PagesMarquee />
     <FeaturesPromo />
     <FeatureCards />
     <ListingCTA />

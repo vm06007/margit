@@ -15,7 +15,10 @@ export function Hero() {
                   <img className="mxd-pulse" src="/site/img/demo/01_hero-img.webp" alt="Hero Image" />
                 </div>
                 <div className="hero-00-image image-02 mxd-floating-img__item loading__fade">
-                  <img className="mxd-move" src="/site/img/demo/02_hero-img.webp" alt="Hero Image" />
+                  <span className="hero-agent-helmet" tabIndex={0} role="img" aria-label="Astronaut helmet" aria-describedby="hero-agent-tooltip">
+                    <img className="mxd-move" src="/site/img/demo/02_hero-img.webp" alt="" />
+                    <span className="hero-agent-tooltip" id="hero-agent-tooltip" role="tooltip">✦ Agentic Flow!</span>
+                  </span>
                 </div>
               </div>
 

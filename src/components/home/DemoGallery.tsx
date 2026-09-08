@@ -1,8 +1,11 @@
 import { useId, useState } from "react";
+import { DemoPreview } from "./DemoPreview";
 
 export function DemoGallery() {
   const [expanded, setExpanded] = useState(false);
+  const [preview, setPreview] = useState<number | null>(null);
   return (<>
+    {preview !== null && <DemoPreview initialIndex={preview} onClose={() => setPreview(null)} />}
     <div id="demo" className="mxd-section padding-grid-pre-mtext">
       <div className="mxd-container">
 
@@ -11,7 +14,7 @@ export function DemoGallery() {
 
             <div className="mxd-demo-list__row">
 
-              <a className="mxd-demo-list__item animate-card-2" href="/" target="_blank">
+              <button type="button" className="mxd-demo-list__item animate-card-2 demo-preview-card" aria-haspopup="dialog" onClick={() => setPreview(0)}>
                 <div className="mxd-demo-list__image">
                   <img src="/site/img/demo/screens/01.webp" alt="Margit Demo Screen" />
                   <div className="mxd-demo-list__screen screen-01"></div>
@@ -20,9 +23,9 @@ export function DemoGallery() {
                   <span className="mxd-demo-list__link">{"Main Home"}</span>
                   <span className="mxd-demo-list__num">{"/01"}</span>
                 </div>
-              </a>
+              </button>
 
-              <a className="mxd-demo-list__item item-accent animate-card-2" href="index-software-development-company.html" target="_blank">
+              <button type="button" className="mxd-demo-list__item item-accent animate-card-2 demo-preview-card" aria-haspopup="dialog" onClick={() => setPreview(1)}>
                 <div className="mxd-demo-list__image">
                   <img src="/site/img/demo/screens/02.webp" alt="Margit Demo Screen" />
                   <div className="mxd-demo-list__screen screen-02"></div>
@@ -34,12 +37,12 @@ export function DemoGallery() {
                 <div className="mxd-pricing-table__tag">
                   <span className="tag tag-default tag-additional">{"🔥 Hot"}</span>
                 </div>
-              </a>
+              </button>
             </div>
 
             <div className="mxd-demo-list__row">
 
-              <a className="mxd-demo-list__item animate-card-3" href="index-freelancer-portfolio.html" target="_blank">
+              <button type="button" className="mxd-demo-list__item animate-card-3 demo-preview-card" aria-haspopup="dialog" onClick={() => setPreview(2)}>
                 <div className="mxd-demo-list__image">
                   <img src="/site/img/demo/screens/03.webp" alt="Margit Demo Screen" />
                   <div className="mxd-demo-list__screen screen-03"></div>
@@ -48,9 +51,9 @@ export function DemoGallery() {
                   <span className="mxd-demo-list__link small">{"Freelancer Portfolio"}</span>
                   <span className="mxd-demo-list__num small">{"/03"}</span>
                 </div>
-              </a>
+              </button>
 
-              <a className="mxd-demo-list__item animate-card-3" href="index-digital-agency.html" target="_blank">
+              <button type="button" className="mxd-demo-list__item animate-card-3 demo-preview-card" aria-haspopup="dialog" onClick={() => setPreview(3)}>
                 <div className="mxd-demo-list__image">
                   <img src="/site/img/demo/screens/04.webp" alt="Margit Demo Screen" />
                   <div className="mxd-demo-list__screen screen-04"></div>
@@ -59,7 +62,7 @@ export function DemoGallery() {
                   <span className="mxd-demo-list__link small">{"Digital Agency"}</span>
                   <span className="mxd-demo-list__num small">{"/04"}</span>
                 </div>
-              </a>
+              </button>
 
               <button
                 type="button"
@@ -87,7 +90,7 @@ export function DemoGallery() {
                 <div className="demo-details-rows">
                   <div className="mxd-demo-list__row">
 
-                    <a className="mxd-demo-list__item item-accent animate-card-2" href="index-personal-portfolio.html" target="_blank">
+                    <button type="button" className="mxd-demo-list__item item-accent animate-card-2 demo-preview-card" aria-haspopup="dialog" onClick={() => setPreview(4)}>
                       <div className="mxd-demo-list__image">
                         <img src="/site/img/demo/screens/06.webp" alt="Margit Demo Screen" />
                         <div className="mxd-demo-list__screen screen-06"></div>
@@ -99,9 +102,9 @@ export function DemoGallery() {
                       <div className="mxd-pricing-table__tag">
                         <span className="tag tag-default tag-additional">{"🔥 Hot"}</span>
                       </div>
-                    </a>
+                    </button>
 
-                    <a className="mxd-demo-list__item animate-card-2" href="index-web-agency.html" target="_blank">
+                    <button type="button" className="mxd-demo-list__item animate-card-2 demo-preview-card" aria-haspopup="dialog" onClick={() => setPreview(5)}>
                       <div className="mxd-demo-list__image">
                         <img src="/site/img/demo/screens/07.webp" alt="Margit Demo Screen" />
                         <div className="mxd-demo-list__screen screen-07"></div>
@@ -113,12 +116,12 @@ export function DemoGallery() {
                       <div className="mxd-pricing-table__tag">
                         <span className="tag tag-default tag-accent">{"🦄 Trendy"}</span>
                       </div>
-                    </a>
+                    </button>
                   </div>
 
                   <div className="mxd-demo-list__row">
 
-                    <a className="mxd-demo-list__item animate-card-3" href="index-creative-developer.html" target="_blank">
+                    <button type="button" className="mxd-demo-list__item animate-card-3 demo-preview-card" aria-haspopup="dialog" onClick={() => setPreview(6)}>
                       <div className="mxd-demo-list__image">
                         <img src="/site/img/demo/screens/08.webp" alt="Margit Demo Screen" />
                         <div className="mxd-demo-list__screen screen-08"></div>
@@ -127,9 +130,9 @@ export function DemoGallery() {
                         <span className="mxd-demo-list__link small">{"Creative Developer"}</span>
                         <span className="mxd-demo-list__num small">{"/08"}</span>
                       </div>
-                    </a>
+                    </button>
 
-                    <a className="mxd-demo-list__item animate-card-3" href="index-designer.html" target="_blank">
+                    <button type="button" className="mxd-demo-list__item animate-card-3 demo-preview-card" aria-haspopup="dialog" onClick={() => setPreview(7)}>
                       <div className="mxd-demo-list__image">
                         <img src="/site/img/demo/screens/09.webp" alt="Margit Demo Screen" />
                         <div className="mxd-demo-list__screen screen-09"></div>
@@ -138,7 +141,7 @@ export function DemoGallery() {
                         <span className="mxd-demo-list__link small">{"Designer"}</span>
                         <span className="mxd-demo-list__num small">{"/09"}</span>
                       </div>
-                    </a>
+                    </button>
 
                     <div className="mxd-demo-list__item empty-item animate-card-3">
                       <div className="mxd-demo-list__image image-placeholder">
