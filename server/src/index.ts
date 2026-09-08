@@ -45,8 +45,8 @@ const {
     GITHUB_CLIENT_ID,
     GITHUB_CLIENT_SECRET,
     GITHUB_REDIRECT_URI,
-    APP_URL = "http://localhost:5173",
 } = process.env;
+const APP_URL = process.env.APP_URL?.trim() || "http://localhost:5173";
 
 if (!GITHUB_CLIENT_ID || !GITHUB_CLIENT_SECRET || !GITHUB_REDIRECT_URI) {
     console.warn(
