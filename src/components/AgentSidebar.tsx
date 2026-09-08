@@ -28,21 +28,27 @@ export function AgentSettingsPanel({ onSaved, onClose }: { onSaved: (settings: A
     const [models, setModels] = useState<AgentModel[] | null>(null);
     const [settings, setSettings] = useState<AgentSettings | null>(null);
     const [model, setModel] = useState("");
+    const [customModel, setCustomModel] = useState(false);
     const [apiKey, setApiKey] = useState("");
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        fetchAgentModels()
-            .then(setModels)
-            .catch(() => setModels([]));
-        fetchAgentSettings()
-            .then((s) => {
-                setSettings(s);
-                setModel(s.model);
-            })
-            .catch(() => undefined);
+        let cancelled = false;
+        Promise.all([fetchAgentModels().catch(() => [] as AgentModel[]), fetchAgentSettings().catch(() => null)])
+            .then(([modelList, savedSettings]) => {
+                if (cancelled) return;
+                setModels(modelList);
+                if (!savedSettings) return;
+                setSettings(savedSettings);
+                const known = modelList.some((m) => m.id === savedSettings.model);
+                setCustomModel(!known && Boolean(savedSettings.model));
+                setModel(savedSettings.model);
+            });
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     const save = async () => {
@@ -70,25 +76,41 @@ export function AgentSettingsPanel({ onSaved, onClose }: { onSaved: (settings: A
                     <i className="ph ph-x" />
                 </button>
             </div>
-            <label className="agent-settings-label" htmlFor="agent-model-input">
+            <label className="agent-settings-label" htmlFor="agent-model-select">
                 Model
             </label>
-            <input
-                id="agent-model-input"
+            <select
+                id="agent-model-select"
                 className="agent-input"
-                list="agent-model-options"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder="openrouter/free"
-            />
-            <datalist id="agent-model-options">
+                value={customModel ? "__custom__" : model}
+                onChange={(e) => {
+                    if (e.target.value === "__custom__") {
+                        setCustomModel(true);
+                        return;
+                    }
+                    setCustomModel(false);
+                    setModel(e.target.value);
+                }}
+                disabled={models === null}
+            >
                 {(models ?? []).map((m) => (
                     <option key={m.id} value={m.id}>
                         {m.name}
                         {m.free ? " (free)" : ""}
                     </option>
                 ))}
-            </datalist>
+                <option value="__custom__">Custom model id…</option>
+            </select>
+            {customModel && (
+                <input
+                    id="agent-model-input"
+                    className="agent-input"
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    placeholder="provider/model-id"
+                    aria-label="Custom model id"
+                />
+            )}
 
             <label className="agent-settings-label" htmlFor="agent-key-input">
                 Your OpenRouter API key (optional)
@@ -266,7 +288,7 @@ export function AgentSidebar({
         )}
         <aside id="agent-sidebar" className={`agent-sidebar ${open ? "open" : ""}${expandOverlay ? " expanded" : ""}${expandClosing ? " is-collapsing" : ""}`} inert={!open}>
             <div
-                className={`agent-sidebar-inner${wallet === null || walletBusy ? " is-loading" : ""}`}
+                className={`agent-sidebar-inner${wallet === null || walletBusy ? " is-loading" : ""}${showSettings ? " is-settings-open" : ""}`}
                 onAnimationEnd={(event) => {
                     if (event.currentTarget === event.target) finishExpandClose();
                 }}
@@ -283,7 +305,15 @@ export function AgentSidebar({
                                     <i className="ph ph-wallet" aria-hidden="true" />
                                     <span className="agent-wallet-label">{wallet.mode === "personal" ? "Your agent wallet" : "Demo Wallet"}</span>
                                     <span className="agent-wallet-arrow" aria-hidden="true">→</span>
-                                    <code>{shortenAddress(wallet.address)}</code>
+                                    <a
+                                        className="agent-wallet-address-link"
+                                        href={`https://testnet.arcscan.app/address/${wallet.address}?tab=txs`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        title="View on Arc Explorer"
+                                    >
+                                        <code>{shortenAddress(wallet.address)}</code>
+                                    </a>
                                     <button
                                         type="button"
                                         className="agent-copy-address"
@@ -316,13 +346,43 @@ export function AgentSidebar({
                         <button
                             ref={menuTrigger}
                             type="button"
-                            className={`agent-icon-btn ${menuOpen || showCircleInfo || showSettings || expanded ? "active" : ""}`}
+                            className={`agent-icon-btn ${menuOpen || showCircleInfo || showSettings ? "active" : ""}`}
                             aria-label="Agent options"
                             aria-haspopup="menu"
                             aria-expanded={menuOpen}
                             onClick={() => setMenuOpen((value) => !value)}
                         >
                             <i className="ph ph-dots-three-vertical" />
+                        </button>
+                        <button
+                            type="button"
+                            className={`agent-icon-btn${expanded ? " active" : ""}`}
+                            aria-label={expanded ? "Collapse Panel" : "Expand Panel"}
+                            title={expanded ? "Collapse Panel" : "Expand Panel"}
+                            aria-pressed={expanded}
+                            onClick={() => {
+                                if (expanded) collapseExpanded();
+                                else {
+                                    setExpandClosing(false);
+                                    setExpanded(true);
+                                }
+                            }}
+                        >
+                            <i className={`ph ${expanded ? "ph-arrows-in-simple" : "ph-arrows-out-simple"}`} aria-hidden="true" />
+                        </button>
+                        <button
+                            type="button"
+                            className="agent-icon-btn"
+                            aria-label="Close Agent"
+                            title="Close Agent"
+                            onClick={() => {
+                                setMenuOpen(false);
+                                setExpandClosing(false);
+                                setExpanded(false);
+                                onClose();
+                            }}
+                        >
+                            <i className="ph ph-x" />
                         </button>
                         {menuOpen && (
                             <div
@@ -384,33 +444,17 @@ export function AgentSidebar({
                                     type="button"
                                     role="menuitem"
                                     className="profile-menu-item"
-                                    aria-pressed={expanded}
+                                    disabled={messages.length === 0 && !error}
                                     onClick={() => {
-                                        if (expanded) collapseExpanded();
-                                        else {
-                                            setExpandClosing(false);
-                                            setExpanded(true);
-                                        }
+                                        setMessages([]);
+                                        setError(null);
+                                        setInput("");
                                         setMenuOpen(false);
                                         menuTrigger.current?.focus();
                                     }}
                                 >
-                                    <i className={`ph ${expanded ? "ph-arrows-in-simple" : "ph-arrows-out-simple"}`} aria-hidden="true" />
-                                    <span>{expanded ? "Collapse" : "Expand"}</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    role="menuitem"
-                                    className="profile-menu-item profile-menu-danger"
-                                    onClick={() => {
-                                        setMenuOpen(false);
-                                        setExpandClosing(false);
-                                        setExpanded(false);
-                                        onClose();
-                                    }}
-                                >
-                                    <i className="ph ph-x" aria-hidden="true" />
-                                    <span>Close agent</span>
+                                    <i className="ph ph-trash" aria-hidden="true" />
+                                    <span>Clear Chat</span>
                                 </button>
                             </div>
                         )}
@@ -450,7 +494,6 @@ export function AgentSidebar({
                     {walletError && <p role="alert">{walletError}</p>}
                     <a href="/proofs/circle-arc-testnet.json" target="_blank" rel="noreferrer">View recorded test evidence ↗</a>
                 </div>}
-                {showSettings && <AgentSettingsPanel onSaved={setSettings} onClose={() => setShowSettings(false)} />}
                 <div className="agent-messages" ref={scrollRef}>
                     {messages.map((m, i) => (
                         <div key={i} className={`agent-message agent-message-${m.role}`}>
@@ -482,11 +525,17 @@ export function AgentSidebar({
                     {sending && <p className="hint agent-typing" role="status"><span className="agent-thinking-spinner" aria-hidden="true" />Thinking…</p>}
                 </div>
                 {error && <p className="error agent-error">{error}</p>}
-                <div className="agent-prompt-suggestions" aria-label="Suggested agent requests">
+                <div className="agent-prompt-suggestions" aria-label="Suggested agent requests" data-lenis-prevent>
+                    <div className="agent-prompt-spacer" aria-hidden="true" />
                     {[
                         ['Find repositories', 'Find repositories accepting x402 for at most 0.10 USDC. Compare their language, price, and delivery terms. Do not buy yet.'],
                         ['Check Circle balance', 'Check the demo wallet and Circle Gateway balances on Arc testnet. Explain whether an x402 purchase is ready.'],
                         ['Try Circle x402', 'Choose the cheapest available x402-enabled repository costing at most 0.10 USDC. Explain its delivery terms, buy it with Circle Gateway x402 on Arc testnet, and show the returned payment proof. Do not use contract checkout.'],
+                        ['Latest listings', 'Show the most recently listed repositories from the catalog. Include language, price, checkout options, and when each was listed. Do not buy yet.'],
+                        ['Most popular', 'Using on-chain purchase activity from The Graph when available, rank the most popular repositories by completed purchases. Join those results with live catalog details (price, language, access terms). If Graph data is unavailable, say so and fall back to the catalog. Do not buy yet.'],
+                        ['Recently sold', 'Using The Graph purchase receipts when available, list the repositories sold most recently on Arc. Include buyer/seller if public in the indexer, amount, token, and matching catalog listing details. Do not buy yet.'],
+                        ['Top sellers', 'Using The Graph when available, identify the top sellers by purchase count or volume, then show their current live listings from the catalog. Do not buy yet.'],
+                        ['Trending under $0.10', 'Find repositories priced at most $0.10 that look active from recent Graph purchase activity when available. Prefer x402-capable listings and compare language, price, and delivery terms. Do not buy yet.'],
                     ].map(([label, prompt]) => <button type="button" key={label} disabled={sending || walletBusy} onClick={() => {
                         setInput(prompt);
                         queueMicrotask(() => {
@@ -497,6 +546,7 @@ export function AgentSidebar({
                             field.scrollLeft = 0;
                         });
                     }}>{label}</button>)}
+                    <div className="agent-prompt-spacer" aria-hidden="true" />
                 </div>
                 <form
                     className="agent-input-row"
@@ -531,6 +581,19 @@ export function AgentSidebar({
                 </form>
                 {notification && <Toast key={notification.id} message={notification.message} tone={notification.tone} onDismiss={dismissNotification} />}
                 </div>
+                {showSettings && (
+                    <div
+                        className="agent-settings-overlay"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="AI Model Settings"
+                        onClick={(event) => {
+                            if (event.currentTarget === event.target) setShowSettings(false);
+                        }}
+                    >
+                        <AgentSettingsPanel onSaved={setSettings} onClose={() => setShowSettings(false)} />
+                    </div>
+                )}
                 {(wallet === null || walletBusy) && (
                     <div className="agent-loading-overlay" role="status" aria-live="polite" aria-label="Loading wallet">
                         <span className="agent-loading-spinner" aria-hidden="true" />
