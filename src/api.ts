@@ -1,3 +1,4 @@
+import type { AgentPaymentProof } from "../shared/agentPayment";
 import type { AccessPolicy } from "../shared/accessPolicy";
 export interface Me {
     authenticated: boolean;
@@ -188,6 +189,8 @@ export async function downloadZip(cloneUrl: string, repoName: string): Promise<v
 }
 
 export interface AgentWallet {
+    mode?: "shared" | "personal";
+    circle?: { provider: string; network: string; walletType: string; address?: string; availableUsdc?: string; ready: boolean; error?: string };
     address?: string;
     nativeGas?: string;
     usdc?: string;
@@ -197,7 +200,8 @@ export interface AgentWallet {
 
 export interface AgentPurchase {
     cloneUrl: string;
-    txHash: string;
+    txHash?: string;
+    proof?: AgentPaymentProof;
     repoFullName: string;
     token: "USDC" | "EURC" | "cirBTC";
 }
@@ -216,6 +220,20 @@ export interface AgentChatResponse {
 
 export function fetchAgentWallet(): Promise<AgentWallet> {
     return apiFetch<AgentWallet>("/api/agent/wallet");
+}
+
+async function agentWalletRequest<T>(path: string, init: RequestInit): Promise<T> {
+    const response = await fetch(path, {credentials: 'include', ...init});
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error ?? 'Wallet request failed');
+    return data;
+}
+
+export function selectAgentWallet(mode: "shared" | "personal"): Promise<AgentWallet> {
+    return agentWalletRequest<AgentWallet>("/api/agent/wallet", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({mode}) });
+}
+export function depositAgentGateway(amount: string, requestId: string): Promise<{depositTxHash: string}> {
+    return agentWalletRequest("/api/agent/gateway-deposit", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({amount, requestId}) });
 }
 
 export async function sendAgentMessage(message: string): Promise<AgentChatResponse> {

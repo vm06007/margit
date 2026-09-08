@@ -62,9 +62,9 @@ export function HomeFooter() {
                           </div>
                           <div className="mxd-footer-nav__list">
                             <ul>
-                              <li><a className="anim-uni-in-up" href="/api/auth/github/login">{"Connect GitHub"}</a></li>
-                              <li><a className="anim-uni-in-up" href="https://github.com/vm06007/margit" target="_blank" rel="noreferrer">{"GitHub Source"}</a></li>
-                              <li><a className="anim-uni-in-up" href="https://bazantic.com" target="_blank" rel="noreferrer">{"Bazantic"}</a></li>
+                              <li><a className="anim-uni-in-up" href="/#x402">{"x402"}</a></li>
+                              <li><a className="anim-uni-in-up" href="/SKILLS.md" target="_blank" rel="noreferrer">{"Skills"}</a></li>
+                              <li><a className="anim-uni-in-up" href="/agents">{"MCP"}</a></li>
                             </ul>
                           </div>
                         </div>
@@ -77,8 +77,8 @@ export function HomeFooter() {
                           <div className="mxd-footer-nav__list">
                             <ul>
                               <li><a className="anim-uni-in-up" href="https://arc.io" target="_blank" rel="noreferrer">{"Arc"}</a></li>
-                              <li><a className="anim-uni-in-up" href="https://circle.com" target="_blank" rel="noreferrer">{"Circle (USDC/EURC)"}</a></li>
-                              <li><a className="anim-uni-in-up" href="https://openrouter.ai" target="_blank" rel="noreferrer">{"OpenRouter"}</a></li>
+                              <li><a className="anim-uni-in-up" href="https://thegraph.com" target="_blank" rel="noreferrer">{"Graph"}</a></li>
+                              <li><a className="anim-uni-in-up" href="https://bazantic.com" target="_blank" rel="noreferrer">{"Bazantic"}</a></li>
                             </ul>
                           </div>
                         </div>
@@ -95,7 +95,7 @@ export function HomeFooter() {
         <div className="mxd-block">
           <div className="mxd-demo-footer__mixdesign mxd-grid-item no-margin">
             <a className="anim-uni-in-up" href="https://ethglobal.com/events/ethonline2026" target="_blank" rel="noreferrer" aria-label="ETHGlobal ETHOnline 2026">
-              <span className="mxd-footer-giant-text">{"ETHGLOBAL ETHONLINE 2026"}</span>
+              <span className="mxd-footer-giant-text">{"ETHGLOBAL ETHONLINE '26"}</span>
             </a>
           </div>
         </div>

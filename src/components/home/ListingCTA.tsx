@@ -3,7 +3,7 @@ import { RevealText } from "./RevealText";
 
 export function ListingCTA() {
   return (<>
-    <div className="mxd-section padding-default">
+    <div className="mxd-section padding-default home-listing-cta">
       <div className="mxd-container">
 
         <div className="mxd-block">

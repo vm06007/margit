@@ -1,9 +1,9 @@
+import { AgentIntegration } from "../components/home/AgentIntegration";
 import type { Listing, Me } from "../api";
 import { Hero } from "../components/home/Hero";
 import { DemoGallery } from "../components/home/DemoGallery";
 import { RolesMarquee } from "../components/home/RolesMarquee";
 import { ResponsivePromo } from "../components/home/ResponsivePromo";
-import { FeaturesPromo } from "../components/home/FeaturesPromo";
 import { FeatureCards } from "../components/home/FeatureCards";
 import { ListingCTA } from "../components/home/ListingCTA";
 import { RecentSection } from "../components/home/RecentSection";
@@ -17,10 +17,10 @@ export function WelcomePage({ listings = null, listingsError = null }: { me?: Me
     <DemoGallery />
     <RolesMarquee />
     <ResponsivePromo />
-    <FeaturesPromo />
+    <AgentIntegration />
     <FeatureCards />
-    <ListingCTA />
     <RecentSection listings={listings} listingsError={listingsError} />
+    <ListingCTA />
     <AmbientVideo />
     <FeedbackCTA />
   </>;

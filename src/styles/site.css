@@ -317,3 +317,60 @@
 .demo-preview.is-expanded .demo-preview-panel { height: 100%; display: flex; flex-direction: column; }
 .demo-preview.is-expanded .demo-preview-image { flex: 1; min-height: 0; width: 100%; max-width: none; }
 .demo-preview.is-expanded .demo-preview-image img { height: 100%; max-height: 100%; min-height: 0; object-fit: contain; }
+
+.agent-integration-links { display: flex; flex-wrap: wrap; gap: 1.2rem; margin-block: 2rem 3rem; }
+.agent-integration-home { padding-block: 4rem; }
+.agent-integration-home p { max-width: 75rem; margin-top: 2rem; }
+.agent-integration-page h1 { margin-bottom: 2rem; }
+.agent-integration-page h2 { font-size: 3rem; margin-block: 4rem 1.6rem; }
+.agent-integration-page pre { padding: 2rem; background: var(--base-tint); border: 1px solid var(--st-muted); border-radius: 1.2rem; font-size: 1.5rem; overflow: auto; margin-block: 2rem; }
+
+.site-app .home-listing-cta { padding-top: 0; }
+
+.site-app .agent-integration-home { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: clamp(3rem, 5vw, 8rem); }
+.agent-integration-intro h2 { font-size: clamp(3.6rem, 4.2vw, 6.4rem); line-height: 1.1; }
+.site-app .agent-integration-link { display: inline-flex; align-items: center; gap: .7rem; color: var(--t-bright); font-size: 1.8rem; text-decoration: none; border-bottom: 1px solid var(--st-muted); padding-bottom: .4rem; }
+.site-app .agent-integration-link:hover { color: var(--accent); border-color: var(--accent); }
+.agent-snippet { min-width: 0; overflow: hidden; background: var(--base-tint); border: 1px solid var(--st-muted); border-radius: 2rem; }
+.agent-snippet-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; padding: 1.4rem 1.8rem; border-bottom: 1px solid var(--st-muted); }
+.agent-snippet-formats { display: flex; gap: .4rem; }
+.agent-snippet-formats button { border: 0; background: transparent; color: var(--t-medium); padding: .8rem 1.2rem; border-radius: .8rem; font: inherit; font-size: 1.4rem; }
+.agent-snippet-formats button[aria-pressed="true"] { background: var(--accent); color: #161616; }
+.agent-snippet-copy { display: inline-flex; align-items: center; gap: .6rem; background: transparent; border: 0; color: var(--t-medium); font-size: 1.4rem; }
+.agent-snippet-copy svg { width: 1.8rem; height: 1.8rem; }
+.agent-snippet-copy:hover { color: var(--t-bright); }
+.agent-snippet button:focus-visible, .agent-snippet pre:focus-visible, .agent-integration-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.agent-snippet-body { padding: 2.2rem; }
+.agent-snippet-filename { display: block; margin-bottom: 1.8rem; font-size: 1.3rem; color: var(--t-medium); }
+.agent-snippet pre { margin: 0; min-height: 21rem; overflow-x: auto; color: var(--t-bright); font: 1.4rem/1.75 monospace; tab-size: 2; }
+.site-app .agent-integration-home .agent-snippet-caption { margin: 0; padding: 1.6rem 2.2rem; border-top: 1px solid var(--st-muted); font-size: 1.4rem; line-height: 1.5; color: var(--t-medium); }
+@media (max-width: 900px) { .site-app .agent-integration-home { grid-template-columns: minmax(0, 1fr); } }
+
+/* Circle nanopayment demo: suggestions only prefill; spending is explicit. */
+.site-app .agent-prompt-suggestions { display:flex; flex-wrap:wrap; gap:.6rem; padding:1rem 0; }
+.site-app .agent-prompt-suggestions button { font:inherit; font-size:1.3rem; border:1px solid var(--st-muted); border-radius:2rem; padding:.6rem 1rem; color:var(--t-bright); background:var(--base-tint); }
+.site-app .agent-prompt-suggestions button:hover { color:var(--base); background:var(--accent); }
+.site-app .agent-circle-status,.site-app .agent-payment-proof { display:grid; gap:.5rem; padding:1.2rem; border:1px solid var(--st-muted); border-radius:1.2rem; font-size:1.4rem; }
+.site-app .agent-circle-status small,.site-app .agent-payment-proof small { color:var(--t-medium); }
+.site-app .agent-payment-proof { margin:1rem 0; }
+.site-app .agent-payment-proof dd { overflow-wrap:anywhere; margin:0 0 .8rem; }
+.site-app .agent-payment-proof dt { color:var(--t-medium); }
+.site-app .agent-transaction-link { display:block; margin:1rem 0; color:var(--accent); }
+
+/* Clone actions also appear outside repository pages, including agent chat. */
+.site-app .buy-result .clone-actions { display:flex; flex-wrap:wrap; gap:1rem; align-items:center; }
+.site-app .buy-result .clone-actions .btn { display:inline-flex; align-items:center; justify-content:center; gap:.8rem; font-size:1.5rem; line-height:1.4; height:auto; min-height:4.4rem; padding:1rem 1.6rem; border-radius:3rem; white-space:normal; }
+.site-app .buy-result .clone-actions .btn.btn-primary { background:#dfff63; color:#161616; border:1px solid #dfff63; }
+.site-app .buy-result .clone-actions .btn.btn-outline { background:transparent; color:var(--t-bright); border:1px solid var(--t-bright); }
+.site-app .buy-result .clone-actions .btn:hover { filter:brightness(.94); }
+.site-app .buy-result .clone-actions .btn:disabled { opacity:.45; }
+.site-app .buy-result .clone-actions .btn svg { width:1.8rem; height:1.8rem; flex-shrink:0; }
+.site-app .agent-circle-status a { color:var(--accent); }
+
+.site-app .agent-wallet-choice { display:flex; gap:.8rem; margin:1rem 0; }
+.site-app .agent-wallet-choice button { border:1px solid var(--st-muted); border-radius:2rem; padding:.6rem 1rem; font-size:1.4rem; }
+.site-app .agent-wallet-choice button[aria-pressed="true"] { background:var(--accent); color:#161616; }
+.site-app .agent-wallet-address { overflow-wrap:anywhere; font-size:1.3rem; }
+.site-app .agent-circle-status button { border:1px solid var(--st-muted); border-radius:1rem; padding:.7rem 1rem; color:var(--t-bright); }
+.site-app .agent-circle-status button:disabled { opacity:.5; }
+.site-app .agent-circle-status { max-height:45dvh; overflow-y:auto; flex-shrink:0; }

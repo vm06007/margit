@@ -1,3 +1,4 @@
+import { AgentsPage } from "./pages/AgentsPage";
 import { ListingSuccess } from "./components/ListingSuccess";
 import { PortfolioPage } from "./pages/PortfolioPage";
 import { useEffect, useMemo, useState } from "react";
@@ -105,7 +106,7 @@ function App() {
                     onToggleAgent={() => setAgentOpen((v) => !v)}
                 />
                 <main id="mxd-page-content" className={`mxd-page-content ${home ? "" : "inner-page-content"}`}>
-                {path === "/portfolio" ? <PortfolioPage /> : publisherMatch ? (
+                {path === "/agents" ? <AgentsPage /> : path === "/portfolio" ? <PortfolioPage /> : publisherMatch ? (
                     <PublisherPage login={publisherMatch[1]} listings={listings} navigate={navigate} />
                 ) : path === "/catalog" ? (
                     <CatalogPage me={viewer} onEdit={setEditingListing} listings={listings} listingsError={listingsError} navigate={navigate} />
@@ -130,7 +131,7 @@ function App() {
                 )}
                 {path === "/catalog" && <CatalogCTA />}
                 </main>
-                {path !== "/portfolio" && path !== "/works" && path !== "/profile" && !(repoMatch && !publisherMatch) && <SiteFooter variant={home ? "home" : path === "/catalog" ? "catalog" : "works"} />}
+                {path !== "/agents" && path !== "/portfolio" && path !== "/works" && path !== "/profile" && !(repoMatch && !publisherMatch) && <SiteFooter variant={home ? "home" : path === "/catalog" ? "catalog" : "works"} />}
             </div>
             <AgentSidebar
                 open={!home && agentOpen}
