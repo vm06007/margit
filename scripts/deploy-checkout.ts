@@ -3,6 +3,7 @@ import { createPublicClient, createWalletClient, http, formatEther, parseAbi } f
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { arcTestnet, ARC_TOKEN_ADDRESSES } from '../server/src/payments.js';
 import { checkoutAbi } from '../shared/checkout.js';
+import { TOKEN_DECIMALS, type PaymentToken } from '../shared/paymentTokens.js';
 const key = process.env.ARC_SELLER_PRIVATE_KEY;
 if (!key || !/^0x[0-9a-f]{64}$/i.test(key)) throw new Error('Configure ARC_SELLER_PRIVATE_KEY locally');
 const account = privateKeyToAccount(key as `0x${string}`);
@@ -19,9 +20,9 @@ function setEnv(name:string,value:string){
 let signerKey=process.env.CHECKOUT_SIGNER_PRIVATE_KEY as `0x${string}`|undefined;
 if(!signerKey){signerKey=generatePrivateKey();setEnv('CHECKOUT_SIGNER_PRIVATE_KEY',signerKey);}
 const signer=privateKeyToAccount(signerKey);
-for(const token of Object.values(ARC_TOKEN_ADDRESSES)){
+for(const [symbol, token] of Object.entries(ARC_TOKEN_ADDRESSES)){
  const decimals=await client.readContract({address:token as `0x${string}`,abi:parseAbi(['function decimals() view returns (uint8)']),functionName:'decimals'});
- if(decimals!==6)throw new Error('Unexpected token decimals');
+ if(decimals!==TOKEN_DECIMALS[symbol as PaymentToken])throw new Error(`Unexpected ${symbol} token decimals`);
 }
 const balance=await client.getBalance({address:account.address});
 console.log(JSON.stringify({chainId:arcTestnet.id,deployer:account.address,quoteSigner:signer.address,balanceUSDC:formatEther(balance)}));

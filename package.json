@@ -17,11 +17,16 @@
     "graph:codegen": "graph codegen subgraph/subgraph.yaml --output-dir subgraph/generated",
     "graph:build": "graph build subgraph/subgraph.yaml --output-dir subgraph/build",
     "graph:deploy": "node --env-file=.env scripts/deploy-subgraph.mjs",
-    "contracts:verify": "node scripts/verify-checkout.mjs"
+    "contracts:verify": "node scripts/verify-checkout.mjs",
+    "mcp:check": "node --import tsx scripts/check-mcp.ts",
+    "arc:readiness": "node --import tsx scripts/arc-readiness.ts",
+    "arc:prepare-mainnet": "node --import tsx scripts/prepare-arc-mainnet.ts",
+    "arc:test-release": "node --import tsx --test scripts/tests/arc-release.test.ts"
   },
   "dependencies": {
     "@circle-fin/x402-batching": "^3.4.0",
     "@hono/node-server": "^1.19.7",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@types/canvas-confetti": "^1.9.0",
     "@upstash/redis": "^1.38.4",
     "@x402/core": "^2.25.0",
@@ -34,7 +39,8 @@
     "react-dom": "^19.2.8",
     "react-markdown": "^10.1.0",
     "thirdweb": "^5.121.1",
-    "viem": "^2.56.3"
+    "viem": "^2.56.3",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@graphprotocol/graph-cli": "^0.98.1",
@@ -45,7 +51,7 @@
     "@vitejs/plugin-react": "^6.1.0",
     "concurrently": "^10.0.5",
     "oxlint": "^1.79.0",
-    "solc": "^0.8.36",
+    "solc": "0.8.36",
     "tsx": "^4.23.13",
     "typescript": "~6.0.2",
     "vite": "^8.2.2"

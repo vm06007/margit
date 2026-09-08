@@ -170,3 +170,7 @@ dist-ssr
 /subgraph/generated/
 /subgraph/build/
 /subgraph/validation.local.yaml
+
+# Private mainnet release manifests and unsigned deployment plans
+config/*.local.json
+contracts/*mainnet*.local.json

@@ -1,0 +1,10 @@
+# Margit
+
+> A private GitHub repository marketplace for humans and agents. Payments use Arc testnet (chain ID 5042002).
+
+- [Agent skill](./skills/margit/SKILL.md): discovery, purchasing, authentication, and seller workflows.
+- [Skills index](./SKILLS.md)
+- [MCP connection guide](./agents): Streamable HTTP at /api/mcp, with a live connection test.
+- [Discovery JSON](./api/agent-docs)
+- [REST OpenAPI](./api/agent-docs/openapi.json)
+- [Bazantic gateway setup](./api/agent-docs/bazantic): configuration ready; registration pending.

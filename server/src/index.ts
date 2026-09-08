@@ -1,3 +1,6 @@
+import { selectAgentWallet, depositAgentGateway } from "./agent-wallet.js";
+import { createMcpRoutes } from "./mcp.js";
+import { createAgentDocs } from "./agent-docs.js";
 import { createHash } from "node:crypto";
 import { portfolio } from "./portfolio.js";
 import { checkoutRoutes } from "./checkout.js";
@@ -60,6 +63,8 @@ const MAX_SCREENSHOTS = 4;
 const MAX_SCREENSHOT_CHARS = 2_000_000; // ~1.5MB decoded
 
 const app = new Hono();
+app.route("/api/mcp", createMcpRoutes(async (path, init) => app.request(path, init), APP_URL));
+app.route("/api/agent-docs", createAgentDocs(APP_URL));
 
 async function resolveListingFromContext(ctx: HTTPRequestContext): Promise<Listing> {
     const id = ctx.adapter.getQueryParam?.("id");
@@ -191,14 +196,28 @@ function getOrCreateAgentSessionId(c: Parameters<typeof getCookie>[0]): string {
             sameSite: "Lax",
             secure: APP_URL.startsWith("https"),
             path: "/",
-            maxAge: 60 * 60 * 24,
+            maxAge: 60 * 60 * 24 * 365,
         });
     }
     return sessionId;
 }
 
 app.get("/api/agent/wallet", async (c) => {
-    return c.json(await getAgentWalletBalance());
+    return c.json(await getAgentWalletBalance(getOrCreateAgentSessionId(c)));
+});
+
+app.post("/api/agent/wallet", async (c) => {
+    const session = getOrCreateAgentSessionId(c);
+    const { mode } = await c.req.json();
+    if (mode !== 'shared' && mode !== 'personal') return c.json({error: 'Invalid wallet mode'}, 400);
+    await selectAgentWallet(session, mode);
+    return c.json(await getAgentWalletBalance(session));
+});
+app.post("/api/agent/gateway-deposit", async (c) => {
+    const { amount, requestId } = await c.req.json();
+    if (typeof amount !== 'string' || typeof requestId !== 'string') return c.json({error: 'Amount and request ID required'}, 400);
+    try { return c.json(await depositAgentGateway(getOrCreateAgentSessionId(c), amount, requestId)); }
+    catch (error) { return c.json({error: error instanceof Error ? error.message : 'Deposit failed'}, 400); }
 });
 
 app.post("/api/agent/chat", async (c) => {
@@ -593,8 +612,8 @@ app.post("/api/keys", async (c) => {
 // Bazantic Gateway — can manage a seller's own listings on their behalf,
 // given a key that seller generated and controls.
 app.get("/api/agent-api/repos", async (c) => {
-    const apiKey = c.req.query("apiKey");
-    if (!apiKey) return c.json({ error: "apiKey query param is required" }, 401);
+    const apiKey = c.req.header("Authorization")?.replace(/^Bearer /, "") ?? c.req.query("apiKey");
+    if (!apiKey) return c.json({ error: "Margit bearer key is required" }, 401);
     const owner = await resolveApiKey(apiKey);
     if (!owner) return c.json({ error: "Invalid or revoked API key" }, 401);
     return c.json(await listMyRepos(owner.githubAccessToken));
@@ -609,8 +628,9 @@ app.post("/api/agent-api/repos/list", async (c) => {
         sellerDescription?: string;
         accessPolicy?: import("../../shared/accessPolicy.js").AccessPolicy;
     }>();
-    if (!body.apiKey) return c.json({ error: "apiKey is required" }, 401);
-    const owner = await resolveApiKey(body.apiKey);
+    const apiKey = c.req.header("Authorization")?.replace(/^Bearer /, "") ?? body.apiKey;
+    if (!apiKey) return c.json({ error: "Margit bearer key is required" }, 401);
+    const owner = await resolveApiKey(apiKey);
     if (!owner) return c.json({ error: "Invalid or revoked API key" }, 401);
     if (!body.repoFullName || !body.price || !body.payoutAddress) {
         return c.json({ error: "repoFullName, price, and payoutAddress are required" }, 400);
@@ -632,8 +652,9 @@ app.post("/api/agent-api/repos/list", async (c) => {
 
 app.post("/api/agent-api/repos/unlist", async (c) => {
     const body = await c.req.json<{ apiKey?: string; id?: string; repoFullName?: string }>();
-    if (!body.apiKey) return c.json({ error: "apiKey is required" }, 401);
-    const owner = await resolveApiKey(body.apiKey);
+    const apiKey = c.req.header("Authorization")?.replace(/^Bearer /, "") ?? body.apiKey;
+    if (!apiKey) return c.json({ error: "Margit bearer key is required" }, 401);
+    const owner = await resolveApiKey(apiKey);
     if (!owner) return c.json({ error: "Invalid or revoked API key" }, 401);
 
     const result = await unlistRepoForUser(

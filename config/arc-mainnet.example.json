@@ -1,0 +1,14 @@
+{
+  "network": "arc-mainnet",
+  "chainId": null,
+  "rpcUrl": null,
+  "explorerUrl": null,
+  "officialNetworkSource": "https://docs.arc.io/arc/references/connect-to-arc",
+  "officialTokenSource": null,
+  "deployerAddress": null,
+  "quoteSignerAddress": null,
+  "treasuryAddress": null,
+  "usdcAddress": null,
+  "eurcAddress": null,
+  "maxDeploymentFeeUsdc": "5.00"
+}
