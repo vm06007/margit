@@ -6,6 +6,23 @@ Sell access to a private repo. Get paid in **USDC**, **EURC**, or optionally **c
 
 Built for **ETHGlobal ETHOnline 2026**.
 
+## Arc track — for judges
+
+**[Open the dedicated Arc judge guide](arc-track/README.md)** for the architecture, source links, testnet walkthrough, spending controls, and current mainnet readiness status.
+
+A live Circle Gateway x402 purchase was verified on **September 8, 2026**: **0.20 testnet USDC deposited**, **0.05 USDC paid for repository access**, and successful Git delivery (HTTP 200). Inspect the [onchain deposit](https://testnet.arcscan.app/tx/0xf4b2ccbe10bc27a8f2f563dcc2dace756775eb44546e9eafc9b105e02041386b) and [recorded payment evidence](public/proofs/circle-arc-testnet.json).
+
+The purchase uses Circle's Nanopayments SDK with a demo EOA on Arc testnet. Its Gateway batch reference is not an individual transaction hash. The recorded test verifies the payment backend and delivery, rather than claiming a recorded end-to-end model-selected purchase or Circle-managed Agent Wallet integration.
+
+### Arc mainnet readiness — September 30 launch track
+
+**Primary target: Launch on Arc Testnet & Push to Mainnet.** Margit has a working Arc testnet MVP and a mainnet deployment preparation kit. **Mainnet deployment and application cutover are not yet complete**; we do not claim to be live or fully production-ready on mainnet.
+
+Run `npm run arc:readiness` for a read-only, machine-readable assessment (exit 1 means blocked). Run `npm run arc:test-release` to validate release safeguards. Once Circle confirms mainnet settings, `npm run arc:prepare-mainnet -- MANIFEST.json OUTPUT.json` checks RPC/token metadata and gas budget and prepares an unsigned deployment transaction without handling private keys or sending funds.
+
+See the [mainnet runbook](docs/arc-mainnet-readiness.md) for configuration, immutable treasury custody, state isolation, acceptance tests and rollback. See the [Arc track evidence and demo guide](docs/arc-track-submission.md) for bounty fit, architecture, a three-minute video outline and the highest-value improvements. Official addresses are deliberately left blank in [the manifest template](config/arc-mainnet.example.json) until verified.
+
+
 **Current checkout contract — Arc Testnet (chain ID 5042002):**
 [0x72c54ecd669acb19d6e6d5b5160f67d03b4d5b7b](https://testnet.arcscan.app/address/0x72c54ecd669acb19d6e6d5b5160f67d03b4d5b7b?tab=contract)
 
@@ -15,7 +32,7 @@ Built for **ETHGlobal ETHOnline 2026**.
 
 | Route | Buyer pays | Publisher receives | Margit fee |
 |---|---|---|---|
-| Wallet / built-in agent | Listed price | 99.5% of price | Collected atomically by the contract |
+| Wallet / contract-buying agent tool | Listed price | 99.5% of price | Collected atomically by the contract |
 | Circle Gateway x402 | Listed price | Full price through Gateway | 0.5% accrues as publisher debt, paid from My Portfolio |
 
 On a **1 USDC** contract purchase, the publisher receives **0.995 USDC** and Margit receives **0.005 USDC**. An x402 sale of the same amount records **0.005 USDC owed**. Fees round down to token units; gas is separate. Contract fees never also become deferred debt.
@@ -32,6 +49,7 @@ See [contract and deployment details](contracts/README.md), [fee accounting](doc
 
 ## Table of Contents
 
+- [Arc track — for judges](#arc-track--for-judges)
 - [What is this?](#what-is-this)
 - [The Big Picture](#the-big-picture)
 - [How It Works](#how-it-works)
@@ -227,7 +245,13 @@ flowchart LR
     Backend -->|resolves key → GitHub token| GitHub[GitHub API]
 ```
 
-This REST surface (`/api/agent-api/*`) is the intended target for a [Bazantic](https://bazantic.com) Gateway + Recipe — Bazantic turns any API into something agents can discover, pay for, and use, via a real documented API (`api.bazantic.com`, confirmed live with a genuine OpenAPI spec). **Not yet wired up** — see [Known Limitations](#known-limitations--roadmap).
+Margit now exposes a working **Streamable HTTP MCP server at `/api/mcp`** with seven tools: `browse_catalog`, `get_listing`, `create_checkout_quote`, `confirm_checkout`, `list_my_repos`, `create_listing`, and `unlist_repo`. Its `margit://skill` resource explains the workflows. Public tools need no key; seller tools use `Authorization: Bearer MARGIT_API_KEY` and reuse the existing seller ownership checks. The server never signs or broadcasts payments.
+
+Judges can open **`/agents`** from the homepage, click **Test live MCP connection**, read **`/SKILLS.md`** or **`/skills/margit/SKILL.md`**, and inspect **`/api/agent-docs`**. `/api/agent-docs/checkout-abi` exposes the checkout ABI. The native Arc USDC payment value is the six-decimal order amount multiplied by `10^12`; ERC-20 checkout attaches zero native value.
+
+Use `npm run mcp:check -- http://localhost:5173` (or your deployed origin) to run an official MCP client against initialization, tools/list, resources/read, and the real catalog. This check never buys or changes a listing. Run `node --import tsx --test server/tests/mcp.test.ts` for isolated protocol and credential tests.
+
+[Bazantic’s live OpenAPI](https://api.bazantic.com/openapi.json), checked September 8, 2026, accepts gateways with `service_protocol: "mcp"`. **`/api/agent-docs/bazantic`** provides the verified registration steps and draft payload. Registration needs a public HTTPS endpoint, Bazantic `account_id`, and a valid API key with the write role. The gateway slug is assigned by Bazantic, not the caller. Recipes require the admin role, reference that returned slug, and have a separate publish step. No gateway or recipe has been registered by this change. Never publish a seller’s Margit key as a shared public gateway credential.
 
 ---
 
@@ -316,7 +340,8 @@ flowchart TB
 |---|---|---|
 | **Arc / Circle** | ✅ Built | Native chain for both payment paths; USDC + EURC support; real Circle Gateway facilitator for x402 |
 | **The Graph** | ⏸️ Planned | Confirmed Arc Testnet is a real, supported Subgraph Studio network. Blocked on a Deploy Key for a new subgraph project |
-| **Bazantic** | ⏸️ Planned | Real API confirmed live (`api.bazantic.com`, documented OpenAPI spec). `/api/agent-api/*` built as the target surface. Blocked on a real Bazantic API key (current `BAZANTIC_API_TOKEN` is a webapp session JWT, rejected by the API) |
+| **MCP / Skills** | ✅ Implemented | Public Streamable HTTP MCP, seven tools, readable skill, homepage connection test |
+| **Bazantic** | ⏸️ Registration pending | MCP gateway draft and verified setup at `/api/agent-docs/bazantic`; requires a valid Bazantic API key, account ID and public deployment |
 | **Hedera** | ❌ Deprioritized | Researched: Circle Gateway doesn't support Hedera at all; USDC there is a native HTS token (needs association, not a plain ERC-20 swap); would need a fully separate direct-payment path with `@hashgraph/sdk`. Set aside by explicit user decision |
 
 ---
@@ -479,3 +504,9 @@ The **Accepted currencies** cards keep USDC selected and locked. EURC is presele
 The [Circle Arc testnet cirBTC contract](https://developers.circle.com/assets/cirbtc-contract-addresses) is `0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF` (8 decimals). Checkout must allowlist it using `setAllowedToken` before quoting cirBTC; payments, fees and portfolio history retain eight-decimal precision. The existing 0.5% fee rounds down in token base units.
 
 Run `node --env-file=.env --import tsx scripts/enable-cirbtc.ts` for an admin preflight, then add `--enable` to apply it. The script verifies chain, admin and decimals and saves the confirmed public transaction in `contracts/cirbtc.arc-testnet.json`.
+
+## Circle nanopayments in the built-in agent
+
+The shopping agent now includes an chat-requested x402 purchase tool using Circle's `GatewayClient` on Arc testnet. Clickable prompts help users discover repositories, inspect Gateway funding, and request a purchase. Successful payments show Circle SDK evidence and an explorer link when an actual transaction hash is returned.
+
+A live 0.05 USDC repository purchase and successful Git delivery were verified on September 8, 2026. See [the demo guide, architecture, limits, and evidence](docs/circle-agent-demo.md). The signer is a demo EOA; this does not claim Circle-managed Agent Wallets or production readiness.

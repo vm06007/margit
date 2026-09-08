@@ -1,0 +1,36 @@
+{
+  "status": "accepted",
+  "repoFullName": "vm06007/ai-summary",
+  "proof": {
+    "provider": "Circle Gateway",
+    "sdk": "@circle-fin/x402-batching",
+    "network": "Arc testnet",
+    "chainId": 5042002,
+    "protocol": "x402",
+    "walletType": "Demo EOA",
+    "buyer": "0x1bA193f088e56041A680086ec422c60C43D5aaE5",
+    "seller": "0x641AD78BAca220C5BD28b51Ce8e0F495e85Fe689",
+    "amountUsdc": "0.05",
+    "paymentId": "c7f48221e08ddb20b9db95c5a72ea9ea558727368b6f47dafd4c69fac4b780c3",
+    "status": "accepted",
+    "recordedAt": "2026-09-08T13:33:56.397Z",
+    "settlementReference": "5e3d30ab-110b-44b4-9bd2-f46565e7c821"
+  },
+  "delivery": {
+    "status": 200,
+    "contentType": "application/x-git-upload-pack-advertisement"
+  },
+  "deposit": {
+    "status": "deposited",
+    "amount": "0.20",
+    "depositTxHash": "0xf4b2ccbe10bc27a8f2f563dcc2dace756775eb44546e9eafc9b105e02041386b",
+    "approvalTxHash": "0xb21c3f4d8bffd5a9d73539a4cb3eab3e46e3f250c3f21b3f308d17507d1a903f",
+    "chainId": 5042002
+  },
+  "notes": [
+    "Real Arc testnet payment through Circle Gateway; not a mainnet transaction.",
+    "The signing wallet is a demo EOA, not a Circle-managed Agent Wallet.",
+    "The Gateway settlement reference is a batch reference, not an onchain transaction hash.",
+    "No signing key, payment signature, or repository access credential is included."
+  ]
+}
