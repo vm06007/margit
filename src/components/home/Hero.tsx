@@ -12,7 +12,7 @@ export function Hero() {
 
               <div className="mxd-hero-00__images mxd-floating-img">
                 <div className="hero-00-image image-01 mxd-floating-img__item loading__fade">
-                  <img className="mxd-pulse" src="/site/img/demo/01_hero-img.webp" alt="Hero Image" />
+                  <img className="mxd-pulse hero-usdc-coin" src="/images/usdc-glass-coin.png" alt="USDC coin" />
                 </div>
                 <div className="hero-00-image image-02 mxd-floating-img__item loading__fade">
                   <span className="hero-agent-helmet" tabIndex={0} role="img" aria-label="Astronaut helmet" aria-describedby="hero-agent-tooltip">

@@ -273,7 +273,7 @@ function ScreenshotPicker({
             const reader = new FileReader();
             reader.onload = (ev) => {
                 const result = ev.target?.result;
-                if (typeof result === "string") setScreenshots((prev) => [...prev, result]);
+                if (typeof result === "string") setScreenshots((prev) => [...prev, result].slice(0, MAX_SCREENSHOTS));
             };
             reader.readAsDataURL(file);
         }
@@ -353,7 +353,7 @@ export function ListModal({
     const [price, setPrice] = useState(listing?.price ?? "$0.05");
     const [payoutAddress, setPayoutAddress] = useState(listing?.payoutAddress ?? "");
     const [resolved, setResolved] = useState<string | "loading" | "error" | null>(null);
-    const [detailsTab, setDetailsTab] = useState<"general" | "access">("general");
+    const [detailsTab, setDetailsTab] = useState<"general" | "access" | "screenshots">("general");
     const [accessPolicy, setAccessPolicy] = useState<AccessPolicy>(() => {
         const policy = listing?.accessPolicy ?? DEFAULT_ACCESS_POLICY;
         return { ...policy, acceptedTokens: PAYMENT_TOKENS.filter(token => token === "USDC" || acceptedPaymentTokens(policy).includes(token)) };
@@ -552,13 +552,14 @@ export function ListModal({
                         <hr className="listing-sidebar-divider" style={{ marginTop: "2.4rem" }} />
                         <div className="listing-sidebar-navigation">
                         <div className="listing-details-tabs" role="tablist" aria-label="Listing details">
-                            {(["general", "access"] as const).map(tab => <button key={tab} type="button" role="tab" id={`listing-${tab}-tab`} aria-controls={`listing-${tab}-panel`} aria-selected={detailsTab === tab} tabIndex={detailsTab === tab ? 0 : -1} onClick={() => setDetailsTab(tab)} onKeyDown={event => {
+                            {(["general", "access", "screenshots"] as const).map(tab => <button key={tab} type="button" role="tab" id={`listing-${tab}-tab`} aria-controls={`listing-${tab}-panel`} aria-selected={detailsTab === tab} tabIndex={detailsTab === tab ? 0 : -1} onClick={() => setDetailsTab(tab)} onKeyDown={event => {
                                 if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
                                 event.preventDefault();
-                                const next = event.key === "Home" ? "general" : event.key === "End" ? "access" : tab === "general" ? "access" : "general";
+                                const tabs = ["general", "access", "screenshots"] as const;
+                                const next = event.key === "Home" ? tabs[0] : event.key === "End" ? tabs[2] : tabs[(tabs.indexOf(tab) + (event.key === "ArrowRight" ? 1 : 2)) % tabs.length];
                                 setDetailsTab(next);
                                 document.getElementById(`listing-${next}-tab`)?.focus();
-                            }}><i className={`ph ph-${tab === "general" ? "text-align-left" : "lock-simple"}`} aria-hidden="true" /><span>{tab === "general" ? "General Details" : "Access Details"}</span></button>)}
+                            }}><i className={`ph ph-${tab === "general" ? "text-align-left" : tab === "access" ? "lock-simple" : "images"}`} aria-hidden="true" /><span>{tab === "general" ? "General Details" : tab === "access" ? "Access Details" : "Screenshots"}</span></button>)}
                         </div>
                         </div>
                         {isEdit && (
@@ -678,7 +679,11 @@ export function ListModal({
                             <label className="modal-label" htmlFor="listing-demo-url">Live preview / Demo link</label>
                             <input id="listing-demo-url" aria-invalid={invalidFields.includes("listing-demo-url")} className="agent-input" type="url" placeholder="https://your-demo.com" value={demoUrl} onChange={event => { setDemoUrl(event.target.value); clearFieldError("listing-demo-url"); }} disabled={submitting} />
                         </div>
-                        <ScreenshotPicker screenshots={screenshots} setScreenshots={setScreenshots} actions={formActions} />
+                        {formActions}
+                        </div>
+                        <div role="tabpanel" id="listing-screenshots-panel" aria-labelledby="listing-screenshots-tab" hidden={detailsTab !== "screenshots"}>
+                            <p className="hint">Add up to {MAX_SCREENSHOTS} screenshots. The first image is your listing cover. Remove an image to replace it.</p>
+                            <ScreenshotPicker screenshots={screenshots} setScreenshots={setScreenshots} actions={formActions} />
                         </div>
                         <div role="tabpanel" id="listing-access-panel" aria-labelledby="listing-access-tab" hidden={detailsTab !== "access"}>
                         <div className="modal-field modal-delivery-terms">

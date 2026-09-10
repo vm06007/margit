@@ -23,7 +23,7 @@ export function FeatureCards() {
                       <p className="t-bright anim-uni-in-up">{"Choose an x402-enabled repository. Request access to receive its price and payment requirements."}</p>
                     </div>
                     <div className="mxd-features-cards__image features-image-03">
-                      <img src="/site/img/demo/04_fea-img.webp" alt="" />
+                      <img src="/images/x402/request-access.svg" alt="" />
                     </div>
                   </div>
                 </div>
@@ -42,13 +42,13 @@ export function FeatureCards() {
                       <p className="t-opposite anim-uni-in-up">{"Fund Circle Gateway with testnet USDC. Your x402 client signs the payment and retries the request."}</p>
                     </div>
                     <div className="mxd-features-cards__image features-image-04">
-                      <img src="/site/img/demo/06_fea-img.webp" alt="" />
+                      <img src="/images/x402/pay-usdc.svg" alt="" />
                     </div>
                   </div>
                 </div>
 
                 <div className="col-12 col-xl-4 mxd-features-cards__item mxd-grid-item anim-uni-scale-in-left">
-                  <div className="mxd-features-cards__inner justify-end bg-base-tint radius-l padding-4">
+                  <div className="mxd-features-cards__inner bg-base-tint radius-l padding-4">
                     <div className="mxd-features-cards__gradient features-gradient-02">
                       <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200">
                         <style type="text/css">{"\n                            .mxd-card-bg{fill:url(#purple-radial-gradient);}\n                          "}</style>
@@ -62,7 +62,7 @@ export function FeatureCards() {
                       </svg>
                     </div>
                     <div className="mxd-features-cards__title">
-                      <h3 className="anim-uni-in-up">{"3. Unlock"}<br />{"the repo"}</h3>
+                      <h3 className="anim-uni-in-up">{"3. Clone Code"}</h3>
                     </div>
                     <div className="mxd-features-cards__info">
                       <div className="mxd-features-cards__tags">
@@ -73,7 +73,7 @@ export function FeatureCards() {
                       <p className="anim-uni-in-up">{"After payment settles, receive repository access with the seller’s chosen delivery terms. Your agent can get to work."}</p>
                     </div>
                     <div className="mxd-features-cards__image features-image-05">
-                      <img src="/site/img/demo/05_fea-img.webp" alt="" />
+                      <img src="/images/x402/unlock-repo.svg" alt="" />
                     </div>
                   </div>
                 </div>

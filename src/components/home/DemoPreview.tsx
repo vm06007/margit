@@ -2,14 +2,14 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 const slides = [
-  ["01", "Main Home"],
-  ["02", "Software Development Company"],
-  ["03", "Freelancer Portfolio"],
-  ["04", "Digital Agency"],
-  ["06", "Personal Portfolio"],
-  ["07", "Web Agency"],
-  ["08", "Creative Developer"],
-  ["09", "Designer"],
+  ["0", "There's exponential growth of code on GitHub..."],
+  ["7", "... since now agents store their work in repos"],
+  ["8", "Adding an extra access layer to GitHub"],
+  ["1", "Better than traditional marketplaces"],
+  ["2", "Monetize more than code"],
+  ["6", "Keep building on GitHub. Sell on Margit."],
+  ["3", "Access a codebase that keeps evolving"],
+  ["5", "Choose how you sell access"],
 ] as const;
 
 export function DemoPreview({ initialIndex, onClose }: { initialIndex: number; onClose: () => void }) {
@@ -26,7 +26,7 @@ export function DemoPreview({ initialIndex, onClose }: { initialIndex: number; o
     moving.current = true;
     const next = (index + direction + slides.length) % slides.length;
     const image = new Image();
-    image.src = `/site/img/demo/previews/${slides[next][0]}.webp`;
+    image.src = `/main_pics/${slides[next][0]}.webp`;
     try { await image.decode(); } catch { /* Let the image element expose a failed load. */ }
     const animate = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     setDirection(direction);
@@ -42,7 +42,7 @@ export function DemoPreview({ initialIndex, onClose }: { initialIndex: number; o
     // Fetch original-quality previews ahead of navigation, without re-encoding.
     slides.forEach(([screen]) => {
       const image = new Image();
-      image.src = `/site/img/demo/previews/${screen}.webp`;
+      image.src = `/main_pics/${screen}.webp`;
     });
     return () => {
       element?.close();
@@ -70,8 +70,8 @@ export function DemoPreview({ initialIndex, onClose }: { initialIndex: number; o
         </div>
       </header>
       <div className={`demo-preview-image${outgoing !== null ? " is-sliding" : ""}`} style={{ "--slide-direction": direction } as React.CSSProperties}>
-        {outgoing !== null && <img className="demo-preview-outgoing" src={`/site/img/demo/previews/${slides[outgoing][0]}.webp`} alt="" aria-hidden="true" />}
-        <img key={screen} className="demo-preview-current" src={`/site/img/demo/previews/${screen}.webp`} alt={`${title} preview`}
+        {outgoing !== null && <img className="demo-preview-outgoing" src={`/main_pics/${slides[outgoing][0]}.webp`} alt="" aria-hidden="true" />}
+        <img key={screen} className="demo-preview-current" src={`/main_pics/${screen}.webp`} alt={`${title} preview`}
           onAnimationEnd={() => { setOutgoing(null); moving.current = false; }} />
       </div>
       <footer className="demo-preview-footer">

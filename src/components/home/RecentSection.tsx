@@ -3,20 +3,15 @@ import type { Listing } from "../../api";
 import { RecentListings } from "./RecentListings";
 export function RecentSection({ listings, listingsError }: { listings: Listing[] | null; listingsError: string | null }) {
   return (<>
-    <div className="mxd-section padding-blog">
+    <div className="mxd-section padding-blog recent-listings-section" style={{ marginTop: 150 }}>
       <div className="mxd-container grid-container">
         <div className="mxd-block">
           <div className="mxd-section-title pre-grid">
             <div className="container-fluid p-0">
               <div className="row g-0">
-                <div className="col-12 col-xl-5 mxd-grid-item no-margin">
+                <div className="col-12 col-xl-9 mxd-grid-item no-margin">
                   <div className="mxd-section-title__hrtitle">
                     <h2 className="reveal-type anim-uni-in-up"><RevealText text={"Recent listings"} /></h2>
-                  </div>
-                </div>
-                <div className="col-12 col-xl-4 mxd-grid-item no-margin">
-                  <div className="mxd-section-title__hrdescr">
-                    <p className="anim-uni-in-up">{"Private repos for sale right now — paid in USDC or EURC on Arc, unlockable by a human or an AI agent."}</p>
                   </div>
                 </div>
                 <div className="col-12 col-xl-3 mxd-grid-item no-margin">
