@@ -3,6 +3,7 @@ import { useActiveAccount, useSendTransaction } from "thirdweb/react";
 import { prepareTransaction, toWei } from "thirdweb";
 import { thirdwebClient, arcTestnet } from "../lib/thirdweb";
 import Markdown from "react-markdown";
+import { agentSuggestions } from "../lib/agentSuggestions";
 import remarkGfm from "remark-gfm";
 import { remarkExplorerLinks } from "../lib/remarkExplorerLinks";
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
@@ -154,10 +155,12 @@ export interface AgentMessage {
 }
 
 export function AgentSidebar({
+    path,
     open,
     onClose,
     onListingChange,
 }: {
+    path: string;
     open: boolean;
     onClose: () => void;
     onListingChange?: (change: AgentListingChange) => void;
@@ -653,16 +656,7 @@ export function AgentSidebar({
                 {error && <p className="error agent-error">{error}</p>}
                 <div className="agent-prompt-suggestions" aria-label="Suggested agent requests" data-lenis-prevent>
                     <div className="agent-prompt-spacer" aria-hidden="true" />
-                    {[
-                        ['Find repositories', 'Find repositories accepting x402 for at most 0.10 USDC. Compare their language, price, and delivery terms. Do not buy yet.'],
-                        ['Check Circle balance', 'Check the demo wallet and Circle Gateway balances on Arc testnet. Explain whether an x402 purchase is ready.'],
-                        ['Try Circle x402', 'Choose the cheapest available x402-enabled repository costing at most 0.10 USDC. Explain its delivery terms, buy it with Circle Gateway x402 on Arc testnet, and show the returned payment proof. Do not use contract checkout.'],
-                        ['Latest listings', 'Show the most recently listed repositories from the catalog. Include language, price, checkout options, and when each was listed. Do not buy yet.'],
-                        ['Most popular', 'Using on-chain purchase activity from The Graph when available, rank the most popular repositories by completed purchases. Join those results with live catalog details (price, language, access terms). If Graph data is unavailable, say so and fall back to the catalog. Do not buy yet.'],
-                        ['Recently sold', 'Using The Graph purchase receipts when available, list the repositories sold most recently on Arc. Include buyer/seller if public in the indexer, amount, token, and matching catalog listing details. Do not buy yet.'],
-                        ['Top sellers', 'Using The Graph when available, identify the top sellers by purchase count or volume, then show their current live listings from the catalog. Do not buy yet.'],
-                        ['Trending under $0.10', 'Find repositories priced at most $0.10 that look active from recent Graph purchase activity when available. Prefer x402-capable listings and compare language, price, and delivery terms. Do not buy yet.'],
-                    ].map(([label, prompt]) => <button type="button" key={label} disabled={sending || walletBusy || circleSetup} onClick={() => {
+                    {agentSuggestions(path).map(([label, prompt]) => <button type="button" key={label} disabled={sending || walletBusy || circleSetup} onClick={() => {
                         setInput(prompt);
                         queueMicrotask(() => {
                             const field = inputRef.current;

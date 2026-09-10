@@ -1,3 +1,4 @@
+import { RecentGraphSales } from "../components/RecentGraphSales";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import type { Listing, Me } from "../api";
 import { listingMediaStyle } from "../components/listingMedia";
@@ -254,12 +255,14 @@ function Pagination({
 }
 
 export function CatalogPage({
+    agentOpen,
     me,
     onEdit,
     listings,
     listingsError,
     navigate,
 }: {
+    agentOpen: boolean;
     me: Me;
     onEdit: (listing: Listing) => void;
     listings: Listing[] | null;
@@ -458,7 +461,9 @@ export function CatalogPage({
                                 </div>
                             </div>
 
-                            <div className="mxd-sidebar__widget bg-base-tint radius-m">
+                            {!agentOpen && <RecentGraphSales />}
+
+                            <div className="mxd-sidebar__widget bg-base-tint radius-m" style={{ display: "none" }}>
                                 <div className="widget__title">
                                     <p>Categories</p>
                                 </div>
@@ -492,18 +497,6 @@ export function CatalogPage({
                                 </ul>
                             </div>
 
-                            <div className="mxd-sidebar__widget bg-base-tint radius-m widget-about">
-                                <div className="widget__title">
-                                    <p>About</p>
-                                </div>
-                                <div className="widget__descr">
-                                    <p className="t-small">
-                                        Margit is a marketplace for GitHub repositories — buyers, human or AI agent,
-                                        pay in USDC or EURC on Arc and get an authenticated clone.
-                                    </p>
-                                </div>
-                            </div>
-
                             <div className="mxd-sidebar__widget bg-base-tint radius-m widget-socials">
                                 <div className="widget__title">
                                     <p>Ecosystem</p>
@@ -533,6 +526,7 @@ export function CatalogPage({
                     </div>
                 </div>
             </div>
+            {agentOpen && <div className="mxd-container"><RecentGraphSales wide /></div>}
         </>
     );
 }

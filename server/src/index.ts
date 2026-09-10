@@ -1,3 +1,4 @@
+import { recentGraphSales, graphBestsellers } from "./graph.js";
 import { startCircleLogin, finishCircleLogin, disconnectCircle } from './circle-managed.js';
 import { serve } from "@hono/node-server";
 import { createX402FeeGate } from "./x402-fee-gate.js";
@@ -537,6 +538,9 @@ app.post("/api/repos/generate-description", async (c) => {
     if (!description) return c.json({ error: "The AI model returned an empty response" }, 502);
     return c.json({ description });
 });
+
+app.get("/api/activity/bestsellers", async c => c.json(await graphBestsellers()));
+app.get("/api/activity/recent-sales", async c => c.json(await recentGraphSales()));
 
 app.get("/api/listings", async (c) => {
     return c.json(await listListings());

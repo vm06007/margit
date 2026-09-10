@@ -1,3 +1,4 @@
+import { recentGraphSales, graphBestsellers } from "./graph.js";
 import { buyWithManagedCircle } from './circle-managed-payment.js';
 import { circleGatewayBalance } from './circle-managed.js';
 import { randomUUID } from "node:crypto";
@@ -284,6 +285,22 @@ const TOOLS: ChatCompletionTool[] = [
     {
         type: "function",
         function: {
+            name: "graph_bestsellers",
+            description: "Find bestselling repositories/projects by indexed contract-checkout purchase count from The Graph. Returns sales, unique buyer wallets, evidence transaction, sample size and indexed block. Excludes Circle x402. Join with live catalog for price/language and recommendations; sales do not prove quality.",
+            parameters: {type: "object", properties: {}},
+        },
+    },
+    {
+        type: "function",
+        function: {
+            name: "recent_graph_sales",
+            description: "Query The Graph for the latest 20 contract-checkout sales on Arc testnet with live catalog names and transaction hashes. Excludes Circle Gateway x402 sales. Report index unavailability honestly; do not infer market-wide rankings from this limited sample.",
+            parameters: {type: "object", properties: {}},
+        },
+    },
+    {
+        type: "function",
+        function: {
             name: "list_listings",
             description: "Browse the margit catalog of repos for sale. Optionally filter by a text query matched against name/description.",
             parameters: {
@@ -432,6 +449,8 @@ async function executeTool(
     selected?: Awaited<ReturnType<typeof resolveAgentWallet>>,
 ): Promise<{ output: unknown; purchase?: AgentTurnResult["purchase"]; listingChange?: AgentTurnResult["listingChange"] }> {
     switch (name) {
+        case "graph_bestsellers": return {output: {source: "The Graph", scope: "Ranked by indexed contract-checkout purchase count, up to the latest 1000 sales. Excludes Circle Gateway x402. Unique buyers are wallet addresses, not people. Use list_listings for current price, language and availability. Never describe capped rankings as all-time.", ...await graphBestsellers()}};
+        case "recent_graph_sales": return {output: {source: "The Graph", scope: "Latest 20 contract-checkout sales on Arc testnet; excludes Circle Gateway x402 purchases", ...await recentGraphSales()}};
         case "list_listings": {
             const all = await listListings();
             const query = typeof input.query === "string" ? input.query.toLowerCase() : undefined;

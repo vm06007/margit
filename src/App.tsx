@@ -117,7 +117,7 @@ function App() {
                 {path === "/agents" ? <AgentsPage /> : path === "/portfolio" ? <PortfolioPage /> : publisherMatch ? (
                     <PublisherPage login={publisherMatch[1]} listings={listings} navigate={navigate} />
                 ) : path === "/catalog" ? (
-                    <CatalogPage me={viewer} onEdit={setEditingListing} listings={listings} listingsError={listingsError} navigate={navigate} />
+                    <CatalogPage agentOpen={agentOpen} me={viewer} onEdit={setEditingListing} listings={listings} listingsError={listingsError} navigate={navigate} />
                 ) : (path === "/works" || path === "/profile") ? (
                     <DashboardPage
                         me={viewer}
@@ -142,6 +142,7 @@ function App() {
                 {home && <SiteFooter variant="home" />}
             </div>
             <AgentSidebar
+                path={path}
                 open={!home && agentOpen}
                 onClose={() => setAgentOpen(false)}
                 onListingChange={handleAgentListingChange}
