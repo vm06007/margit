@@ -189,7 +189,7 @@ export async function downloadZip(cloneUrl: string, repoName: string): Promise<v
 }
 
 export interface AgentWallet {
-    mode?: "shared" | "personal";
+    mode?: "shared" | "personal" | "circle";
     circle?: { provider: string; network: string; walletType: string; address?: string; availableUsdc?: string; ready: boolean; error?: string };
     address?: string;
     nativeGas?: string;
@@ -218,8 +218,8 @@ export interface AgentChatResponse {
     listingChange?: AgentListingChange;
 }
 
-export function fetchAgentWallet(): Promise<AgentWallet> {
-    return apiFetch<AgentWallet>("/api/agent/wallet");
+export function fetchAgentWallet(mode?: "shared" | "personal" | "circle"): Promise<AgentWallet> {
+    return apiFetch<AgentWallet>("/api/agent/wallet" + (mode ? `?mode=${mode}` : ""));
 }
 
 async function agentWalletRequest<T>(path: string, init: RequestInit): Promise<T> {
@@ -229,7 +229,7 @@ async function agentWalletRequest<T>(path: string, init: RequestInit): Promise<T
     return data;
 }
 
-export function selectAgentWallet(mode: "shared" | "personal"): Promise<AgentWallet> {
+export function selectAgentWallet(mode: "shared" | "personal" | "circle"): Promise<AgentWallet> {
     return agentWalletRequest<AgentWallet>("/api/agent/wallet", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({mode}) });
 }
 export function depositAgentGateway(amount: string, requestId: string): Promise<{depositTxHash: string}> {
@@ -302,4 +302,14 @@ export async function fetchUnlockRequirements(listingId: string): Promise<Unlock
     const accept = decoded.accepts[0];
     if (!accept) throw new Error("No payment options in response");
     return { amount: accept.amount, payTo: accept.payTo, network: accept.network, asset: accept.asset };
+}
+
+export function connectCircleAgent(email: string, acceptedTerms: boolean): Promise<void> {
+    return agentWalletRequest('/api/agent/circle/login', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,acceptedTerms})});
+}
+export function verifyCircleAgent(otp: string): Promise<AgentWallet> {
+    return agentWalletRequest('/api/agent/circle/verify', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({otp})});
+}
+export function disconnectCircleAgent(): Promise<AgentWallet> {
+    return agentWalletRequest('/api/agent/circle/disconnect', {method:'POST'});
 }

@@ -15,6 +15,10 @@ test('personal wallets are encrypted, isolated, and restored when switching mode
     });
     try {
         assert.equal((await resolveAgentWallet('alice')).mode, 'shared');
+        const preview = await resolveAgentWallet('alice', 'personal');
+        assert.equal(preview.mode, 'personal');
+        assert.equal((await resolveAgentWallet('alice')).mode, 'shared');
+        assert.equal((await resolveAgentWallet('alice', 'personal')).privateKey, preview.privateKey);
         await Promise.all([selectAgentWallet('alice', 'personal'), selectAgentWallet('alice', 'personal')]);
         const alice = await resolveAgentWallet('alice');
         assert.equal(alice.mode, 'personal');

@@ -1,6 +1,7 @@
+import { startCircleLogin, finishCircleLogin, disconnectCircle } from './circle-managed.js';
 import { serve } from "@hono/node-server";
 import { createX402FeeGate } from "./x402-fee-gate.js";
-import { selectAgentWallet, depositAgentGateway } from "./agent-wallet.js";
+import { selectAgentWallet, depositAgentGateway, resolveAgentWallet } from "./agent-wallet.js";
 import { createMcpRoutes } from "./mcp.js";
 import { createAgentDocs } from "./agent-docs.js";
 import { createHash } from "node:crypto";
@@ -204,16 +205,46 @@ function getOrCreateAgentSessionId(c: Parameters<typeof getCookie>[0]): string {
 }
 
 app.get("/api/agent/wallet", async (c) => {
-    return c.json(await getAgentWalletBalance(getOrCreateAgentSessionId(c)));
+    const session = getOrCreateAgentSessionId(c);
+    const mode = c.req.query('mode');
+    if (mode !== undefined && mode !== 'shared' && mode !== 'personal' && mode !== 'circle') return c.json({error: 'Invalid wallet mode'}, 400);
+    return c.json(await getAgentWalletBalance(session, mode ? await resolveAgentWallet(session, mode) : undefined));
 });
 
 app.post("/api/agent/wallet", async (c) => {
     const session = getOrCreateAgentSessionId(c);
     const { mode } = await c.req.json();
-    if (mode !== 'shared' && mode !== 'personal') return c.json({error: 'Invalid wallet mode'}, 400);
+    if (mode !== 'shared' && mode !== 'personal' && mode !== 'circle') return c.json({error: 'Invalid wallet mode'}, 400);
     await selectAgentWallet(session, mode);
     return c.json(await getAgentWalletBalance(session));
 });
+app.post('/api/agent/circle/login', async c => {
+    try {
+        const {email, acceptedTerms} = await c.req.json();
+        if (typeof email !== 'string') return c.json({error:'Email required'},400);
+        await startCircleLogin(getOrCreateAgentSessionId(c), email, acceptedTerms === true);
+        return c.json({ok:true});
+    } catch (error) { return c.json({error:error instanceof Error ? error.message : 'Circle login failed'},400); }
+});
+app.post('/api/agent/circle/verify', async c => {
+    try {
+        const {otp} = await c.req.json();
+        if (typeof otp !== 'string') return c.json({error:'Code required'},400);
+        const session = getOrCreateAgentSessionId(c);
+        await finishCircleLogin(session, otp);
+        await selectAgentWallet(session, 'circle');
+        return c.json(await getAgentWalletBalance(session));
+    } catch (error) { return c.json({error:error instanceof Error ? error.message : 'Circle verification failed'},400); }
+});
+app.post('/api/agent/circle/disconnect', async c => {
+    try {
+        const session = getOrCreateAgentSessionId(c);
+        await disconnectCircle(session);
+        await selectAgentWallet(session, 'shared');
+        return c.json(await getAgentWalletBalance(session));
+    } catch (error) { return c.json({error:error instanceof Error ? error.message : 'Disconnect failed'},400); }
+});
+
 app.post("/api/agent/gateway-deposit", async (c) => {
     const { amount, requestId } = await c.req.json();
     if (typeof amount !== 'string' || typeof requestId !== 'string') return c.json({error: 'Amount and request ID required'}, 400);
