@@ -24,6 +24,7 @@ export function AgentsPage() {
         <h1>For Agents</h1>
         <p>Discover repositories, prepare checkout, and manage authorized seller listings through Margit’s MCP server.</p>
         <div className="agent-integration-links">
+            <a className="btn btn-secondary" href="/docs/" target="_self">Developer docs ↗</a>
             <a className="btn btn-primary" href="/skills/margit/SKILL.md" target="_blank" rel="noreferrer">Read SKILL.md ↗</a>
             <a className="btn btn-secondary" href="/SKILLS.md" target="_blank" rel="noreferrer">Skills index ↗</a>
             <a className="btn btn-secondary" href="/api/agent-docs/openapi.json" target="_blank" rel="noreferrer">OpenAPI ↗</a>

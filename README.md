@@ -4,6 +4,8 @@
 
 Sell access to a private repo. Get paid in **USDC**, **EURC**, or optionally **cirBTC** on [Arc](https://arc.io) (Circle's L1). Buyers — human or AI agent — pay once and get an authenticated `git clone` URL instantly. An agent sidebar with its own funded wallet can browse, buy, list, and unlist repos on command.
 
+[Developer documentation](https://margit.sh/docs/) covers the API, MCP, authentication, payments and Bazantic setup. Source: [docs page](public/docs/index.html).
+
 ## Arc Deployment
 
 [Arc Details](arc-track/README.md) covers the architecture, payment flow, source links, and deployment status.

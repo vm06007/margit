@@ -1,5 +1,12 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig, loadEnv, type Connect } from 'vite'
+
+const docsRoute: Connect.NextHandleFunction = (req, _res, next) => {
+    if (/^\/docs\/?(?:\?|$)/.test(req.url ?? '')) {
+        req.url = (req.url ?? '').replace(/^\/docs\/?/, '/docs/index.html');
+    }
+    next();
+};
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -10,7 +17,11 @@ export default defineConfig(({ mode }) => {
         );
     }
     return {
-        plugins: [react()],
+        plugins: [react(), {
+            name: 'margit-docs-route',
+            configureServer(server) { server.middlewares.use(docsRoute); },
+            configurePreviewServer(server) { server.middlewares.use(docsRoute); },
+        }],
         server: {
             proxy: {
                 '/api': {

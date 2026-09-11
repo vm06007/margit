@@ -15,7 +15,15 @@
       "destination": "/api"
     },
     {
-      "source": "/((?!api/|assets/|site/|icons/|proofs/|skills/).*)",
+      "source": "/docs",
+      "destination": "/docs/index.html"
+    },
+    {
+      "source": "/docs/",
+      "destination": "/docs/index.html"
+    },
+    {
+      "source": "/((?!api/|assets/|site/|icons/|proofs/|skills/|docs/).*)",
       "destination": "/index.html"
     }
   ]
