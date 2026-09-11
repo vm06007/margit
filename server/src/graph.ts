@@ -68,3 +68,8 @@ export async function graphBestsellers(): Promise<GraphBestsellers> {
         sampleSize: activity.sales.length, capped: activity.sales.length === 1000,
         rankings: rankGraphSales(activity.sales)};
 }
+
+import { buildGraphLeaderboard, type ActivityPeriod } from '../../shared/graphLeaderboard.js';
+export async function graphLeaderboard(period: ActivityPeriod = 'all') {
+    return buildGraphLeaderboard(await recentGraphSales(1000), period);
+}

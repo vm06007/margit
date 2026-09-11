@@ -24,6 +24,11 @@ export function MenuContent() {
                     </a>
                   </li>
                   <li className="main-menu__item">
+                    <a className="main-menu__link btn btn-anim" href="/leaderboards">
+                      <span className="btn-caption">Leaderboards</span>
+                    </a>
+                  </li>
+                  <li className="main-menu__item">
                     <a className="main-menu__link btn btn-anim" href="/works">
                       <span className="btn-caption">{"My Repos"}</span>
                     </a>

@@ -1,4 +1,4 @@
-import { recentGraphSales, graphBestsellers } from "./graph.js";
+import { recentGraphSales, graphBestsellers, graphLeaderboard } from "./graph.js";
 import { buyWithManagedCircle } from './circle-managed-payment.js';
 import { circleGatewayBalance } from './circle-managed.js';
 import { randomUUID } from "node:crypto";
@@ -285,6 +285,14 @@ const TOOLS: ChatCompletionTool[] = [
     {
         type: "function",
         function: {
+            name: "graph_leaderboards",
+            description: "Query The Graph for top buyer wallets, seller wallets, and repositories by purchase count, plus gross volume by currency and daily activity. Reports sample and indexing coverage. Use for marketplace statistics and leaderboards, not claims about people or quality.",
+            parameters: {type: "object", properties: {period: {type: "string", enum: ["all", "7d", "30d"]}}},
+        },
+    },
+    {
+        type: "function",
+        function: {
             name: "graph_bestsellers",
             description: "Find bestselling repositories/projects by indexed contract-checkout purchase count from The Graph. Returns sales, unique buyer wallets, evidence transaction, sample size and indexed block. Excludes Circle x402. Join with live catalog for price/language and recommendations; sales do not prove quality.",
             parameters: {type: "object", properties: {}},
@@ -449,6 +457,12 @@ async function executeTool(
     selected?: Awaited<ReturnType<typeof resolveAgentWallet>>,
 ): Promise<{ output: unknown; purchase?: AgentTurnResult["purchase"]; listingChange?: AgentTurnResult["listingChange"] }> {
     switch (name) {
+        case "graph_leaderboards": {
+            const period = input.period ?? 'all';
+            if (period !== 'all' && period !== '7d' && period !== '30d') return {output: {error: 'Choose all, 7d, or 30d'}};
+            const result = await graphLeaderboard(period);
+            return {output: {...result, buyers:result.buyers.slice(0,10),sellers:result.sellers.slice(0,10),repos:result.repos.slice(0,10), scope: 'The Graph: Arc testnet contract checkout only, excludes Circle x402. Maximum 1000-event sample, not guaranteed all-time when capped. Rank by purchase count; gross volume per currency, not seller net revenue. Addresses are wallets, not verified people. See /leaderboards.'}};
+        }
         case "graph_bestsellers": return {output: {source: "The Graph", scope: "Ranked by indexed contract-checkout purchase count, up to the latest 1000 sales. Excludes Circle Gateway x402. Unique buyers are wallet addresses, not people. Use list_listings for current price, language and availability. Never describe capped rankings as all-time.", ...await graphBestsellers()}};
         case "recent_graph_sales": return {output: {source: "The Graph", scope: "Latest 20 contract-checkout sales on Arc testnet; excludes Circle Gateway x402 purchases", ...await recentGraphSales()}};
         case "list_listings": {

@@ -44,7 +44,44 @@ The Circle Nanopayments SDK we integrate (`@circle-fin/x402-batching` 3.4.0) use
 
 **Admin and treasury:** `0x4d2A622F53a2ac4D3Ee1c06bCeB4641a8a6fE6aa`. The 0.5% rate and treasury are fixed for this deployment; transferring admin does not change the treasury.
 
-[MargitArc Studio](https://thegraph.com/studio/subgraph/margit-arc) indexes purchases, automatic fee splits and deferred fee settlements. Repository delivery and access expiry remain enforced by the backend; the contract provides no code custody, delivery guarantee, escrow or refunds. x402 uses Circle Gateway settlement and does not invoke contract checkout.
+[MargitArc on Graph Explorer](https://thegraph.com/explorer/subgraphs/DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn?view=Query) indexes purchases, automatic fee splits and deferred fee settlements. Repository delivery and access expiry remain enforced by the backend; the contract provides no code custody, delivery guarantee, escrow or refunds. x402 uses Circle Gateway settlement and does not invoke contract checkout.
+
+### Verify The Graph integration
+
+Margit queries the deployed subgraph for **Recently sold** in the Catalog and the agent's **Recently sold**, **Bestselling repos**, **Popular projects**, and **Bestsellers under $0.10** suggestions. The backend joins indexed listing hashes with current catalog entries and saved purchase records where available. Transaction links let reviewers inspect the underlying Arc testnet events.
+
+- Network: **Arc testnet**.
+- Indexed contract: [`0x72c54ecd669acb19d6e6d5b5160f67d03b4d5b7b`](https://testnet.arcscan.app/address/0x72c54ecd669acb19d6e6d5b5160f67d03b4d5b7b).
+- Source: [manifest](subgraph/subgraph.yaml), [schema](subgraph/schema.graphql), [mapping](subgraph/src/mapping.ts), and [query integration](server/src/graph.ts).
+- Public application APIs: `GET /api/activity/recent-sales`, `GET /api/activity/bestsellers`, and `GET /api/activity/leaderboards?period=all` (also accepts `7d` and `30d`; relative to the running application).
+- **Leaderboards** (`/leaderboards`): top repositories, buyer wallets, and seller wallets ranked by purchase count; distinct counterparties, gross volume per currency, and daily purchase activity. Includes period filters, transaction evidence, indexed-block provenance, and source JSON. Agent prompts **Top buyers**, **Top sellers**, and **Weekly statistics** use the same data via `graph_leaderboards`.
+- Coverage: contract-checkout purchases only; **Circle Gateway x402 purchases are excluded**. Bestseller rankings use up to the latest 1,000 indexed sales and disclose whether the sample is capped. Unique buyers are wallet addresses, not verified people.
+
+Run this query in the subgraph playground to compare raw events with the application's sales feed:
+
+```graphql
+{
+  _meta { block { number } hasIndexingErrors }
+  purchases(first: 20, orderBy: timestamp, orderDirection: desc) {
+    id
+    purchaseId
+    listingId
+    buyer
+    seller
+    token
+    amount
+    transactionHash
+    timestamp
+  }
+}
+```
+
+`amount` is in token base units; the application formats known currencies using their decimals. Repository names come from Margit records, not the subgraph itself.
+
+**Public subgraph:** [MargitArc — query playground](https://thegraph.com/explorer/subgraphs/DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn?view=Query) · ID: `DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn` · published version `v0.4.0`. Publication is on The Graph’s Arbitrum One network; indexed events come from **Arc testnet**.
+
+At verification on September 11, 2026, Explorer reported **Not indexed**. The application continues using its configured Studio endpoint. Before migrating, verify that the network endpoint serves indexed results, then set `GRAPH_QUERY_URL` to `https://gateway.thegraph.com/api/subgraphs/id/DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn` and supply a server-side `GRAPH_QUERY_API_KEY`; restart/redeploy the backend. Reviewers can inspect the public Explorer page and use the query above when indexing is available. Never publish API keys or deploy keys.
+
 
 See [contract and deployment details](contracts/README.md), [fee accounting](docs/fee-model.md), and [agent integration](docs/portfolio-and-agent-flow.md). Earlier test deployments are retained for historical receipts; the address above is the active contract.
 
@@ -463,7 +500,7 @@ flowchart LR
 ## Known Limitations / Roadmap
 
 - **Reviews/ratings are UI placeholders only** (`StarRating`, `ReviewsSection`) — intentionally honest "not built yet" rather than fake data. Planned basis: ERC-8004 (Trustless Agents — Identity/Reputation/Validation registries).
-- **The Graph**: receipt schema/mapping and Studio deployment scripts are implemented for MargitArc. Configure the deployed query endpoint to enable portfolio enrichment; x402 Gateway is not indexed by this contract subgraph.
+- **The Graph**: MargitArc powers portfolio receipt enrichment, Recently sold, and agent bestseller queries. Configure `GRAPH_QUERY_URL` on the backend. Circle Gateway x402 purchases are not indexed by this contract subgraph.
 - **Bazantic**: `/api/agent-api/*` exists as the intended wrap target, but no Gateway/Recipe has been registered yet — blocked on a real Bazantic API key (the JWT currently in `.env` doesn't authenticate against `api.bazantic.com`).
 - **Production deployment**: Vercel serves the Vite build and Hono API through `vercel.json`. See [Vercel setup](docs/vercel-deployment.md) for environment configuration.
 - **Landing page leftover content**: the mid-body "demo showcase" sections (ported from the source HTML template) still contain unrelated template-vendor marketing copy and dead links to pages that were never copied over — nav, footer, hero, and header CTAs are all real and wired to margit routes; the deep body content is a separate, larger content-authoring pass.
@@ -499,3 +536,9 @@ Run `node --env-file=.env --import tsx scripts/enable-cirbtc.ts` for an admin pr
 The shopping agent now includes an chat-requested x402 purchase tool using Circle's `GatewayClient` on Arc testnet. Clickable prompts help users discover repositories, inspect Gateway funding, and request a purchase. Successful payments show Circle SDK evidence and an explorer link when an actual transaction hash is returned.
 
 A live 0.05 USDC repository purchase and successful Git delivery were verified on September 8, 2026. See [the demo guide, architecture, limits, and evidence](docs/circle-agent-demo.md). The signer is a demo EOA; this does not claim Circle-managed Agent Wallets or production readiness.
+
+### 1Claw connection verification (preview)
+
+Open **Agent Settings → 1Claw Agent Wallet · Verify connection**. Supply a 1Claw agent ID, agent API key (`ocv_`), and its Ethereum signing address. The agent needs Intents and message signing enabled and a provisioned Ethereum signing key. See the [1Claw Intents documentation](https://docs.1claw.co/docs/agents/intents/overview).
+
+The backend authenticates with 1Claw, requests a unique non-payment EIP-191 message signature, verifies it against the supplied address, and reads the address's native USDC balance on Arc testnet. Credentials are not persisted. This is a connection probe, not an enabled fourth payment wallet: contract checkout and Circle Gateway compatibility still need end-to-end testing. The endpoint does not accept arbitrary messages, transactions, or destinations.

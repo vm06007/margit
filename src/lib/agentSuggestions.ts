@@ -22,6 +22,11 @@ export function agentSuggestions(path: string): [string, string][] {
             ['Questions before buying', `Review the available listing details for ${name}. Identify missing information I should ask the seller about before buying. Do not assume access to private source code.`],
             balance,
         ];
+    const analytics: [string,string][] = [
+        ['Top buyers', 'Use graph_leaderboards to show the most active buyer wallets by indexed purchase count, unique sellers, and gross volume by currency. Include evidence links and coverage limits.'],
+        ['Top sellers', 'Use graph_leaderboards to show top seller wallets by purchase count and unique buyers, with gross volume per currency and evidence links. Explain that this is contract-checkout activity, not all sales.'],
+        ['Weekly statistics', 'Use graph_leaderboards with period 7d to summarize purchases, active buyer and seller wallets, and gross volume by currency. Disclose sample limits and exclude Circle x402 from claims.'],
+    ];
     const catalog: [string, string][] = [
         ['Bestselling repos', 'Use graph_bestsellers to rank repositories by indexed sales and show sales counts, unique buyer wallets, and evidence links. State coverage and whether the sample is capped. Join with live listings for current prices. Do not buy.'],
         ['Popular projects', 'Find popular projects using graph_bestsellers and the live catalog. Explain what each available project offers and its indexed sales count. Sales are not a quality guarantee. State coverage. Do not buy.'],
@@ -37,8 +42,8 @@ export function agentSuggestions(path: string): [string, string][] {
         ['Latest listings', 'Show the most recently listed repositories from the catalog. Include language, price, checkout options, and when each was listed. Do not buy yet.'],
     ];
     const groups = path === '/works' || path === '/profile'
-        ? [seller, catalog]
-        : repo ? [repository, catalog] : [catalog];
+        ? [seller, catalog, analytics]
+        : repo ? [repository, catalog, analytics] : path === "/leaderboards" ? [analytics, catalog] : [catalog, analytics];
     const seen = new Set<string>();
     return groups.flat().filter(([label]) => {
         if (seen.has(label)) return false;

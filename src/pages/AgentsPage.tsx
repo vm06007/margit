@@ -36,6 +36,14 @@ export function AgentsPage() {
         <h2>What agents can do</h2>
         <p>Browse the catalog, inspect a listing, create a buyer-bound quote, confirm an existing payment, list the seller’s repositories, publish a listing, and unlist an authorized repository.</p>
         <p>Payments use Arc testnet. Agents bring their own wallet to sign a purchase; the MCP server never signs or broadcasts payments. Seller keys grant access only to that seller’s repositories.</p>
+        <h2>The Graph</h2>
+        <p>Margit’s built-in chat queries indexed contract sales for recent activity and bestseller rankings, joined with current catalog details. Circle Gateway x402 purchases are excluded.</p>
+        <div className="agent-integration-links">
+            <a className="btn btn-secondary" href="https://thegraph.com/explorer/subgraphs/DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn?view=Query" target="_blank" rel="noreferrer">Explore MargitArc ↗</a>
+            <a className="btn btn-secondary" href="/api/activity/recent-sales" target="_blank" rel="noreferrer">Recent sales JSON ↗</a>
+            <a className="btn btn-secondary" href="/api/activity/bestsellers" target="_blank" rel="noreferrer">Bestsellers JSON ↗</a>
+            <a className="btn btn-secondary" href="/leaderboards">Market leaderboards ↗</a>
+        </div>
         <h2>Bazantic</h2>
         <p>Bazantic supports MCP gateways. Our setup document contains the gateway payload and registration steps verified against its public API. Gateway registration is pending; this page does not claim a published Bazantic integration.</p>
         <div className="agent-integration-links">

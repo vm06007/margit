@@ -46,3 +46,7 @@ External agents can use seven MCP tools, the published skill, and OpenAPI docume
 ## Deployment
 
 The application runs on Arc testnet. Mainnet preparation includes an offline readiness assessment, configuration validation, unsigned deployment preparation, and release tests. Mainnet deployment and application cutover are pending; the [deployment runbook](arc-mainnet-readiness.md) covers configuration, state isolation, wallet custody, and rollback.
+
+## Public subgraph
+
+[MargitArc query playground](https://thegraph.com/explorer/subgraphs/DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn?view=Query) publishes the schema and deployment for reviewers. It indexes Arc testnet contract checkout and fee events, excluding Circle Gateway x402 purchases. The app uses its configured `GRAPH_QUERY_URL`; publishing does not automatically switch that endpoint. See the README verification section for a sample query and indexing status at verification.

@@ -1,3 +1,4 @@
+import { MarketStatsCard } from "../components/MarketStatsCard";
 import { RecentGraphSales } from "../components/RecentGraphSales";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import type { Listing, Me } from "../api";
@@ -461,7 +462,7 @@ export function CatalogPage({
                                 </div>
                             </div>
 
-                            {!agentOpen && <RecentGraphSales />}
+                            <MarketStatsCard />
 
                             <div className="mxd-sidebar__widget bg-base-tint radius-m" style={{ display: "none" }}>
                                 <div className="widget__title">
@@ -497,31 +498,7 @@ export function CatalogPage({
                                 </ul>
                             </div>
 
-                            <div className="mxd-sidebar__widget bg-base-tint radius-m widget-socials">
-                                <div className="widget__title">
-                                    <p>Ecosystem</p>
-                                </div>
-                                <div className="widget__descr"><p className="t-small">Follow us and get to know all the news and other interesting stuff first!</p></div>
-                                <div className="widget__social-links-small">
-                                    {[
-                                        ["GitHub Source", "https://github.com/vm06007/margit"],
-                                        ["Arc", "https://arc.io"],
-                                        ["Bazantic", "https://bazantic.com"],
-                                        ["OpenRouter", "https://openrouter.ai"],
-                                    ].map(([label, url]) => (
-                                        <div className="social-links-small__item" key={url}>
-                                            <div className="social-links-small__divider" />
-                                            <a className="social-links-small__link" href={url} target="_blank" rel="noreferrer">
-                                                <p className="social-links-small__title">{label}</p>
-                                                <div className="social-links-small__icon">
-                                                    <i className="ph-bold ph-arrow-up-right" />
-                                                </div>
-                                            </a>
-                                            <div className="social-links-small__divider" />
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
+                            {!agentOpen && <RecentGraphSales />}
                         </div>
                     </div>
                 </div>

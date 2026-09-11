@@ -1,3 +1,4 @@
+import { OneClawVerification } from "./OneClawVerification";
 import { connectCircleAgent, verifyCircleAgent, disconnectCircleAgent } from '../api';
 import { useActiveAccount, useSendTransaction } from "thirdweb/react";
 import { prepareTransaction, toWei } from "thirdweb";
@@ -169,13 +170,14 @@ export function AgentSidebar({
     const [, setSettings] = useState<AgentSettings | null>(null);
     const [showSettings, setShowSettings] = useState(false);
     const [showAgentSettings, setShowAgentSettings] = useState(false);
-    const [pendingWalletMode, setPendingWalletMode] = useState<'shared' | 'personal' | 'circle'>('shared');
+    const [pendingWalletMode, setPendingWalletMode] = useState<'shared' | 'personal' | 'circle' | 'oneclaw'>('shared');
     const [walletPreview, setWalletPreview] = useState<AgentWallet | null>(null);
     const [previewLoading, setPreviewLoading] = useState(false);
     useEffect(() => {
         if (!showAgentSettings) return;
         let cancelled = false;
         setPreviewLoading(true); setWalletPreview(null); setWalletError(null); setCircleSetup(false);
+        if (pendingWalletMode === 'oneclaw') { setPreviewLoading(false); return; }
         fetchAgentWallet(pendingWalletMode).then(preview => {
             if (!cancelled) setWalletPreview(preview);
         }).catch(error => {
@@ -438,7 +440,7 @@ export function AgentSidebar({
                                     </span>
                                     <span className="agent-wallet-arrow" aria-hidden="true">→</span>
                                     <a
-                                        className="agent-wallet-address-link"
+                                        className="agent-wallet-address-link graph-transaction-link"
                                         href={`https://testnet.arcscan.app/address/${wallet.address}?tab=txs`}
                                         target="_blank"
                                         rel="noreferrer"
@@ -464,7 +466,7 @@ export function AgentSidebar({
                                     <span className="agent-wallet-label">x402 Gateway</span>
                                     <span className="agent-wallet-arrow" aria-hidden="true">→</span>
                                     {wallet.circle?.availableUsdc != null
-                                        ? `${Number(wallet.circle.availableUsdc).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} USDC`
+                                        ? <a className="agent-wallet-address-link graph-transaction-link" href={`/api/agent/gateway-balance?address=${encodeURIComponent(wallet.address)}`} target="_blank" rel="noreferrer" title="Check this wallet’s balance with Circle Gateway">{Number(wallet.circle.availableUsdc).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} USDC</a>
                                         : 'Unavailable'}
                                     <button
                                         type="button"
@@ -762,21 +764,22 @@ export function AgentSidebar({
                             <button type="button" className="agent-icon-btn" aria-label="Close agent settings" onClick={closeAgentSettings}><i className="ph ph-x" /></button>
                         </div>
                         <select id="agent-wallet-select" aria-label="Agent wallet" className="agent-input" value={pendingWalletMode} disabled={sending || walletBusy}
-                            onChange={e => setPendingWalletMode(e.target.value as 'shared' | 'personal' | 'circle')}>
+                            onChange={e => setPendingWalletMode(e.target.value as 'shared' | 'personal' | 'circle' | 'oneclaw')}>
                             <option value="shared">Demo Wallet</option>
                             <option value="personal">My Agent Wallet</option>
                             <option value="circle">Circle Agent Wallet</option>
+                            <option value="oneclaw">1Claw Agent Wallet</option>
                         </select>
-                        <p className="hint">{pendingWalletMode === 'circle' ? 'Connect your Circle account to use its agent wallet.' : pendingWalletMode === 'personal' ? 'A separate agent wallet for this browser, funded by you.' : 'Try the agent with the shared demo wallet on Arc testnet.'}</p>
+                        <p className="hint">{pendingWalletMode === 'oneclaw' ? 'Verify your 1Claw wallet connection. Payments are not enabled yet.' : pendingWalletMode === 'circle' ? 'Connect your Circle account to use its agent wallet.' : pendingWalletMode === 'personal' ? 'A separate agent wallet for this browser, funded by you.' : 'Try the agent with the shared demo wallet on Arc testnet.'}</p>
                         {previewLoading && <p className="hint" role="status">Loading wallet…</p>}
                         {walletPreview?.address && <div className="agent-wallet-preview">
                             <span className="hint">Wallet address</span>
-                            <p style={{overflowWrap: 'anywhere'}}>{walletPreview.address}</p>
-                            <strong>{Number(walletPreview.usdc ?? 0).toFixed(2)} USDC · {Number(walletPreview.eurc ?? 0).toFixed(2)} EURC</strong>
+                            <p className="agent-wallet-preview-address">{walletPreview.address}</p>
+                            <strong className="agent-wallet-preview-balances"><span><img src="/icons/usdc.svg" alt="" />{Number(walletPreview.usdc ?? 0).toFixed(2)} USDC</span><span><img src="/icons/eurc.svg" alt="" />{Number(walletPreview.eurc ?? 0).toFixed(2)} EURC</span></strong>
                         </div>}
-                        {!circleSetup && <button
+                        {!circleSetup && pendingWalletMode !== 'oneclaw' && <button
                             type="button"
-                            className="btn btn-anim btn-default btn-accent agent-circle-submit"
+                            className="btn btn-anim btn-default btn-small btn-accent agent-circle-submit"
                             disabled={walletBusy || sending || previewLoading || !walletPreview?.address || !!walletError}
                             onClick={async () => {
                                 setWalletBusy(true); setWalletError(null);
@@ -795,18 +798,19 @@ export function AgentSidebar({
                     <input id="circle-agent-email" className="agent-input" type="email" autoComplete="email" value={circleEmail} disabled={walletBusy || circleCodeSent} onChange={e => setCircleEmail(e.target.value)} />
                     {!circleCodeSent ? <>
                         <label className="agent-circle-consent"><input type="checkbox" checked={circleTerms} onChange={e => setCircleTerms(e.target.checked)} /><span>I accept Circle’s <a href="https://console.circle.com/legal/developer-terms" target="_blank" rel="noreferrer">Terms of Use</a> and <a href="https://www.circle.com/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>.</span></label>
-                        <button type="button" className="btn btn-anim btn-default btn-accent agent-circle-submit" disabled={walletBusy || !circleTerms || !circleEmail.trim()} onClick={() => { void walletAction(async () => { await connectCircleAgent(circleEmail.trim(), circleTerms); setCircleCodeSent(true); }); }}>{walletBusy ? 'Connecting…' : 'Send verification code'}</button>
+                        <button type="button" className="btn btn-anim btn-default btn-small btn-accent agent-circle-submit" disabled={walletBusy || !circleTerms || !circleEmail.trim()} onClick={() => { void walletAction(async () => { await connectCircleAgent(circleEmail.trim(), circleTerms); setCircleCodeSent(true); }); }}>{walletBusy ? 'Connecting…' : 'Send verification code'}</button>
                     </> : <>
                         <label htmlFor="circle-agent-otp">Verification code</label>
                         <input id="circle-agent-otp" className="agent-input" autoComplete="one-time-code" value={circleOtp} onChange={e => setCircleOtp(e.target.value)} disabled={walletBusy} />
-                        <button type="button" className="btn btn-anim btn-default btn-accent agent-circle-submit" disabled={walletBusy || !circleOtp.trim()} onClick={() => { void walletAction(async () => { setWallet(await verifyCircleAgent(circleOtp.trim())); setCircleOtp(''); setCircleCodeSent(false); setCircleSetup(false); setMessages([]); }); }}>{walletBusy ? 'Verifying…' : 'Connect wallet'}</button>
+                        <button type="button" className="btn btn-anim btn-default btn-small btn-accent agent-circle-submit" disabled={walletBusy || !circleOtp.trim()} onClick={() => { void walletAction(async () => { setWallet(await verifyCircleAgent(circleOtp.trim())); setCircleOtp(''); setCircleCodeSent(false); setCircleSetup(false); setMessages([]); }); }}>{walletBusy ? 'Verifying…' : 'Connect wallet'}</button>
                         <button type="button" disabled={walletBusy} onClick={() => {setCircleCodeSent(false); setCircleOtp('');}}>Use another email or resend</button>
                     </>}
                     <small>Your Circle session is encrypted in Margit and tied to this browser. Connecting authorizes this chat to use the wallet for your requested actions.</small>
                     {walletError && <p role="alert">{walletError}</p>}
                 </div>}
-                    {wallet?.mode === 'circle' && <button type="button" disabled={walletBusy || sending} onClick={() => { void walletAction(async () => {setWallet(await disconnectCircleAgent()); setCircleSetup(false); setMessages([]);}); }}>Disconnect Circle wallet</button>}
+                    {pendingWalletMode === 'circle' && wallet?.mode === 'circle' && <button type="button" disabled={walletBusy || sending} onClick={() => { void walletAction(async () => {setWallet(await disconnectCircleAgent()); setCircleSetup(false); setMessages([]);}); }}>Disconnect Circle wallet</button>}
                         {!circleSetup && walletError && <p role="alert" className="error">{walletError}</p>}
+                        {pendingWalletMode === 'oneclaw' && <OneClawVerification />}
                     </div>
                 </div>}
                 {showSettings && (

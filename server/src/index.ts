@@ -1,4 +1,5 @@
-import { recentGraphSales, graphBestsellers } from "./graph.js";
+import { verifyOneClaw } from './oneclaw.js';
+import { recentGraphSales, graphBestsellers, graphLeaderboard } from "./graph.js";
 import { startCircleLogin, finishCircleLogin, disconnectCircle } from './circle-managed.js';
 import { serve } from "@hono/node-server";
 import { createX402FeeGate } from "./x402-fee-gate.js";
@@ -205,6 +206,21 @@ function getOrCreateAgentSessionId(c: Parameters<typeof getCookie>[0]): string {
     return sessionId;
 }
 
+// Public, read-only evidence for a specific depositor; never returns wallet credentials.
+app.get('/api/agent/gateway-balance', async c => {
+    c.header('Cache-Control', 'no-store');
+    const address = c.req.query('address');
+    if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) return c.json({error:'Invalid depositor address'},400);
+    const source = 'https://gateway-api-testnet.circle.com/v1/balances';
+    const request = {token:'USDC',sources:[{depositor:address,domain:26}]};
+    try {
+        const response = await fetch(source,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request),signal:AbortSignal.timeout(10000)});
+        if (!response.ok) return c.json({error:'Circle Gateway balance check failed',status:response.status},502);
+        const result = await response.json();
+        return c.json({provider:'Circle Gateway',network:'Arc testnet',depositor:address,checkedAt:new Date().toISOString(),source,method:'POST',request,response:result,note:'Fresh Circle API response relayed by Margit. This is the depositor balance, not the shared contract balance. Repeat the POST request directly to Circle for independent verification.'});
+    } catch { return c.json({error:'Circle Gateway is unavailable. Try again.'},502); }
+});
+
 app.get("/api/agent/wallet", async (c) => {
     const session = getOrCreateAgentSessionId(c);
     const mode = c.req.query('mode');
@@ -219,6 +235,14 @@ app.post("/api/agent/wallet", async (c) => {
     await selectAgentWallet(session, mode);
     return c.json(await getAgentWalletBalance(session));
 });
+app.post('/api/agent/oneclaw/verify', async c => {
+    try {
+        const input = await c.req.json();
+        if (!input || ['agentId', 'apiKey', 'address'].some(key => typeof input[key] !== 'string')) return c.json({error:'Agent ID, API key and address are required.'},400);
+        return c.json(await verifyOneClaw(input));
+    } catch (error) { return c.json({error:error instanceof Error ? error.message : '1Claw verification failed'},400); }
+});
+
 app.post('/api/agent/circle/login', async c => {
     try {
         const {email, acceptedTerms} = await c.req.json();
@@ -539,6 +563,11 @@ app.post("/api/repos/generate-description", async (c) => {
     return c.json({ description });
 });
 
+app.get("/api/activity/leaderboards", async c => {
+    const period = c.req.query('period') ?? 'all';
+    if (period !== 'all' && period !== '7d' && period !== '30d') return c.json({error: 'Invalid period'}, 400);
+    return c.json(await graphLeaderboard(period));
+});
 app.get("/api/activity/bestsellers", async c => c.json(await graphBestsellers()));
 app.get("/api/activity/recent-sales", async c => c.json(await recentGraphSales()));
 
