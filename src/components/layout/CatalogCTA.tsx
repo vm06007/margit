@@ -15,11 +15,11 @@ export function CatalogCTA() {
                   <span className="mxd-promo__icon">
                     <img src="https://dummyimage.com/100x100/838383/5d5d5d" alt="Icon" />
                   </span>
-                  <span className="mxd-promo__caption reveal-type">{"Let's talk about your project!"}</span>
+                  <span className="mxd-promo__caption reveal-type">{"Let's go mainnet!"}</span>
                 </p>
                 <div className="mxd-promo__controls anim-uni-in-up">
-                  <a className="btn btn-anim btn-default btn-large btn-additional slide-right-up" href="contact.html">
-                    <span className="btn-caption">{"Contact Us"}</span>
+                  <a className="btn btn-anim btn-default btn-large btn-additional slide-right-up" href="https://github.com/vm06007/margit/blob/master/README.md#mainnet-deployment-status" target="_blank" rel="noreferrer">
+                    <span className="btn-caption">{"We are ready"}</span>
                     <i className="ph-bold ph-arrow-up-right"></i>
                   </a>
                 </div>
