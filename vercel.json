@@ -9,42 +9,41 @@
       "includeFiles": "{public/skills/margit/SKILL.md,node_modules/@circle-fin/cli/dist/index.js}"
     }
   },
-  "rewrites": [
+  "routes": [
     {
-      "source": "/:path*",
+      "src": "/(.*)",
       "has": [
         {
           "type": "host",
           "value": "api.margit.sh"
         }
       ],
-      "destination": "/api"
+      "dest": "/api"
     },
     {
-      "source": "/",
+      "src": "/",
       "has": [
         {
           "type": "host",
           "value": "docs.margit.sh"
         }
       ],
-      "destination": "/docs/index.html"
+      "dest": "/docs/index.html"
     },
     {
-      "source": "/api/:path*",
-      "destination": "/api"
+      "src": "/api(?:/.*)?",
+      "dest": "/api"
     },
     {
-      "source": "/docs",
-      "destination": "/docs/index.html"
+      "src": "/docs/?",
+      "dest": "/docs/index.html"
     },
     {
-      "source": "/docs/",
-      "destination": "/docs/index.html"
+      "handle": "filesystem"
     },
     {
-      "source": "/((?!api/|assets/|site/|icons/|proofs/|skills/|docs/).*)",
-      "destination": "/index.html"
+      "src": "/((?!api/|assets/|site/|icons/|proofs/|skills/|docs/).*)",
+      "dest": "/index.html"
     }
   ]
 }
