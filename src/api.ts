@@ -236,12 +236,12 @@ export function depositAgentGateway(amount: string, requestId: string): Promise<
     return agentWalletRequest("/api/agent/gateway-deposit", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({amount, requestId}) });
 }
 
-export async function sendAgentMessage(message: string): Promise<AgentChatResponse> {
+export async function sendAgentMessage(message: string, bazanticEnabled = false): Promise<AgentChatResponse> {
     const res = await fetch("/api/agent/chat", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, bazanticEnabled }),
     });
     if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };

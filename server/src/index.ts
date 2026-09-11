@@ -95,7 +95,7 @@ app.use(
 );
 
 // Fixed Recipe only; no client-selected URLs, credentials, or arbitrary tool calls.
-app.route('/api/recipe-advisor', createAdvisorRoutes({
+const advisorRoutes = createAdvisorRoutes({
     appUrl: APP_URL,
     allow: async key => Number(await redis.eval(`
         local user = redis.call('INCR', KEYS[1])
@@ -106,7 +106,8 @@ app.route('/api/recipe-advisor', createAdvisorRoutes({
         if total > 60 then return 0 end
         return 1
     `, ['margit:advisor:minute:' + key, 'margit:advisor:hour'], [])) === 1,
-}));
+});
+app.route('/api/recipe-advisor', advisorRoutes);
 
 // Reject unsupported checkout before x402 can settle a payment.
 app.use("/api/listings/unlock", async (c, next) => {
@@ -305,10 +306,15 @@ app.post("/api/agent/chat", async (c) => {
     const sessionId = getOrCreateAgentSessionId(c);
     const githubSession = await getSession(getCookie(c, SESSION_COOKIE));
 
-    const { message } = await c.req.json<{ message?: string }>();
+    const { message, bazanticEnabled } = await c.req.json<{ message?: string; bazanticEnabled?: boolean }>();
     if (!message || !message.trim()) return c.json({ error: "message is required" }, 400);
 
-    const result = await runAgentTurn(sessionId, message.trim(), githubSession);
+    const result = await runAgentTurn(sessionId, message.trim(), githubSession, bazanticEnabled === true ? async input => {
+        const headers = new Headers(c.req.raw.headers);
+        headers.set('Content-Type', 'application/json');
+        const response = await advisorRoutes.request('http://internal/', { method: 'POST', headers, body: JSON.stringify(input) });
+        return response.json();
+    } : undefined);
     return c.json(result);
 });
 

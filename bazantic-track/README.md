@@ -112,3 +112,13 @@ No Bazantic key is used by this integration. A web-app JWT is not required. Inpu
 Implementation: [backend](../server/src/recipe-advisor.ts), [Catalog form](../src/components/RepositoryAdvisor.tsx), [request/parser tests](../server/src/tests/recipe-advisor.test.ts). Runtime configuration uses the application's existing `APP_URL` and Redis configuration. The gateway URL is pinned to the verified discovery result; rediscover it if Bazantic migrates the Recipe gateway.
 
 Validation: TypeScript, the Vite production build and four focused request/parser tests passed. A real request through the local app backend completed in 18.789 seconds, returned the published Recipe handle and fresh advice, and correctly marked the $0.05 listing over a $0.04 budget with comparisons omitted. No credential or payment header was sent. Production deployment and browser interaction verification remain pending.
+
+### Main agent search preference
+
+In the Margit Agent sidebar, open **⋮ → Search options → Use Bazantic advisor**.
+The preference defaults to off and is remembered in this browser. When enabled,
+the agent receives a `bazantic_repository_advisor` tool for project-fit and budget
+recommendations. When disabled, that tool is omitted and execution is blocked.
+The agent can call it once per turn, using the same validation, rate limits, and
+no-payment behavior as the standalone modal. Results return to the conversation.
+Try: “Find a TypeScript AI developer tool with a repository budget of $1.”

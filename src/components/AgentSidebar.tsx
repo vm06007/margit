@@ -169,6 +169,10 @@ export function AgentSidebar({
     const [wallet, setWallet] = useState<AgentWallet | null>(null);
     const [, setSettings] = useState<AgentSettings | null>(null);
     const [showSettings, setShowSettings] = useState(false);
+    const [showSearchOptions, setShowSearchOptions] = useState(false);
+    const [bazanticEnabled, setBazanticEnabled] = useState(() => { try { return localStorage.getItem('margit:bazantic-search') === 'true'; } catch { return false; } });
+    const searchClose = useRef<HTMLButtonElement>(null);
+    useEffect(() => { if (showSearchOptions) searchClose.current?.focus(); }, [showSearchOptions]);
     const [showAgentSettings, setShowAgentSettings] = useState(false);
     const [pendingWalletMode, setPendingWalletMode] = useState<'shared' | 'personal' | 'circle' | 'oneclaw'>('shared');
     const [walletPreview, setWalletPreview] = useState<AgentWallet | null>(null);
@@ -370,7 +374,7 @@ export function AgentSidebar({
         setMessages((prev) => [...prev, { role: "user", text }]);
         setSending(true);
         try {
-            const res = await sendAgentMessage(text);
+            const res = await sendAgentMessage(text, bazanticEnabled);
             setMessages((prev) => [...prev, { role: "assistant", text: res.reply, purchase: res.purchase }]);
             {
                 fetchAgentWallet()
@@ -400,7 +404,7 @@ export function AgentSidebar({
         )}
         <aside id="agent-sidebar" className={`agent-sidebar ${open ? "open" : ""}${expandOverlay ? " expanded" : ""}${expandClosing ? " is-collapsing" : ""}`} inert={!open}>
             <div
-                className={`agent-sidebar-inner${wallet === null || walletBusy ? " is-loading" : ""}${showSettings || showAgentSettings || showCircleInfo ? " is-settings-open" : ""}${expandEntering ? " is-expanding" : ""}${isResizing ? " is-resizing" : ""}`}
+                className={`agent-sidebar-inner${wallet === null || walletBusy ? " is-loading" : ""}${showSettings || showAgentSettings || showCircleInfo || showSearchOptions ? " is-settings-open" : ""}${expandEntering ? " is-expanding" : ""}${isResizing ? " is-resizing" : ""}`}
                 style={expandOverlay && expandedWidthPx != null ? { width: `${expandedWidthPx}px` } : undefined}
                 onAnimationEnd={(event) => {
                     if (event.currentTarget !== event.target) return;
@@ -421,7 +425,7 @@ export function AgentSidebar({
                         onPointerCancel={onExpandResizePointerUp}
                     />
                 )}
-                <div className="agent-sidebar-content" inert={showSettings || showAgentSettings || showCircleInfo} aria-busy={wallet === null || walletBusy}>
+                <div className="agent-sidebar-content" inert={showSettings || showAgentSettings || showCircleInfo || showSearchOptions} aria-busy={wallet === null || walletBusy}>
                 <div className="agent-header">
                     <div>
                         <h3>
@@ -562,6 +566,7 @@ export function AgentSidebar({
                                     }
                                 }}
                             >
+                                <button type="button" role="menuitem" className="profile-menu-item" disabled={sending} onClick={() => { setMenuOpen(false); setShowSearchOptions(true); }}><i className="ph ph-magnifying-glass" />Search options</button>
                                 <button
                                     type="button"
                                     role="menuitem"
@@ -656,6 +661,7 @@ export function AgentSidebar({
                     {sending && <p className="hint agent-typing" role="status"><span className="agent-thinking-spinner" aria-hidden="true" />Thinking…</p>}
                 </div>
                 {error && <p className="error agent-error">{error}</p>}
+                {bazanticEnabled && <div className="agent-search-indicator">Bazantic search enabled</div>}
                 <div className="agent-prompt-suggestions" aria-label="Suggested agent requests" data-lenis-prevent>
                     <div className="agent-prompt-spacer" aria-hidden="true" />
                     {agentSuggestions(path).map(([label, prompt]) => <button type="button" key={label} disabled={sending || walletBusy || circleSetup} onClick={() => {
@@ -813,6 +819,18 @@ export function AgentSidebar({
                         {pendingWalletMode === 'oneclaw' && <OneClawVerification />}
                     </div>
                 </div>}
+                {showSearchOptions && <div className="agent-settings-overlay" role="dialog" aria-modal="true" aria-label="Search options" onClick={event => { if (event.target === event.currentTarget) { setShowSearchOptions(false); menuTrigger.current?.focus(); } }} onKeyDown={event => {
+                    if (event.key === 'Escape') { setShowSearchOptions(false); menuTrigger.current?.focus(); }
+                    if (event.key === 'Tab') {
+                        const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button, input'));
+                        const next = controls[(controls.indexOf(document.activeElement as HTMLElement) + (event.shiftKey ? -1 : 1) + controls.length) % controls.length];
+                        event.preventDefault(); next?.focus();
+                    }
+                }}><div className="agent-settings-panel open">
+                    <div className="agent-settings-header"><strong>Search options</strong><button ref={searchClose} type="button" className="agent-icon-btn" aria-label="Close search options" onClick={() => { setShowSearchOptions(false); menuTrigger.current?.focus(); }}><i className="ph ph-x" /></button></div>
+                    <label className="agent-bazantic-toggle"><span>Use Bazantic advisor</span><input type="checkbox" checked={bazanticEnabled} onChange={event => { const enabled = event.target.checked; setBazanticEnabled(enabled); try { localStorage.setItem('margit:bazantic-search', String(enabled)); } catch { /* Preference remains active for this session. */ } }} /></label>
+                    <p className="hint">Compare repositories by project fit and budget. May take 20–60 seconds.</p>
+                </div></div>}
                 {showSettings && (
                     <div
                         className="agent-settings-overlay"
