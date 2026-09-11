@@ -1,3 +1,4 @@
+import { summarizeCatalog } from './catalog-summary.js';
 import { verifyOneClaw } from './oneclaw.js';
 import { recentGraphSales, graphBestsellers, graphLeaderboard } from "./graph.js";
 import { startCircleLogin, finishCircleLogin, disconnectCircle } from './circle-managed.js';
@@ -579,7 +580,12 @@ app.get("/api/activity/bestsellers", async c => c.json(await graphBestsellers())
 app.get("/api/activity/recent-sales", async c => c.json(await recentGraphSales()));
 
 app.get("/api/listings", async (c) => {
-    return c.json(await listListings());
+    const listings = await listListings();
+    const compact = c.req.query('view') === 'compact' || new URL(c.req.url).hostname === 'api.margit.sh';
+    if (!compact) return c.json(listings);
+    const rawOffset = c.req.query('offset') ?? '0';
+    if (!/^\d+$/.test(rawOffset) || !Number.isSafeInteger(Number(rawOffset))) return c.json({ error: 'Invalid offset' }, 400);
+    return c.json(summarizeCatalog(listings, Number(rawOffset)));
 });
 
 app.post("/api/listings", async (c) => {
