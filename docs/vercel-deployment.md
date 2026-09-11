@@ -14,3 +14,15 @@ Set nonempty values in Vercel Project Settings → Environment Variables for the
 Redeploy after changing environment values, especially `VITE_*` variables. The build fails with a clear message if the Thirdweb client ID is missing.
 
 After deployment, check `/`, a direct page URL such as `/catalog`, `/site/css/main.min.css`, and `/api/listings`. Check GitHub login separately using the production OAuth callback. A successful static build alone does not verify payment execution or repository delivery.
+
+## API and documentation domains
+
+Add `api.margit.sh` and `docs.margit.sh` to the same Vercel project as `margit.sh`, and apply the DNS records Vercel provides. Keep `APP_URL=https://margit.sh` and the existing GitHub OAuth callback unchanged. Deploy the host-routing changes before using these domains.
+
+- `https://docs.margit.sh/` serves the static developer documentation.
+- `https://api.margit.sh/` returns API discovery JSON.
+- API paths support both `/api/listings` and `/listings` on the API host.
+- Existing `margit.sh/api/*` and `margit.sh/docs/` URLs remain available.
+- The dapp continues using same-origin requests and cookies. The API domain does not share the dapp's browser session; use documented bearer credentials for seller API operations.
+
+Bazantic form: base URL `https://api.margit.sh`, docs URL `https://docs.margit.sh/`, spec URL `https://api.margit.sh/api/agent-docs/openapi.json`. The spec retains `/api/*` paths.

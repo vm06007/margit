@@ -65,7 +65,14 @@ const MAX_DESCRIPTION_LENGTH = 4000;
 const MAX_SCREENSHOTS = 4;
 const MAX_SCREENSHOT_CHARS = 2_000_000; // ~1.5MB decoded
 
-export const app = new Hono();
+export const app = new Hono({
+    getPath: (request) => {
+        const url = new URL(request.url);
+        if (url.hostname !== 'api.margit.sh') return url.pathname;
+        if (url.pathname === '/') return '/api/agent-docs';
+        return url.pathname.startsWith('/api/') ? url.pathname : `/api${url.pathname}`;
+    },
+});
 app.route("/api/mcp", createMcpRoutes(async (path, init) => app.request(path, init), APP_URL));
 app.route("/api/agent-docs", createAgentDocs(APP_URL));
 

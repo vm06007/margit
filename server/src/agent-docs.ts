@@ -3,10 +3,12 @@ import { agentSkill } from './mcp.js';
 import { checkoutAbi } from '../../shared/checkout.js';
 
 export function createAgentDocs(origin: string) {
-    const base = new URL(origin).origin;
+    const appOrigin = new URL(origin).origin;
+    const base = appOrigin === 'https://margit.sh' ? 'https://api.margit.sh' : appOrigin;
+    const docs = appOrigin === 'https://margit.sh' ? 'https://docs.margit.sh/' : `${appOrigin}/docs/`;
     const routes = new Hono();
     const tools = ['browse_catalog', 'get_listing', 'create_checkout_quote', 'confirm_checkout', 'list_my_repos', 'create_listing', 'unlist_repo'];
-    routes.get('/', c => c.json({ name: 'Margit', transport: 'streamable-http', endpoint: `${base}/api/mcp`, skill: `${base}/skills/margit/SKILL.md`, skillsIndex: `${base}/SKILLS.md`, openapi: `${base}/api/agent-docs/openapi.json`, checkoutAbi: `${base}/api/agent-docs/checkout-abi`, tools, chainId: 5042002, network: 'Arc testnet', authentication: 'Public catalog and checkout tools; seller tools require Authorization: Bearer MARGIT_API_KEY.', clientConfig: { mcpServers: { margit: { url: `${base}/api/mcp` } } }, bazantic: { status: 'configuration-ready; registration not verified', setup: `${base}/api/agent-docs/bazantic` } }));
+    routes.get('/', c => c.json({ name: 'Margit', documentation: docs, transport: 'streamable-http', endpoint: `${base}/api/mcp`, skill: `${appOrigin}/skills/margit/SKILL.md`, skillsIndex: `${appOrigin}/SKILLS.md`, openapi: `${base}/api/agent-docs/openapi.json`, checkoutAbi: `${base}/api/agent-docs/checkout-abi`, tools, chainId: 5042002, network: 'Arc testnet', authentication: 'Public catalog and checkout tools; seller tools require Authorization: Bearer MARGIT_API_KEY.', clientConfig: { mcpServers: { margit: { url: `${base}/api/mcp` } } }, bazantic: { status: 'configuration-ready; registration not verified', setup: `${base}/api/agent-docs/bazantic` } }));
     routes.get('/skill', c => c.text(agentSkill));
     routes.get('/checkout-abi', c => c.json(checkoutAbi));
     routes.get('/bazantic', c => c.json({
@@ -19,7 +21,7 @@ export function createAgentDocs(origin: string) {
             'Test the returned gateway using browse_catalog before changing status from draft to active.',
             'Recipes are optional: POST /v1/recipes requires an admin role and a tool binding containing the returned gateway_slug and tool_name. Publishing uses /v1/recipes/{handle}/publish.',
         ],
-        gatewayDraft: { account_id: 'YOUR_BAZANTIC_ACCOUNT_UUID', handle: 'margit', name: 'Margit', type: 'dedicated', service_endpoint: `${base}/api/mcp`, service_protocol: 'mcp', auth: { type: 'none' }, status: 'draft', category: 'AI', tags: ['github', 'marketplace', 'arc', 'mcp'], tagline: 'Discover private GitHub repositories and prepare wallet checkout.', product_website: base, docs_url: `${base}/docs/`, methods: [{ verb: 'POST', resource: '/', price_millicents: 0 }] },
+        gatewayDraft: { account_id: 'YOUR_BAZANTIC_ACCOUNT_UUID', handle: 'margit', name: 'Margit', type: 'dedicated', service_endpoint: `${base}/api/mcp`, service_protocol: 'mcp', auth: { type: 'none' }, status: 'draft', category: 'AI', tags: ['github', 'marketplace', 'arc', 'mcp'], tagline: 'Discover private GitHub repositories and prepare wallet checkout.', product_website: appOrigin, docs_url: docs, methods: [{ verb: 'POST', resource: '/', price_millicents: 0 }] },
         sellerAccess: 'This public gateway grants no seller access. Do not register a shared seller key. Use a separate private, seller-authorized client or gateway for mutations.',
     }));
     routes.get('/openapi.json', c => {

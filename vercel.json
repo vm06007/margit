@@ -11,6 +11,26 @@
   },
   "rewrites": [
     {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "api.margit.sh"
+        }
+      ],
+      "destination": "/api"
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "docs.margit.sh"
+        }
+      ],
+      "destination": "/docs/index.html"
+    },
+    {
       "source": "/api/:path*",
       "destination": "/api"
     },
