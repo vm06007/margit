@@ -111,3 +111,7 @@ Receipt cards include **Verify payment on Circle**, linking directly to Circle's
 Contract checkout collects our fee automatically. Circle x402 pays sellers directly, and we track the platform fee against their seller account for later settlement. This keeps the payment flow simple. New x402 purchases pause at 1.00 USDC in unpaid fees and resume once the balance is below that threshold.
 
 The current Circle SDK integration has one payment recipient; we found no documented native marketplace commission split. We chose direct seller payments over adding platform custody and a payout service for the demo. This does not mean x402 cannot be extended with other settlement designs. Seller reputation is an incentive, not guaranteed collection. The backend pauses new x402 purchases at 1.00 USDC owed; a seller can still abandon the debt. See the [fee model, sources, alternatives, and suggested SDK enhancement](../docs/fee-model.md#why-this-model-and-how-it-compares-with-other-x402-integrations).
+
+## The Graph integration
+
+For indexed contract sales, catalog statistics, leaderboards and agent activity queries, see the standalone [The Graph Track Details](../graph-track/README.md). Circle Gateway x402 purchases and Graph-indexed contract purchases are separate payment paths.

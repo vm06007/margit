@@ -48,6 +48,8 @@ The Circle Nanopayments SDK we integrate (`@circle-fin/x402-batching` 3.4.0) use
 
 ### Verify The Graph integration
 
+[The Graph Track Details](graph-track/README.md) provides a standalone sponsor overview, architecture, feature map, reviewer walkthrough, agent/API reference, and coverage limits.
+
 Margit queries the deployed subgraph for **Recently sold** in the Catalog and the agent's **Recently sold**, **Bestselling repos**, **Popular projects**, and **Bestsellers under $0.10** suggestions. The backend joins indexed listing hashes with current catalog entries and saved purchase records where available. Transaction links let reviewers inspect the underlying Arc testnet events.
 
 - Network: **Arc testnet**.
@@ -56,6 +58,26 @@ Margit queries the deployed subgraph for **Recently sold** in the Catalog and th
 - Public application APIs: `GET /api/activity/recent-sales`, `GET /api/activity/bestsellers`, and `GET /api/activity/leaderboards?period=all` (also accepts `7d` and `30d`; relative to the running application).
 - **Leaderboards** (`/leaderboards`): top repositories, buyer wallets, and seller wallets ranked by purchase count; distinct counterparties, gross volume per currency, and daily purchase activity. Includes period filters, transaction evidence, indexed-block provenance, and source JSON. Agent prompts **Top buyers**, **Top sellers**, and **Weekly statistics** use the same data via `graph_leaderboards`.
 - Coverage: contract-checkout purchases only; **Circle Gateway x402 purchases are excluded**. Bestseller rankings use up to the latest 1,000 indexed sales and disclose whether the sample is capped. Unique buyers are wallet addresses, not verified people.
+
+#### Where the indexed data is used
+
+| Surface | What The Graph contributes |
+| --- | --- |
+| **Catalog → Recently sold** | Indexed purchase events, amounts and timestamps with transaction links. Current listings appear before unavailable listings; the feed moves below the catalog when the agent sidebar is open. |
+| **Catalog → Catalog statistics** | Purchase count, repositories sold, distinct buyer wallets and seller wallets, with a link to the full statistics page and public subgraph. |
+| **Leaderboards** (`/leaderboards`) | Repository, buyer and seller rankings; 7-day/30-day filters; gross volume separated by currency; daily purchase activity; indexed block and source JSON. |
+| **Margit Agent** | Tools query recent sales, bestsellers and leaderboard statistics so responses can refer to indexed activity and transaction evidence. The agent can combine these results with current listing details and prices. |
+| **Portfolio** | Indexed contract receipts and fee events supplement purchase records; repository access remains enforced by Margit's backend. |
+
+The flow is **Arc contract events → subgraph entities → backend GraphQL queries → UI and agent tools**. The subgraph stores purchase/fee events; the backend computes rankings and time-window totals from those events. Repository names, availability and descriptions are joined from Margit's catalog and purchase records. The Graph does not perform GitHub searches, authorize purchases, or deliver repository source.
+
+#### Reviewer walkthrough
+
+1. Open the [public MargitArc subgraph](https://thegraph.com/explorer/subgraphs/DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn?view=Query) and inspect its schema and deployment.
+2. In Margit, visit **Catalog → Catalog statistics → View all statistics**. Switch between **Top repos**, **Top buyers** and **Top sellers**, then change the period.
+3. Open **View source data** to inspect the application API response; follow a **Verify** transaction link to Arcscan.
+4. Ask the agent **Bestselling repos**, **Top buyers**, **Top sellers**, or **Weekly statistics**. These use the same indexed activity as the page, rather than invented popularity scores.
+5. Compare the raw GraphQL events below with the application results. Rankings cover up to the latest 1,000 indexed purchases, not an unlimited all-time history; the interface discloses when that limit is reached.
 
 Run this query in the subgraph playground to compare raw events with the application's sales feed:
 
@@ -531,14 +553,39 @@ The [Circle Arc testnet cirBTC contract](https://developers.circle.com/assets/ci
 
 Run `node --env-file=.env --import tsx scripts/enable-cirbtc.ts` for an admin preflight, then add `--enable` to apply it. The script verifies chain, admin and decimals and saves the confirmed public transaction in `contracts/cirbtc.arc-testnet.json`.
 
-## Circle nanopayments in the built-in agent
+## Agent wallet options and Circle payments
 
-The shopping agent now includes an chat-requested x402 purchase tool using Circle's `GatewayClient` on Arc testnet. Clickable prompts help users discover repositories, inspect Gateway funding, and request a purchase. Successful payments show Circle SDK evidence and an explorer link when an actual transaction hash is returned.
+Margit has one built-in marketplace agent with **four options in Agent Settings**. These options change wallet custody and connection setup, not the AI model. The agent can discover repos, explain listings, query Graph-backed rankings, and perform supported marketplace actions. Seller actions require the relevant GitHub authorization.
 
-A live 0.05 USDC repository purchase and successful Git delivery were verified on September 8, 2026. See [the demo guide, architecture, limits, and evidence](docs/circle-agent-demo.md). The signer is a demo EOA; this does not claim Circle-managed Agent Wallets or production readiness.
+| Option | Focus | Setup and custody | Current payment support |
+| --- | --- | --- | --- |
+| **Demo Wallet** | Try the complete Circle x402 buying flow quickly | Shared, preconfigured Arc testnet EOA; its wallet and Gateway funds are shared across demo users | Circle Gateway USDC purchases; demo contract-checkout tooling also exists |
+| **My Agent Wallet** | Use separately funded agent funds tied to this browser | Margit generates a key, stores it encrypted on the backend, and associates it with the browser session; this is not a browser-extension wallet | Circle Gateway USDC purchases using this wallet's funds |
+| **Circle Agent Wallet** | Connect a Circle-managed wallet through email verification | Accept Circle's terms, request an email code, and connect. Margit stores the Circle session encrypted and uses Circle tooling for signing | Implemented Gateway funding, balance and x402 purchase flow; live Circle login/purchase verification remains pending |
+| **1Claw Agent Wallet** | Verify external agent signing and Arc balance access | Supply a 1Claw agent ID, agent API key and Ethereum signing address | **Verification only**; cannot become the active purchasing wallet yet |
+
+For Demo and My Agent Wallet, preview the address and token balances, then click **Confirm** to switch. Circle has its own email connection flow. Selecting 1Claw opens its verification form; successful verification does not silently switch purchases away from the current wallet. AI model/provider settings are separate.
+
+### Circle Gateway and x402 nanopayments
+
+Circle is the agent's USDC payment path on **Arc testnet**. The EOA flow uses `@circle-fin/x402-batching` and its `GatewayClient`; the Circle-managed flow uses Circle wallet/Gateway commands and remote signing. The agent requests a paid repository resource, satisfies its x402 payment requirements, and receives authenticated repository access after payment is accepted. Successful purchases include payment evidence; blockchain explorer links appear when a transaction hash is available.
+
+**Wallet balance and Gateway balance are separate.** Funding the wallet does not automatically fund Gateway. Use **Add to x402 Gateway** to deposit an explicit USDC amount, leaving funds for gas. x402 purchases consume the selected wallet's available Gateway funds, so its ordinary wallet balance may not decrease for every purchase.
+
+- The sidebar displays **x402 Gateway → … USDC**, with two decimals and a refresh control.
+- Hover the wallet name to inspect token balances. The address opens that wallet on Arcscan.
+- Click the Gateway amount to inspect a fresh, address-specific Circle API balance response, including its source request and timestamp. Margit relays this response; the displayed request can be repeated directly against Circle for independent verification. The shared Gateway contract's total balance is not a user's available balance.
+- A Circle-managed wallet can have a separate backing EOA for Gateway signing. Treat wallet and payment-account addresses as distinct when inspecting evidence.
+- Contract-checkout sales power our Graph statistics. **Circle Gateway x402 purchases are not included in that subgraph.**
+
+A live **0.05 USDC** repository purchase and successful Git delivery were verified on September 8, 2026 using the demo EOA. This demonstrates the demo Circle Gateway path; it does not establish that every wallet provider or mainnet flow has been verified. See the [Circle demo guide and evidence](docs/circle-agent-demo.md), [payment implementation](server/src/circle-payment.ts), [Circle-managed integration](server/src/circle-managed.ts), and [wallet selection](server/src/agent-wallet.ts).
+
+Try **Check balance**, **Try Circle x402**, or **Buy this repo** on a repository page. Discovery also includes **Bestselling repos**, **Top buyers**, **Top sellers**, and **Weekly statistics**, backed by the [Leaderboards API](server/src/graph.ts). Catalog prompts focus on discovery and buying; My Repos prompts prioritize listing management.
 
 ### 1Claw connection verification (preview)
 
-Open **Agent Settings → 1Claw Agent Wallet · Verify connection**. Supply a 1Claw agent ID, agent API key (`ocv_`), and its Ethereum signing address. The agent needs Intents and message signing enabled and a provisioned Ethereum signing key. See the [1Claw Intents documentation](https://docs.1claw.co/docs/agents/intents/overview).
+Open **Agent Settings → 1Claw Agent Wallet → Verify 1Claw connection**. Supply a 1Claw agent ID, agent API key (`ocv_`), and its Ethereum signing address. The agent needs Intents and message signing enabled and a provisioned Ethereum signing key. See the [1Claw Intents documentation](https://docs.1claw.co/docs/agents/intents/overview).
 
-The backend authenticates with 1Claw, requests a unique non-payment EIP-191 message signature, verifies it against the supplied address, and reads the address's native USDC balance on Arc testnet. Credentials are not persisted. This is a connection probe, not an enabled fourth payment wallet: contract checkout and Circle Gateway compatibility still need end-to-end testing. The endpoint does not accept arbitrary messages, transactions, or destinations.
+The backend authenticates with 1Claw, requests a unique non-payment EIP-191 message signature, verifies it against the supplied address, and reads the address's native USDC balance on Arc testnet. Credentials are not persisted. The verification endpoint does not accept arbitrary messages, transactions, or destinations.
+
+This is a connection probe, not an enabled fourth payment wallet: live credential verification, contract checkout and Circle Gateway compatibility still need end-to-end testing. See the [backend probe](server/src/oneclaw.ts) and [verification form](src/components/OneClawVerification.tsx).
