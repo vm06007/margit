@@ -1053,3 +1053,16 @@
 .agent-wallet-preview-balances img { width: 2.2rem; height: 2.2rem; flex-shrink: 0; }
 .site-app .agent-wallet-preview-balances { margin-top: .8rem; font-size: 1.4rem; }
 .site-app .agent-wallet-preview-balances img { width: 2rem; height: 2rem; }
+
+/* Arc branding centered over the menu video. */
+.site-app .menu-promo__arc-logo { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: clamp(240px, 60%, 440px); max-width: 90%; height: auto; z-index: 1; pointer-events: none; }
+
+.site-app .ambient-video { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 2rem; overflow: hidden; background: #000; }
+.site-app .ambient-video__media { display: block; position: static; width: 100%; height: 100%; object-fit: contain; }
+.site-app .ambient-video__logo { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: clamp(240px, 60%, 440px); max-width: 90%; height: auto; z-index: 1; pointer-events: none; }
+
+@media (min-width: 1200px) {
+  .site-app .mxd-demo-footer__nav { padding-left: clamp(3rem, 4vw, 8rem); }
+}
+
+.site-app .home-listing-cta .mxd-demo-cta__btn { margin-bottom: 4rem; }

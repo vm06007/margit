@@ -1,3 +1,5 @@
+import { createAdvisorRoutes } from './recipe-advisor.js';
+import { redis } from './redis.js';
 import { summarizeCatalog } from './catalog-summary.js';
 import { verifyOneClaw } from './oneclaw.js';
 import { recentGraphSales, graphBestsellers, graphLeaderboard } from "./graph.js";
@@ -91,6 +93,20 @@ app.use(
         credentials: true,
     }),
 );
+
+// Fixed Recipe only; no client-selected URLs, credentials, or arbitrary tool calls.
+app.route('/api/recipe-advisor', createAdvisorRoutes({
+    appUrl: APP_URL,
+    allow: async key => Number(await redis.eval(`
+        local user = redis.call('INCR', KEYS[1])
+        if user == 1 then redis.call('EXPIRE', KEYS[1], 60) end
+        if user > 1 then return 0 end
+        local total = redis.call('INCR', KEYS[2])
+        if total == 1 then redis.call('EXPIRE', KEYS[2], 3600) end
+        if total > 60 then return 0 end
+        return 1
+    `, ['margit:advisor:minute:' + key, 'margit:advisor:hour'], [])) === 1,
+}));
 
 // Reject unsupported checkout before x402 can settle a payment.
 app.use("/api/listings/unlock", async (c, next) => {

@@ -1,3 +1,4 @@
+import { RepositoryAdvisor } from '../components/RepositoryAdvisor';
 import { MarketStatsCard } from "../components/MarketStatsCard";
 import { RecentGraphSales } from "../components/RecentGraphSales";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
@@ -499,6 +500,10 @@ export function CatalogPage({
                             </div>
 
                             {!agentOpen && <RecentGraphSales />}
+
+                            <div className="mxd-sidebar__widget bg-base-tint radius-m advisor-card">
+                                <RepositoryAdvisor />
+                            </div>
                         </div>
                     </div>
                 </div>

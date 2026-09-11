@@ -1,0 +1,48 @@
+.repository-advisor{margin:2.4rem 0 0;padding:0;text-align:left;color:var(--t-bright,#eee)}
+.advisor-prompt{font-size:1.7rem;line-height:1.4;margin:0 0 1.4rem;font-weight:500}.advisor-launch{display:inline-flex;gap:2rem;align-items:center;justify-content:center}.advisor-powered{font-size:1.2rem;opacity:.6;margin:1rem 0 0;letter-spacing:.02em}
+.advisor-modal{position:fixed;inset:0;margin:auto;width:min(760px,calc(100vw - 3.2rem));max-height:calc(100dvh - 4rem);box-sizing:border-box;padding:3rem;border:1px solid var(--st-muted,#555);border-radius:2.4rem;background:var(--base,#171717);color:var(--t-bright,#eee);overflow:auto;overscroll-behavior:contain;text-align:left;box-shadow:0 2rem 8rem #0006}
+.advisor-modal::backdrop{background:rgb(0 0 0 / .7);backdrop-filter:blur(5px)}.advisor-modal-header{display:flex;gap:2rem;align-items:flex-start;justify-content:space-between}.advisor-modal h2{font-size:clamp(2.4rem,4vw,3.6rem);line-height:1.15;margin:.8rem 0 1.5rem}.advisor-close{display:grid;place-items:center;flex-shrink:0;width:4rem;height:4rem;border:1px solid var(--st-muted,#666);border-radius:50%;background:transparent;color:inherit;font-size:2.8rem;cursor:pointer}.advisor-close:focus-visible{outline:2px solid var(--accent,#ddf160);outline-offset:3px}.advisor-intro{font-size:1.6rem;line-height:1.5}.advisor-eyebrow{font-size:1.2rem!important;letter-spacing:.03em;opacity:.7;margin-top:.8rem}
+.advisor-modal form{margin-top:2rem}.advisor-modal label{display:block;font-size:1.5rem;font-weight:600;margin:1rem 0 .7rem}.advisor-modal input,.advisor-modal textarea{display:block;width:100%;padding:1.2rem 1.4rem;background:transparent;color:inherit;border:1px solid var(--st-muted,#777);border-radius:1rem;font:inherit;font-size:1.6rem}.advisor-modal textarea{resize:vertical}.advisor-modal input:focus,.advisor-modal textarea:focus{outline:2px solid var(--accent,#ddf160);outline-offset:2px}.advisor-fields{display:grid;grid-template-columns:1fr 2fr;gap:2rem}.advisor-fields small,.advisor-disclosure{font-size:1.3rem;opacity:.8}.advisor-disclosure{margin:1.5rem 0}.advisor-error{color:#f99;margin-top:1.5rem}.advisor-result{margin-top:2.5rem;padding-top:2rem;border-top:1px solid var(--st-muted,#555);overflow-wrap:anywhere;font-size:1.6rem}.advisor-result h2,.advisor-result h3,.advisor-result h4{font-size:2rem;margin:1.5rem 0}.advisor-result dt{text-transform:capitalize;font-weight:600;margin-top:1rem}.advisor-result dd{margin:.4rem 0 1rem 1rem}.advisor-result ul{padding-left:2rem;list-style:disc}.advisor-result pre{white-space:pre-wrap}.advisor-result a{text-decoration:underline}.advisor-modal button:disabled{opacity:.65;cursor:wait}
+
+@media(max-width:600px){.advisor-modal{padding:2rem;width:calc(100vw - 2rem);max-height:calc(100dvh - 2rem);border-radius:1.6rem}.advisor-fields{grid-template-columns:1fr}}
+
+.repository-advisor .advisor-launch{display:flex;width:100%;justify-content:center}
+
+.advisor-card .repository-advisor{margin:0}
+
+.advisor-card-title{font-size:2.8rem;line-height:1.2;margin:0 0 1.6rem;font-weight:600}.advisor-card .advisor-prompt{margin-bottom:1.8rem}.advisor-card .advisor-powered{margin:1.2rem 0 0}
+
+.advisor-card .market-stats-footer{margin-top:2.4rem;padding-top:1.8rem;border-top:1px solid var(--st-muted,rgba(255,255,255,.12))}
+
+/* Keep generated Markdown independent of the site's large promotional typography. */
+.advisor-modal .advisor-result{margin-top:3rem;padding-top:2.4rem;border-color:rgba(255,255,255,.12);font-size:1.5rem;line-height:1.65}
+.advisor-result-header{margin-bottom:2rem}
+.advisor-modal .advisor-result-header h3{margin:0;font-size:2.4rem;line-height:1.25;font-weight:600}
+.advisor-modal .advisor-result p,.advisor-modal .advisor-result li,.advisor-modal .advisor-result dd{font-size:1.5rem;line-height:1.65;color:#c4c4c4}
+.advisor-modal .advisor-result p{margin:0 0 1.4rem}
+.advisor-modal .advisor-result .advisor-eyebrow{margin:.7rem 0 0;color:#aaa;line-height:1.5}
+.advisor-modal .advisor-result-body h1,.advisor-modal .advisor-result-body h2,.advisor-modal .advisor-result-body h3,.advisor-modal .advisor-result-body h4{font-size:1.9rem;line-height:1.4;font-weight:600;color:#f5f5f5;margin:2.2rem 0 1.1rem}
+.advisor-modal .advisor-result-body h4{padding:1.3rem 1.6rem;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08);border-radius:1rem}
+.advisor-modal .advisor-result strong{color:#f1f1f1;font-weight:600}
+.advisor-modal .advisor-result ul,.advisor-modal .advisor-result ol{margin:0 0 1.8rem;padding-left:2.1rem}
+.advisor-modal .advisor-result li{margin:.6rem 0;padding-left:.2rem}
+.advisor-modal .advisor-result li::marker{color:#959595}
+.advisor-modal .advisor-result hr{height:0;margin:2.2rem 0;border:0;border-top:1px solid rgba(255,255,255,.1)}
+.advisor-modal .advisor-result a{color:var(--accent,#ddf160);text-decoration:underline;text-decoration-color:rgba(221,241,96,.35);text-underline-offset:.3rem;font-size:inherit;transition:text-decoration-color .2s}
+.advisor-modal .advisor-result a:hover{ text-decoration-color:currentColor }
+.advisor-modal .advisor-result a:focus-visible{outline:2px solid var(--accent,#ddf160);outline-offset:4px;border-radius:2px}
+.advisor-modal .advisor-result code{font-size:.9em;color:#dedede;background:rgba(255,255,255,.055);padding:.15em .35em;border-radius:.4rem}
+.advisor-modal .advisor-result pre{padding:1.4rem;background:rgba(255,255,255,.04);border-radius:1rem;overflow:auto}
+.advisor-modal .advisor-result blockquote{margin:1.5rem 0;padding:.8rem 1.6rem;border-left:2px solid var(--accent,#ddf160);background:rgba(255,255,255,.03)}
+.advisor-modal .advisor-result table{display:block;max-width:100%;overflow:auto;border-collapse:collapse;font-size:1.4rem;margin:1.5rem 0}
+.advisor-modal .advisor-result th,.advisor-modal .advisor-result td{padding:1rem;text-align:left;border-bottom:1px solid rgba(255,255,255,.1)}
+.advisor-modal .advisor-result dt{font-size:1.5rem;color:#eee}
+.advisor-modal .advisor-result-footer{display:flex;flex-wrap:wrap;gap:1.2rem 2.4rem;margin-top:2.4rem;padding-top:1.8rem;border-top:1px solid rgba(255,255,255,.12)}
+.advisor-modal .advisor-result-footer a{font-size:1.4rem;text-decoration:none}
+
+.advisor-suggestions{display:flex;flex-wrap:wrap;gap:.7rem;margin:1rem 0 1.2rem}
+.advisor-suggestions button{white-space:nowrap;font:inherit;font-size:1.3rem;border:1px solid var(--st-muted,#333);border-radius:2rem;padding:.6rem 1rem;color:var(--t-bright,#eee);background:var(--base-tint,#202020);cursor:pointer;transition:background .2s,color .2s}
+.advisor-suggestions button:hover:not(:disabled),.advisor-suggestions button[aria-pressed="true"]{color:var(--base,#171717);background:var(--accent,#ddf160)}
+.advisor-suggestions button:focus-visible{outline:2px solid var(--accent,#ddf160);outline-offset:3px}
+
+.advisor-modal .advisor-submit{display:flex;width:100%;justify-content:center}

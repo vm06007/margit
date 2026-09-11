@@ -44,13 +44,15 @@ export function HomeFooter() {
                       <div className="col-12 col-md-4 mxd-grid-item mxd-footer-nav__item">
                         <div className="mxd-footer-nav__block">
                           <div className="mxd-footer-nav__title anim-uni-in-up">
-                            <p className="t-140 t-bright t-caption">{"Marketplace"}</p>
+                            <p className="t-140 t-bright t-caption">{"Pages"}</p>
                           </div>
                           <div className="mxd-footer-nav__list">
                             <ul>
                               <li><a className="anim-uni-in-up" href="/">{"Home"}</a></li>
                               <li><a className="anim-uni-in-up" href="/catalog">{"Catalog"}</a></li>
-                              <li><a className="anim-uni-in-up" href="/works">{"My Repos"}</a></li>
+                              <li><a className="anim-uni-in-up" href="/leaderboards">Leaderboards</a></li>
+                              <li><a className="anim-uni-in-up" href="https://github.com/vm06007/margit" target="_blank" rel="noreferrer">GitHub Source</a></li>
+                              <li><a className="anim-uni-in-up" href="/agents">For Agents</a></li>
                             </ul>
                           </div>
                         </div>
@@ -58,10 +60,12 @@ export function HomeFooter() {
                       <div className="col-12 col-md-4 mxd-grid-item mxd-footer-nav__item">
                         <div className="mxd-footer-nav__block">
                           <div className="mxd-footer-nav__title anim-uni-in-up">
-                            <p className="t-140 t-bright t-caption">{"For Agents"}</p>
+                            <p className="t-140 t-bright t-caption">{"Links"}</p>
                           </div>
                           <div className="mxd-footer-nav__list">
                             <ul>
+                              <li><a className="anim-uni-in-up" href="https://api.margit.sh/" target="_blank" rel="noreferrer">API</a></li>
+                              <li><a className="anim-uni-in-up" href="https://docs.margit.sh/" target="_blank" rel="noreferrer">Docs</a></li>
                               <li><a className="anim-uni-in-up" href="/#x402">{"x402"}</a></li>
                               <li><a className="anim-uni-in-up" href="/SKILLS.md" target="_blank" rel="noreferrer">{"Skills"}</a></li>
                               <li><a className="anim-uni-in-up" href="/agents">{"MCP"}</a></li>

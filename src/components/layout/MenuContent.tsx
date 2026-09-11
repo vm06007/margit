@@ -48,6 +48,16 @@ export function MenuContent() {
                       <span className="btn-caption">For Agents</span>
                     </a>
                   </li>
+                  <li className="main-menu__item">
+                    <a className="main-menu__link btn btn-anim" href="https://docs.margit.sh/" target="_blank" rel="noreferrer">
+                      <span className="btn-caption">Docs</span>
+                    </a>
+                  </li>
+                  <li className="main-menu__item">
+                    <a className="main-menu__link btn btn-anim" href="https://api.margit.sh/" target="_blank" rel="noreferrer">
+                      <span className="btn-caption">API</span>
+                    </a>
+                  </li>
                 </ul>
               </nav>
             </div>
@@ -61,6 +71,7 @@ export function MenuContent() {
                   <video className="menu-video" id="inner-video" preload="auto" autoPlay loop muted poster="https://dummyimage.com/540x310/5d5d5d/737373" playsInline>
                     <source type="video/mp4" src="/site/video/1920x1080_video-07.mp4" />
                   </video>
+                  <img className="menu-promo__arc-logo" src="/arc-logo.svg" alt="Arc" width="146" height="50" />
                 </div>
               </div>
             </div>

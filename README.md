@@ -4,7 +4,29 @@
 
 Sell access to a private repo. Get paid in **USDC**, **EURC**, or optionally **cirBTC** on [Arc](https://arc.io) (Circle's L1). Buyers — human or AI agent — pay once and get an authenticated `git clone` URL instantly. An agent sidebar with its own funded wallet can browse, buy, list, and unlist repos on command.
 
-[Developer documentation](https://docs.margit.sh/) covers the API, MCP, authentication, payments and Bazantic setup. Source: [docs page](public/docs/index.html).
+## Developer resources
+
+| Resource | URL | Purpose |
+| --- | --- | --- |
+| Documentation | [docs.margit.sh](https://docs.margit.sh/) | API examples, authentication, wallets, payments, The Graph and Bazantic setup |
+| API discovery | [api.margit.sh](https://api.margit.sh/) | Machine-readable endpoints and MCP client configuration |
+| OpenAPI | [API specification](https://api.margit.sh/api/agent-docs/openapi.json) | Import into API clients and Bazantic's gateway form |
+
+Documentation source: [docs page](public/docs/index.html). Existing `margit.sh/api/*` URLs remain supported.
+
+## Published Bazantic Recipe: Margit Repository Advisor
+
+**Two live API gateways, one reusable repository-advice workflow.** [Margit Repository Advisor](https://bazantic.com/dashboard/recipes/margit-repository-advisor) combines current Margit offers with explicitly requested public GitHub metadata, languages and releases. Users supply project requirements, a USD repository budget and optional comparison repositories.
+
+Published through the Bazantic dashboard on **September 12, 2026**. With Claude Sonnet 4.6, the combined operator test completed all four tools in **33.5 seconds**. A separate **$0.04 budget test** correctly rejected a $0.05 listing and skipped GitHub when comparisons were omitted, with all tools available.
+
+The Recipe attributes seller claims, reports unknown license/access terms, and separates purchase prices from API usage charges. It researches options; it does not buy repositories or modify listings. Dashboard tests use Bazantic's operator credential and do not prove paid customer execution. The dashboard link may require sign-in.
+
+**[Integration, gateway URLs and test evidence](bazantic-track/README.md)** · **[Demo recording script](bazantic-track/demo.md)** · **[Reusable Recipe prompt](bazantic-track/recipe-prompt.md)**
+
+The Catalog's **Find with AI** form now invokes the published Recipe through Margit's backend and displays Markdown or structured advice. The verified MCP endpoint accepted a live call without a key or payment header; the app stops explicitly if payment is required later. This app integration is implemented locally; production deployment and browser verification are pending. See [in-app integration](bazantic-track/README.md#in-app-integration).
+
+Demo video: **pending — recording to be added by the project owner.**
 
 ## Arc Deployment
 
@@ -314,7 +336,7 @@ Open **`/agents`** from the homepage to test the MCP connection, read **`/SKILLS
 
 Use `npm run mcp:check -- http://localhost:5173` (or your deployed origin) to run an official MCP client against initialization, tools/list, resources/read, and the real catalog. This check never buys or changes a listing. Run `node --import tsx --test server/tests/mcp.test.ts` for isolated protocol and credential tests.
 
-[Bazantic’s live OpenAPI](https://api.bazantic.com/openapi.json), checked September 8, 2026, accepts gateways with `service_protocol: "mcp"`. **`/api/agent-docs/bazantic`** provides the verified registration steps and draft payload. Registration needs a public HTTPS endpoint, Bazantic `account_id`, and a valid API key with the write role. The gateway slug is assigned by Bazantic, not the caller. Recipes require the admin role, reference that returned slug, and have a separate publish step. No gateway or recipe has been registered by this change. Never publish a seller’s Margit key as a shared public gateway credential.
+The published Bazantic integration uses two REST gateways: Margit's public API and GitHub's public repository API. Bazantic exposes their generated MCP tools to **Margit Repository Advisor**. The Recipe binds only `browse_catalog`, `github_get_repository`, `github_get_languages`, and `github_list_releases`. Seller mutations and checkout tools are not bound. See the [integration guide](bazantic-track/README.md) for deployed identifiers, scope and evidence. `/api/agent-docs/bazantic` retains earlier registration guidance; the deployed dashboard configuration documented in that guide is the reference for this Recipe.
 
 ---
 
@@ -525,7 +547,7 @@ flowchart LR
 
 - **Reviews/ratings are UI placeholders only** (`StarRating`, `ReviewsSection`) — intentionally honest "not built yet" rather than fake data. Planned basis: ERC-8004 (Trustless Agents — Identity/Reputation/Validation registries).
 - **The Graph**: MargitArc powers portfolio receipt enrichment, Recently sold, and agent bestseller queries. Configure `GRAPH_QUERY_URL` on the backend. Circle Gateway x402 purchases are not indexed by this contract subgraph.
-- **Bazantic**: `/api/agent-api/*` exists as the intended wrap target, but no Gateway/Recipe has been registered yet — blocked on a real Bazantic API key (the JWT currently in `.env` doesn't authenticate against `api.bazantic.com`).
+- **Bazantic**: two live gateways and a published Recipe have passed operator tests. Paid customer execution, billing and unauthenticated access to the dashboard link are not verified. Model outputs can vary; see [test coverage and limitations](bazantic-track/README.md#verification-and-limitations).
 - **Production deployment**: Vercel serves the Vite build and Hono API through `vercel.json`. See [Vercel setup](docs/vercel-deployment.md) for environment configuration.
 - **Landing page leftover content**: the mid-body "demo showcase" sections (ported from the source HTML template) still contain unrelated template-vendor marketing copy and dead links to pages that were never copied over — nav, footer, hero, and header CTAs are all real and wired to margit routes; the deep body content is a separate, larger content-authoring pass.
 - **Network scope**: this implementation targets Arc Testnet only; mainnet deployment is out of scope.
