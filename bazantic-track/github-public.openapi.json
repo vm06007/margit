@@ -1,0 +1,183 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "GitHub Public Repository Research",
+    "version": "1.0.0",
+    "description": "Read-only public repository metadata, languages and releases for repository comparison. No private repository access or mutations. A missing repository is unknown, not proof of poor quality."
+  },
+  "servers": [
+    {
+      "url": "https://api.github.com"
+    }
+  ],
+  "paths": {
+    "/repos/{owner}/{repo}": {
+      "get": {
+        "operationId": "github_get_repository",
+        "summary": "Inspect public repository description, license, activity and archive status",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "GitHub repository owner or organization"
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "GitHub repository name"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Public GitHub repository data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied or API rate limit reached"
+          },
+          "404": {
+            "description": "Repository or resource unavailable; may be private"
+          },
+          "429": {
+            "description": "Rate limit reached"
+          }
+        }
+      }
+    },
+    "/repos/{owner}/{repo}/languages": {
+      "get": {
+        "operationId": "github_get_languages",
+        "summary": "Read language byte counts; these are not quality scores",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "GitHub repository owner or organization"
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "GitHub repository name"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Public GitHub repository data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied or API rate limit reached"
+          },
+          "404": {
+            "description": "Repository or resource unavailable; may be private"
+          },
+          "429": {
+            "description": "Rate limit reached"
+          }
+        }
+      }
+    },
+    "/repos/{owner}/{repo}/releases": {
+      "get": {
+        "operationId": "github_list_releases",
+        "summary": "Read recent published releases; no releases does not mean inactive development",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "GitHub repository owner or organization"
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "GitHub repository name"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 5,
+              "minimum": 1,
+              "maximum": 10
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Public GitHub repository data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied or API rate limit reached"
+          },
+          "404": {
+            "description": "Repository or resource unavailable; may be private"
+          },
+          "429": {
+            "description": "Rate limit reached"
+          }
+        }
+      }
+    }
+  }
+}
