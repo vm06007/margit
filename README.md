@@ -495,7 +495,6 @@ Documentation source: [docs page](public/docs/index.html). Existing `margit.sh/a
 | `/api/agent/wallet` | GET/POST | Anonymous cookie | Preview wallet balances or select shared, personal, Circle, or 1Claw wallet |
 | `/api/agent/settings` | GET/POST | Anonymous cookie | Per-visitor model + API key |
 | `/api/agent/models` | GET | Public | Live OpenRouter model catalog (tool-calling capable) |
-
 | `/api/repos/readme` | GET | Session | Fetch a repository README |
 | `/api/repos/generate-description` | POST | Session | Generate listing copy from repository content |
 | `/api/listings/:id/check-delivery` | POST | Public | Check repository delivery availability for wallet checkout |
