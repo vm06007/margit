@@ -1,5 +1,5 @@
 
-export function MenuContent() {
+export function MenuContent({ authenticated }: { authenticated: boolean }) {
   return (<>
     <div className="mxd-menu__wrapper">
 
@@ -34,7 +34,7 @@ export function MenuContent() {
                     </a>
                   </li>
                   <li className="main-menu__item">
-                    <a className="main-menu__link btn btn-anim" href="/api/auth/github/login">
+                    <a className="main-menu__link btn btn-anim" href={authenticated ? "/works" : "/api/auth/github/login"}>
                       <span className="btn-caption">{"Connect GitHub"}</span>
                     </a>
                   </li>

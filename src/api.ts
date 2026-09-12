@@ -34,6 +34,7 @@ export interface Listing {
     stargazersCount: number;
     sellerDescription: string | null;
     screenshots: string[];
+    screenshotBackground?: string | null;
     demoUrl?: string | null;
     accessPolicy?: AccessPolicy;
 }
@@ -142,6 +143,7 @@ export async function createListing(input: {
     payoutAddress: string;
     sellerDescription?: string;
     screenshots?: string[];
+    screenshotBackground?: string | null;
     demoUrl?: string;
     accessPolicy?: AccessPolicy;
 }): Promise<Listing> {

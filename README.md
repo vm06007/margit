@@ -2,184 +2,21 @@
 
 **A marketplace for private GitHub repositories, built for humans and AI agents.**
 
-Sell access to a private repo. Get paid in **USDC**, **EURC**, or optionally **cirBTC** on [Arc](https://arc.io) (Circle's L1). Buyers — human or AI agent — pay once and get an authenticated `git clone` URL instantly. An agent sidebar with its own funded wallet can browse, buy, list, and unlist repos on command.
-
-## Applied tracks: Arc, The Graph, and Bazantic
-
-Margit connects three parts of a repository marketplace: **Arc handles payments, The Graph makes indexed sales activity useful, and Bazantic helps buyers evaluate project fit.** Each integration serves users in the app and has a dedicated implementation guide.
-
-| Track | Where it appears | How we use it | Track guide |
-| --- | --- | --- | --- |
-| **Arc / Circle** | Repository checkout, agent purchases, wallet funding, and publisher fee settlement | Stablecoin payments on Arc testnet through the checkout contract or Circle Gateway x402; the backend verifies payment before granting repository access | [Arc README](arc-track/README.md) |
-| **The Graph** | Catalog statistics, Recently sold, Leaderboards, Portfolio, and agent activity queries | Indexes Arc checkout events; backend queries and catalog joins turn receipts into sales feeds, rankings, and transaction evidence | [The Graph README](graph-track/README.md) |
-| **Bazantic** | Catalog → Repository advisor, and Margit Agent → ⋮ → Search options → Use Bazantic advisor | Calls the published Repository Advisor Recipe, combining Margit offers with optional public GitHub comparisons to assess requirements and budget | [Bazantic README](bazantic-track/README.md) |
-
-### Arc — pay for repository access
-
-Our implementation covers the purchase lifecycle: quote, payment, verification, and authenticated Git delivery. Human wallet checkout uses `MargitCheckout`; agents can buy through Circle Gateway x402. Publisher fees and settlement are also implemented.
-
-**Code highlights:** [checkout contract](contracts/MargitCheckout.sol), [quote and receipt verification](server/src/checkout.ts), [Circle payment adapter](server/src/circle-payment.ts), and [x402 gateway](server/src/x402-gateway.ts).
-
-**Evidence and scope:** [recorded testnet payment and Git delivery](public/proofs/circle-arc-testnet.json). Arc testnet is the implemented network; mainnet cutover is pending. Contract checkout and Gateway x402 are separate payment routes.
-
-### The Graph — discover activity backed by receipts
-
-Users see what has sold and inspect the underlying transactions. The agent can answer bestseller and leaderboard questions using indexed activity, while current repository names, prices, and availability come from Margit's catalog.
-
-**Code highlights:** [subgraph manifest](subgraph/subgraph.yaml), [event mappings](subgraph/src/mapping.ts), [GraphQL queries](server/src/graph.ts), [catalog statistics](src/components/MarketStatsCard.tsx), and [Leaderboards](src/pages/LeaderboardsPage.tsx).
-
-**Evidence and scope:** [public MargitArc subgraph](https://thegraph.com/explorer/subgraphs/DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn?view=Query). Sales rankings cover indexed contract checkout purchases, not Circle Gateway x402 purchases. The [track guide](graph-track/README.md) records endpoint availability and coverage limits.
-
-### Bazantic — compare repositories before buying
-
-The published Recipe evaluates project requirements against a strict USD budget. It reads Margit's catalog and uses GitHub metadata, languages, and releases only for explicitly supplied comparison repositories. The standalone advisor displays the result; the main agent can use it in a conversation when the browser's saved Bazantic preference is enabled. Disabling the preference removes the tool and blocks its execution.
-
-**Code highlights:** [Recipe request validation and execution](server/src/recipe-advisor.ts), [main agent tool](server/src/agent.ts), [search preference UI](src/components/AgentSidebar.tsx), [advisor modal](src/components/RepositoryAdvisor.tsx), and [Recipe prompt](bazantic-track/recipe-prompt.md).
-
-**Evidence and scope:** [published Recipe and test notes](bazantic-track/README.md), [request/parser tests](server/src/tests/recipe-advisor.test.ts), and [demo script](bazantic-track/demo.md). Live Recipe calls have been verified; they research options and do not purchase repositories. The observed endpoint accepted calls without payment, which is not a claim of permanent free execution. Full production walkthrough and demo recording remain to be documented.
-
-## Developer resources
-
-| Resource | URL | Purpose |
-| --- | --- | --- |
-| Documentation | [docs.margit.sh](https://docs.margit.sh/) | API examples, authentication, wallets, payments, The Graph and Bazantic setup |
-| API discovery | [api.margit.sh](https://api.margit.sh/) | Machine-readable endpoints and MCP client configuration |
-| OpenAPI | [API specification](https://api.margit.sh/api/agent-docs/openapi.json) | Import into API clients and Bazantic's gateway form |
-
-Documentation source: [docs page](public/docs/index.html). Existing `margit.sh/api/*` URLs remain supported.
-
-## Published Bazantic Recipe: Margit Repository Advisor
-
-**Two live API gateways, one reusable repository-advice workflow.** [Margit Repository Advisor](https://bazantic.com/dashboard/recipes/margit-repository-advisor) combines current Margit offers with explicitly requested public GitHub metadata, languages and releases. Users supply project requirements, a USD repository budget and optional comparison repositories.
-
-Published through the Bazantic dashboard on **September 12, 2026**. With Claude Sonnet 4.6, the combined operator test completed all four tools in **33.5 seconds**. A separate **$0.04 budget test** correctly rejected a $0.05 listing and skipped GitHub when comparisons were omitted, with all tools available.
-
-The Recipe attributes seller claims, reports unknown license/access terms, and separates purchase prices from API usage charges. It researches options; it does not buy repositories or modify listings. Dashboard tests use Bazantic's operator credential and do not prove paid customer execution. The dashboard link may require sign-in.
-
-**[Integration, gateway URLs and test evidence](bazantic-track/README.md)** · **[Demo recording script](bazantic-track/demo.md)** · **[Reusable Recipe prompt](bazantic-track/recipe-prompt.md)**
-
-The Catalog's **Find with AI** form now invokes the published Recipe through Margit's backend and displays Markdown or structured advice. The verified MCP endpoint accepted a live call without a key or payment header; the app stops explicitly if payment is required later. The main agent also supports the Recipe through **⋮ → Search options → Use Bazantic advisor**. The toggle controls tool availability and remembers the browser preference. Production end-to-end verification remains to be documented. See [in-app integration](bazantic-track/README.md#in-app-integration).
-
-Demo video: **pending — recording to be added by the project owner.**
-
-## Arc Deployment
-
-[Arc Details](arc-track/README.md) covers the architecture, payment flow, source links, and deployment status.
-
-A live Circle Gateway x402 purchase was verified on **September 8, 2026**: **0.20 testnet USDC deposited**, **0.05 USDC paid for repository access**, and successful Git delivery (HTTP 200). Inspect the [onchain deposit](https://testnet.arcscan.app/tx/0xf4b2ccbe10bc27a8f2f563dcc2dace756775eb44546e9eafc9b105e02041386b) and [recorded payment evidence](public/proofs/circle-arc-testnet.json).
-
-The purchase uses Circle's Nanopayments SDK with an EOA on Arc testnet. Its Gateway batch reference identifies the payment; the deposit has a separate onchain transaction hash. The recorded test covers the payment backend and repository delivery.
-
-### Mainnet deployment status
-
-Margit runs on Arc testnet. The mainnet deployment preparation kit is available; **mainnet deployment and application cutover are still pending**.
-
-Run `npm run arc:readiness` for a read-only, machine-readable assessment (exit 1 means blocked). Run `npm run arc:test-release` to validate release safeguards. Once Circle confirms mainnet settings, `npm run arc:prepare-mainnet -- MANIFEST.json OUTPUT.json` checks RPC/token metadata and gas budget and prepares an unsigned deployment transaction without handling private keys or sending funds.
-
-See the [mainnet runbook](docs/arc-mainnet-readiness.md) for configuration, immutable treasury custody, state isolation, acceptance tests and rollback. The [Arc integration overview](docs/arc-integration.md) describes the implemented payment and delivery flows. Official addresses are deliberately left blank in [the manifest template](config/arc-mainnet.example.json) until verified.
-
-
-**Current checkout contract — Arc Testnet (chain ID 5042002):**
-[0x72c54ecd669acb19d6e6d5b5160f67d03b4d5b7b](https://testnet.arcscan.app/address/0x72c54ecd669acb19d6e6d5b5160f67d03b4d5b7b?tab=contract)
-
-`MargitCheckout` verifies buyer-bound quotes, pays the publisher, collects a **0.5% publisher fee**, and emits receipts indexed by **The Graph**. Native-USDC purchases take one transaction. EURC and cirBTC use approval when needed, then checkout. Admin can manage allowed tokens and transfer administration through nominee acceptance.
-
-**One fee, two collection methods:**
-
-| Route | Buyer pays | Publisher receives | Margit fee |
-|---|---|---|---|
-| Wallet / contract-buying agent tool | Listed price | 99.5% of price | Collected atomically by the contract |
-| Circle Gateway x402 | Listed price | Full price through Gateway | 0.5% accrues as publisher debt, paid from My Portfolio |
-
-On a **1 USDC** contract purchase, the publisher receives **0.995 USDC** and Margit receives **0.005 USDC**. An x402 sale of the same amount records **0.005 USDC owed**. Fees round down to token units; gas is separate. Contract fees never also become deferred debt.
-
-My Portfolio shows gross sales, net earnings, fees collected, x402 fees accrued, paid and owed. Publishers settle x402 fees with one native-USDC transaction; the backend verifies its publisher-bound receipt and credits it once. New listings disclose the fee. Pre-launch sales remain fee-free. Deferred fees are settled by publishers. At 1.00 USDC owed, the backend blocks new x402 purchases across all of that publisher’s listings before payment. Contract checkout and previously purchased access are unaffected.
-
-**Why deferred fees for x402?** Contract checkout collects our fee automatically. Circle x402 pays sellers directly, and we track the platform fee against their seller account for later settlement. This keeps the payment flow simple. New x402 purchases pause at 1.00 USDC in unpaid fees and resume once the balance is below that threshold. The debt belongs to the publisher, not the buyer's agent wallet; eligibility is bound to the permanent GitHub account ID, with historical usernames retained for ledger and receipt compatibility. Reputation is an incentive to settle, not a guarantee of collection.
-
-The Circle Nanopayments SDK we integrate (`@circle-fin/x402-batching` 3.4.0) uses a single payment recipient. We found no documented native marketplace commission split in its [SDK reference](https://developers.circle.com/gateway/nanopayments/references/sdk). This is narrower than saying Circle or x402 cannot support fees: the [standard x402 seller flow](https://docs.x402.org/getting-started/quickstart-for-sellers) also specifies a recipient, while marketplace revenue allocation requires additional application or settlement logic. A buyer-authorized seller/platform split with receipts would be a useful SDK enhancement. See [fee design and alternatives](docs/fee-model.md#why-this-model-and-how-it-compares-with-other-x402-integrations).
-
-
-**Admin and treasury:** `0x4d2A622F53a2ac4D3Ee1c06bCeB4641a8a6fE6aa`. The 0.5% rate and treasury are fixed for this deployment; transferring admin does not change the treasury.
-
-[MargitArc on Graph Explorer](https://thegraph.com/explorer/subgraphs/DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn?view=Query) indexes purchases, automatic fee splits and deferred fee settlements. Repository delivery and access expiry remain enforced by the backend; the contract provides no code custody, delivery guarantee, escrow or refunds. x402 uses Circle Gateway settlement and does not invoke contract checkout.
-
-### Verify The Graph integration
-
-[The Graph Track Details](graph-track/README.md) provides a standalone sponsor overview, architecture, feature map, reviewer walkthrough, agent/API reference, and coverage limits.
-
-Margit queries the deployed subgraph for **Recently sold** in the Catalog and the agent's **Recently sold**, **Bestselling repos**, **Popular projects**, and **Bestsellers under $0.10** suggestions. The backend joins indexed listing hashes with current catalog entries and saved purchase records where available. Transaction links let reviewers inspect the underlying Arc testnet events.
-
-- Network: **Arc testnet**.
-- Indexed contract: [`0x72c54ecd669acb19d6e6d5b5160f67d03b4d5b7b`](https://testnet.arcscan.app/address/0x72c54ecd669acb19d6e6d5b5160f67d03b4d5b7b).
-- Source: [manifest](subgraph/subgraph.yaml), [schema](subgraph/schema.graphql), [mapping](subgraph/src/mapping.ts), and [query integration](server/src/graph.ts).
-- Public application APIs: `GET /api/activity/recent-sales`, `GET /api/activity/bestsellers`, and `GET /api/activity/leaderboards?period=all` (also accepts `7d` and `30d`; relative to the running application).
-- **Leaderboards** (`/leaderboards`): top repositories, buyer wallets, and seller wallets ranked by purchase count; distinct counterparties, gross volume per currency, and daily purchase activity. Includes period filters, transaction evidence, indexed-block provenance, and source JSON. Agent prompts **Top buyers**, **Top sellers**, and **Weekly statistics** use the same data via `graph_leaderboards`.
-- Coverage: contract-checkout purchases only; **Circle Gateway x402 purchases are excluded**. Bestseller rankings use up to the latest 1,000 indexed sales and disclose whether the sample is capped. Unique buyers are wallet addresses, not verified people.
-
-#### Where the indexed data is used
-
-| Surface | What The Graph contributes |
-| --- | --- |
-| **Catalog → Recently sold** | Indexed purchase events, amounts and timestamps with transaction links. Current listings appear before unavailable listings; the feed moves below the catalog when the agent sidebar is open. |
-| **Catalog → Catalog statistics** | Purchase count, repositories sold, distinct buyer wallets and seller wallets, with a link to the full statistics page and public subgraph. |
-| **Leaderboards** (`/leaderboards`) | Repository, buyer and seller rankings; 7-day/30-day filters; gross volume separated by currency; daily purchase activity; indexed block and source JSON. |
-| **Margit Agent** | Tools query recent sales, bestsellers and leaderboard statistics so responses can refer to indexed activity and transaction evidence. The agent can combine these results with current listing details and prices. |
-| **Portfolio** | Indexed contract receipts and fee events supplement purchase records; repository access remains enforced by Margit's backend. |
-
-The flow is **Arc contract events → subgraph entities → backend GraphQL queries → UI and agent tools**. The subgraph stores purchase/fee events; the backend computes rankings and time-window totals from those events. Repository names, availability and descriptions are joined from Margit's catalog and purchase records. The Graph does not perform GitHub searches, authorize purchases, or deliver repository source.
-
-#### Reviewer walkthrough
-
-1. Open the [public MargitArc subgraph](https://thegraph.com/explorer/subgraphs/DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn?view=Query) and inspect its schema and deployment.
-2. In Margit, visit **Catalog → Catalog statistics → View all statistics**. Switch between **Top repos**, **Top buyers** and **Top sellers**, then change the period.
-3. Open **View source data** to inspect the application API response; follow a **Verify** transaction link to Arcscan.
-4. Ask the agent **Bestselling repos**, **Top buyers**, **Top sellers**, or **Weekly statistics**. These use the same indexed activity as the page, rather than invented popularity scores.
-5. Compare the raw GraphQL events below with the application results. Rankings cover up to the latest 1,000 indexed purchases, not an unlimited all-time history; the interface discloses when that limit is reached.
-
-Run this query in the subgraph playground to compare raw events with the application's sales feed:
-
-```graphql
-{
-  _meta { block { number } hasIndexingErrors }
-  purchases(first: 20, orderBy: timestamp, orderDirection: desc) {
-    id
-    purchaseId
-    listingId
-    buyer
-    seller
-    token
-    amount
-    transactionHash
-    timestamp
-  }
-}
-```
-
-`amount` is in token base units; the application formats known currencies using their decimals. Repository names come from Margit records, not the subgraph itself.
-
-**Public subgraph:** [MargitArc — query playground](https://thegraph.com/explorer/subgraphs/DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn?view=Query) · ID: `DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn` · published version `v0.4.0`. Publication is on The Graph’s Arbitrum One network; indexed events come from **Arc testnet**.
-
-At verification on September 11, 2026, Explorer reported **Not indexed**. The application continues using its configured Studio endpoint. Before migrating, verify that the network endpoint serves indexed results, then set `GRAPH_QUERY_URL` to `https://gateway.thegraph.com/api/subgraphs/id/DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn` and supply a server-side `GRAPH_QUERY_API_KEY`; restart/redeploy the backend. Reviewers can inspect the public Explorer page and use the query above when indexing is available. Never publish API keys or deploy keys.
-
-
-See [contract and deployment details](contracts/README.md), [fee accounting](docs/fee-model.md), and [agent integration](docs/portfolio-and-agent-flow.md). Earlier test deployments are retained for historical receipts; the address above is the active contract.
-
----
+Sell access to a private repo. Get paid in **USDC**, **EURC**, or optionally **cirBTC** on [Arc](https://arc.io) (Circle's L1). Buyers can be human or AI agent and they pay once and get an authenticated `git clone` URL instantly. An agent sidebar with its own funded wallet can browse, buy, list, and unlist repos on command.
 
 ## Table of Contents
 
-- [Arc Deployment](#arc-deployment)
 - [What is this?](#what-is-this)
 - [The Big Picture](#the-big-picture)
 - [How It Works](#how-it-works)
-  - [1. Selling a repo](#1-selling-a-repo)
-  - [2. Buying a repo — two paths](#2-buying-a-repo--two-paths)
-  - [3. The agent sidebar](#3-the-agent-sidebar)
-  - [4. Payout address resolution (ENS + ArcNS)](#4-payout-address-resolution-ens--arcns)
-  - [5. External-agent API + Bazantic](#5-external-agent-api--bazantic)
+- [Agent wallet options and Circle payments](#agent-wallet-options-and-circle-payments)
 - [Architecture](#architecture)
 - [Tech Stack](#tech-stack)
+- [Applied tracks: Arc, The Graph, and Bazantic](#applied-tracks-arc-the-graph-and-bazantic)
+- [Arc Deployment](#arc-deployment)
+- [Verify The Graph integration](#verify-the-graph-integration)
+- [Published Bazantic Recipe: Margit Repository Advisor](#published-bazantic-recipe-margit-repository-advisor)
+- [Developer resources](#developer-resources)
 - [API Reference](#api-reference)
 - [Project Structure](#project-structure)
 - [Getting Started](#getting-started)
@@ -374,6 +211,45 @@ The published Bazantic integration uses two REST gateways: Margit's public API a
 
 ---
 
+## Agent wallet options and Circle payments
+
+Margit has one built-in marketplace agent with **four options in Agent Settings**. These options change wallet custody and connection setup, not the AI model. The agent can discover repos, explain listings, query Graph-backed rankings, and perform supported marketplace actions. Seller actions require the relevant GitHub authorization.
+
+| Option | Focus | Setup and custody | Current payment support |
+| --- | --- | --- | --- |
+| **Demo Wallet** | Try the complete Circle x402 buying flow quickly | Shared, preconfigured Arc testnet EOA; its wallet and Gateway funds are shared across demo users | Circle Gateway USDC purchases; demo contract-checkout tooling also exists |
+| **My Agent Wallet** | Use separately funded agent funds tied to this browser | Margit generates a key, stores it encrypted on the backend, and associates it with the browser session; this is not a browser-extension wallet | Circle Gateway USDC purchases using this wallet's funds |
+| **Circle Agent Wallet** | Connect a Circle-managed wallet through email verification | Accept Circle's terms, request an email code, and connect. Margit stores the Circle session encrypted and uses Circle tooling for signing | Implemented Gateway funding, balance and x402 purchase flow; live Circle login/purchase verification remains pending |
+| **1Claw Agent Wallet** | Verify external agent signing and Arc balance access | Supply a 1Claw agent ID, agent API key and Ethereum signing address | **Verification only**; cannot become the active purchasing wallet yet |
+
+For Demo and My Agent Wallet, preview the address and token balances, then click **Confirm** to switch. Circle has its own email connection flow. Selecting 1Claw opens its verification form; successful verification does not silently switch purchases away from the current wallet. AI model/provider settings are separate.
+
+### Circle Gateway and x402 nanopayments
+
+Circle is the agent's USDC payment path on **Arc testnet**. The EOA flow uses `@circle-fin/x402-batching` and its `GatewayClient`; the Circle-managed flow uses Circle wallet/Gateway commands and remote signing. The agent requests a paid repository resource, satisfies its x402 payment requirements, and receives authenticated repository access after payment is accepted. Successful purchases include payment evidence; blockchain explorer links appear when a transaction hash is available.
+
+**Wallet balance and Gateway balance are separate.** Funding the wallet does not automatically fund Gateway. Use **Add to x402 Gateway** to deposit an explicit USDC amount, leaving funds for gas. x402 purchases consume the selected wallet's available Gateway funds, so its ordinary wallet balance may not decrease for every purchase.
+
+- The sidebar displays **x402 Gateway → … USDC**, with two decimals and a refresh control.
+- Hover the wallet name to inspect token balances. The address opens that wallet on Arcscan.
+- Click the Gateway amount to inspect a fresh, address-specific Circle API balance response, including its source request and timestamp. Margit relays this response; the displayed request can be repeated directly against Circle for independent verification. The shared Gateway contract's total balance is not a user's available balance.
+- A Circle-managed wallet can have a separate backing EOA for Gateway signing. Treat wallet and payment-account addresses as distinct when inspecting evidence.
+- Contract-checkout sales power our Graph statistics. **Circle Gateway x402 purchases are not included in that subgraph.**
+
+A live **0.05 USDC** repository purchase and successful Git delivery were verified on September 8, 2026 using the demo EOA. This demonstrates the demo Circle Gateway path; it does not establish that every wallet provider or mainnet flow has been verified. See the [Circle demo guide and evidence](docs/circle-agent-demo.md), [payment implementation](server/src/circle-payment.ts), [Circle-managed integration](server/src/circle-managed.ts), and [wallet selection](server/src/agent-wallet.ts).
+
+Try **Check balance**, **Try Circle x402**, or **Buy this repo** on a repository page. Discovery also includes **Bestselling repos**, **Top buyers**, **Top sellers**, and **Weekly statistics**, backed by the [Leaderboards API](server/src/graph.ts). Catalog prompts focus on discovery and buying; My Repos prompts prioritize listing management.
+
+### 1Claw connection verification (preview)
+
+Open **Agent Settings → 1Claw Agent Wallet → Verify 1Claw connection**. Supply a 1Claw agent ID, agent API key (`ocv_`), and its Ethereum signing address. The agent needs Intents and message signing enabled and a provisioned Ethereum signing key. See the [1Claw Intents documentation](https://docs.1claw.co/docs/agents/intents/overview).
+
+The backend authenticates with 1Claw, requests a unique non-payment EIP-191 message signature, verifies it against the supplied address, and reads the address's native USDC balance on Arc testnet. Credentials are not persisted. The verification endpoint does not accept arbitrary messages, transactions, or destinations.
+
+This is a connection probe, not an enabled fourth payment wallet: live credential verification, contract checkout and Circle Gateway compatibility still need end-to-end testing. See the [backend probe](server/src/oneclaw.ts) and [verification form](src/components/OneClawVerification.tsx).
+
+---
+
 ## Architecture
 
 ```mermaid
@@ -450,6 +326,177 @@ flowchart TB
 | Token/key encryption | AES-256-GCM (Node `crypto`) |
 | Storage | Upstash Redis (REST API) |
 | Auth | GitHub OAuth (custom, not a library) |
+
+---
+
+## Applied tracks: Arc, The Graph, and Bazantic
+
+Margit connects three parts of a repository marketplace: **Arc handles payments, The Graph makes indexed sales activity useful, and Bazantic helps buyers evaluate project fit.** Each integration serves users in the app and has a dedicated implementation guide.
+
+| Track | Where it appears | How we use it | Track guide |
+| --- | --- | --- | --- |
+| **Arc / Circle** | Repository checkout, agent purchases, wallet funding, and publisher fee settlement | Stablecoin payments on Arc testnet through the checkout contract or Circle Gateway x402; the backend verifies payment before granting repository access | [Arc README](arc-track/README.md) |
+| **The Graph** | Catalog statistics, Recently sold, Leaderboards, Portfolio, and agent activity queries | Indexes Arc checkout events; backend queries and catalog joins turn receipts into sales feeds, rankings, and transaction evidence | [The Graph README](graph-track/README.md) |
+| **Bazantic** | Catalog → Repository advisor, and Margit Agent → ⋮ → Search options → Use Bazantic advisor | Calls the published Repository Advisor Recipe, combining Margit offers with optional public GitHub comparisons to assess requirements and budget | [Bazantic README](bazantic-track/README.md) |
+
+### Arc — pay for repository access
+
+Our implementation covers the purchase lifecycle: quote, payment, verification, and authenticated Git delivery. Human wallet checkout uses `MargitCheckout`; agents can buy through Circle Gateway x402. Publisher fees and settlement are also implemented.
+
+**Code highlights:** [checkout contract](contracts/MargitCheckout.sol), [quote and receipt verification](server/src/checkout.ts), [Circle payment adapter](server/src/circle-payment.ts), and [x402 gateway](server/src/x402-gateway.ts).
+
+**Evidence and scope:** [recorded testnet payment and Git delivery](public/proofs/circle-arc-testnet.json). Arc testnet is the implemented network; mainnet cutover is pending. Contract checkout and Gateway x402 are separate payment routes.
+
+### The Graph — discover activity backed by receipts
+
+Users see what has sold and inspect the underlying transactions. The agent can answer bestseller and leaderboard questions using indexed activity, while current repository names, prices, and availability come from Margit's catalog.
+
+**Code highlights:** [subgraph manifest](subgraph/subgraph.yaml), [event mappings](subgraph/src/mapping.ts), [GraphQL queries](server/src/graph.ts), [catalog statistics](src/components/MarketStatsCard.tsx), and [Leaderboards](src/pages/LeaderboardsPage.tsx).
+
+**Evidence and scope:** [public MargitArc subgraph](https://thegraph.com/explorer/subgraphs/DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn?view=Query). Sales rankings cover indexed contract checkout purchases, not Circle Gateway x402 purchases. The [track guide](graph-track/README.md) records endpoint availability and coverage limits.
+
+### Bazantic — compare repositories before buying
+
+The published Recipe evaluates project requirements against a strict USD budget. It reads Margit's catalog and uses GitHub metadata, languages, and releases only for explicitly supplied comparison repositories. The standalone advisor displays the result; the main agent can use it in a conversation when the browser's saved Bazantic preference is enabled. Disabling the preference removes the tool and blocks its execution.
+
+**Code highlights:** [Recipe request validation and execution](server/src/recipe-advisor.ts), [main agent tool](server/src/agent.ts), [search preference UI](src/components/AgentSidebar.tsx), [advisor modal](src/components/RepositoryAdvisor.tsx), and [Recipe prompt](bazantic-track/recipe-prompt.md).
+
+**Evidence and scope:** [published Recipe and test notes](bazantic-track/README.md), [request/parser tests](server/src/tests/recipe-advisor.test.ts), and [demo script](bazantic-track/demo.md). Live Recipe calls have been verified; they research options and do not purchase repositories. The observed endpoint accepted calls without payment, which is not a claim of permanent free execution. Full production walkthrough and demo recording remain to be documented.
+
+---
+
+## Arc Deployment
+
+[Arc Details](arc-track/README.md) covers the architecture, payment flow, source links, and deployment status.
+
+A live Circle Gateway x402 purchase was verified on **September 8, 2026**: **0.20 testnet USDC deposited**, **0.05 USDC paid for repository access**, and successful Git delivery (HTTP 200). Inspect the [onchain deposit](https://testnet.arcscan.app/tx/0xf4b2ccbe10bc27a8f2f563dcc2dace756775eb44546e9eafc9b105e02041386b) and [recorded payment evidence](public/proofs/circle-arc-testnet.json).
+
+The purchase uses Circle's Nanopayments SDK with an EOA on Arc testnet. Its Gateway batch reference identifies the payment; the deposit has a separate onchain transaction hash. The recorded test covers the payment backend and repository delivery.
+
+### Mainnet deployment status
+
+Margit runs on Arc testnet. The mainnet deployment preparation kit is available; **mainnet deployment and application cutover are still pending**.
+
+Run `npm run arc:readiness` for a read-only, machine-readable assessment (exit 1 means blocked). Run `npm run arc:test-release` to validate release safeguards. Once Circle confirms mainnet settings, `npm run arc:prepare-mainnet -- MANIFEST.json OUTPUT.json` checks RPC/token metadata and gas budget and prepares an unsigned deployment transaction without handling private keys or sending funds.
+
+See the [mainnet runbook](docs/arc-mainnet-readiness.md) for configuration, immutable treasury custody, state isolation, acceptance tests and rollback. The [Arc integration overview](docs/arc-integration.md) describes the implemented payment and delivery flows. Official addresses are deliberately left blank in [the manifest template](config/arc-mainnet.example.json) until verified.
+
+
+**Current checkout contract — Arc Testnet (chain ID 5042002):**
+[0x72c54ecd669acb19d6e6d5b5160f67d03b4d5b7b](https://testnet.arcscan.app/address/0x72c54ecd669acb19d6e6d5b5160f67d03b4d5b7b?tab=contract)
+
+`MargitCheckout` verifies buyer-bound quotes, pays the publisher, collects a **0.5% publisher fee**, and emits receipts indexed by **The Graph**. Native-USDC purchases take one transaction. EURC and cirBTC use approval when needed, then checkout. Admin can manage allowed tokens and transfer administration through nominee acceptance.
+
+**One fee, two collection methods:**
+
+| Route | Buyer pays | Publisher receives | Margit fee |
+|---|---|---|---|
+| Wallet / contract-buying agent tool | Listed price | 99.5% of price | Collected atomically by the contract |
+| Circle Gateway x402 | Listed price | Full price through Gateway | 0.5% accrues as publisher debt, paid from My Portfolio |
+
+On a **1 USDC** contract purchase, the publisher receives **0.995 USDC** and Margit receives **0.005 USDC**. An x402 sale of the same amount records **0.005 USDC owed**. Fees round down to token units; gas is separate. Contract fees never also become deferred debt.
+
+My Portfolio shows gross sales, net earnings, fees collected, x402 fees accrued, paid and owed. Publishers settle x402 fees with one native-USDC transaction; the backend verifies its publisher-bound receipt and credits it once. New listings disclose the fee. Pre-launch sales remain fee-free. Deferred fees are settled by publishers. At 1.00 USDC owed, the backend blocks new x402 purchases across all of that publisher’s listings before payment. Contract checkout and previously purchased access are unaffected.
+
+**Why deferred fees for x402?** Contract checkout collects our fee automatically. Circle x402 pays sellers directly, and we track the platform fee against their seller account for later settlement. This keeps the payment flow simple. New x402 purchases pause at 1.00 USDC in unpaid fees and resume once the balance is below that threshold. The debt belongs to the publisher, not the buyer's agent wallet; eligibility is bound to the permanent GitHub account ID, with historical usernames retained for ledger and receipt compatibility. Reputation is an incentive to settle, not a guarantee of collection.
+
+The Circle Nanopayments SDK we integrate (`@circle-fin/x402-batching` 3.4.0) uses a single payment recipient. We found no documented native marketplace commission split in its [SDK reference](https://developers.circle.com/gateway/nanopayments/references/sdk). This is narrower than saying Circle or x402 cannot support fees: the [standard x402 seller flow](https://docs.x402.org/getting-started/quickstart-for-sellers) also specifies a recipient, while marketplace revenue allocation requires additional application or settlement logic. A buyer-authorized seller/platform split with receipts would be a useful SDK enhancement. See [fee design and alternatives](docs/fee-model.md#why-this-model-and-how-it-compares-with-other-x402-integrations).
+
+
+**Admin and treasury:** `0x4d2A622F53a2ac4D3Ee1c06bCeB4641a8a6fE6aa`. The 0.5% rate and treasury are fixed for this deployment; transferring admin does not change the treasury.
+
+[MargitArc on Graph Explorer](https://thegraph.com/explorer/subgraphs/DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn?view=Query) indexes purchases, automatic fee splits and deferred fee settlements. Repository delivery and access expiry remain enforced by the backend; the contract provides no code custody, delivery guarantee, escrow or refunds. x402 uses Circle Gateway settlement and does not invoke contract checkout.
+
+---
+
+## Verify The Graph integration
+
+[The Graph Track Details](graph-track/README.md) provides a standalone sponsor overview, architecture, feature map, reviewer walkthrough, agent/API reference, and coverage limits.
+
+Margit queries the deployed subgraph for **Recently sold** in the Catalog and the agent's **Recently sold**, **Bestselling repos**, **Popular projects**, and **Bestsellers under $0.10** suggestions. The backend joins indexed listing hashes with current catalog entries and saved purchase records where available. Transaction links let reviewers inspect the underlying Arc testnet events.
+
+- Network: **Arc testnet**.
+- Indexed contract: [`0x72c54ecd669acb19d6e6d5b5160f67d03b4d5b7b`](https://testnet.arcscan.app/address/0x72c54ecd669acb19d6e6d5b5160f67d03b4d5b7b).
+- Source: [manifest](subgraph/subgraph.yaml), [schema](subgraph/schema.graphql), [mapping](subgraph/src/mapping.ts), and [query integration](server/src/graph.ts).
+- Public application APIs: `GET /api/activity/recent-sales`, `GET /api/activity/bestsellers`, and `GET /api/activity/leaderboards?period=all` (also accepts `7d` and `30d`; relative to the running application).
+- **Leaderboards** (`/leaderboards`): top repositories, buyer wallets, and seller wallets ranked by purchase count; distinct counterparties, gross volume per currency, and daily purchase activity. Includes period filters, transaction evidence, indexed-block provenance, and source JSON. Agent prompts **Top buyers**, **Top sellers**, and **Weekly statistics** use the same data via `graph_leaderboards`.
+- Coverage: contract-checkout purchases only; **Circle Gateway x402 purchases are excluded**. Bestseller rankings use up to the latest 1,000 indexed sales and disclose whether the sample is capped. Unique buyers are wallet addresses, not verified people.
+
+### Where the indexed data is used
+
+| Surface | What The Graph contributes |
+| --- | --- |
+| **Catalog → Recently sold** | Indexed purchase events, amounts and timestamps with transaction links. Current listings appear before unavailable listings; the feed moves below the catalog when the agent sidebar is open. |
+| **Catalog → Catalog statistics** | Purchase count, repositories sold, distinct buyer wallets and seller wallets, with a link to the full statistics page and public subgraph. |
+| **Leaderboards** (`/leaderboards`) | Repository, buyer and seller rankings; 7-day/30-day filters; gross volume separated by currency; daily purchase activity; indexed block and source JSON. |
+| **Margit Agent** | Tools query recent sales, bestsellers and leaderboard statistics so responses can refer to indexed activity and transaction evidence. The agent can combine these results with current listing details and prices. |
+| **Portfolio** | Indexed contract receipts and fee events supplement purchase records; repository access remains enforced by Margit's backend. |
+
+The flow is **Arc contract events → subgraph entities → backend GraphQL queries → UI and agent tools**. The subgraph stores purchase/fee events; the backend computes rankings and time-window totals from those events. Repository names, availability and descriptions are joined from Margit's catalog and purchase records. The Graph does not perform GitHub searches, authorize purchases, or deliver repository source.
+
+### Reviewer walkthrough
+
+1. Open the [public MargitArc subgraph](https://thegraph.com/explorer/subgraphs/DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn?view=Query) and inspect its schema and deployment.
+2. In Margit, visit **Catalog → Catalog statistics → View all statistics**. Switch between **Top repos**, **Top buyers** and **Top sellers**, then change the period.
+3. Open **View source data** to inspect the application API response; follow a **Verify** transaction link to Arcscan.
+4. Ask the agent **Bestselling repos**, **Top buyers**, **Top sellers**, or **Weekly statistics**. These use the same indexed activity as the page, rather than invented popularity scores.
+5. Compare the raw GraphQL events below with the application results. Rankings cover up to the latest 1,000 indexed purchases, not an unlimited all-time history; the interface discloses when that limit is reached.
+
+Run this query in the subgraph playground to compare raw events with the application's sales feed:
+
+```graphql
+{
+  _meta { block { number } hasIndexingErrors }
+  purchases(first: 20, orderBy: timestamp, orderDirection: desc) {
+    id
+    purchaseId
+    listingId
+    buyer
+    seller
+    token
+    amount
+    transactionHash
+    timestamp
+  }
+}
+```
+
+`amount` is in token base units; the application formats known currencies using their decimals. Repository names come from Margit records, not the subgraph itself.
+
+**Public subgraph:** [MargitArc — query playground](https://thegraph.com/explorer/subgraphs/DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn?view=Query) · ID: `DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn` · published version `v0.4.0`. Publication is on The Graph’s Arbitrum One network; indexed events come from **Arc testnet**.
+
+At verification on September 11, 2026, Explorer reported **Not indexed**. The application continues using its configured Studio endpoint. Before migrating, verify that the network endpoint serves indexed results, then set `GRAPH_QUERY_URL` to `https://gateway.thegraph.com/api/subgraphs/id/DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn` and supply a server-side `GRAPH_QUERY_API_KEY`; restart/redeploy the backend. Reviewers can inspect the public Explorer page and use the query above when indexing is available. Never publish API keys or deploy keys.
+
+
+See [contract and deployment details](contracts/README.md), [fee accounting](docs/fee-model.md), and [agent integration](docs/portfolio-and-agent-flow.md). Earlier test deployments are retained for historical receipts; the address above is the active contract.
+
+---
+
+## Published Bazantic Recipe: Margit Repository Advisor
+
+**Two live API gateways, one reusable repository-advice workflow.** [Margit Repository Advisor](https://bazantic.com/dashboard/recipes/margit-repository-advisor) combines current Margit offers with explicitly requested public GitHub metadata, languages and releases. Users supply project requirements, a USD repository budget and optional comparison repositories.
+
+Published through the Bazantic dashboard on **September 12, 2026**. With Claude Sonnet 4.6, the combined operator test completed all four tools in **33.5 seconds**. A separate **$0.04 budget test** correctly rejected a $0.05 listing and skipped GitHub when comparisons were omitted, with all tools available.
+
+The Recipe attributes seller claims, reports unknown license/access terms, and separates purchase prices from API usage charges. It researches options; it does not buy repositories or modify listings. Dashboard tests use Bazantic's operator credential and do not prove paid customer execution. The dashboard link may require sign-in.
+
+**[Integration, gateway URLs and test evidence](bazantic-track/README.md)** · **[Demo recording script](bazantic-track/demo.md)** · **[Reusable Recipe prompt](bazantic-track/recipe-prompt.md)**
+
+The Catalog's **Find with AI** form now invokes the published Recipe through Margit's backend and displays Markdown or structured advice. The verified MCP endpoint accepted a live call without a key or payment header; the app stops explicitly if payment is required later. The main agent also supports the Recipe through **⋮ → Search options → Use Bazantic advisor**. The toggle controls tool availability and remembers the browser preference. Production end-to-end verification remains to be documented. See [in-app integration](bazantic-track/README.md#in-app-integration).
+
+Demo video: **pending — recording to be added by the project owner.**
+
+---
+
+## Developer resources
+
+| Resource | URL | Purpose |
+| --- | --- | --- |
+| Documentation | [docs.margit.sh](https://docs.margit.sh/) | API examples, authentication, wallets, payments, The Graph and Bazantic setup |
+| API discovery | [api.margit.sh](https://api.margit.sh/) | Machine-readable endpoints and MCP client configuration |
+| OpenAPI | [API specification](https://api.margit.sh/api/agent-docs/openapi.json) | Import into API clients and Bazantic's gateway form |
+
+Documentation source: [docs page](public/docs/index.html). Existing `margit.sh/api/*` URLs remain supported.
 
 ---
 
@@ -610,40 +657,3 @@ The **Accepted currencies** cards keep USDC selected and locked. EURC is presele
 The [Circle Arc testnet cirBTC contract](https://developers.circle.com/assets/cirbtc-contract-addresses) is `0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF` (8 decimals). Checkout must allowlist it using `setAllowedToken` before quoting cirBTC; payments, fees and portfolio history retain eight-decimal precision. The existing 0.5% fee rounds down in token base units.
 
 Run `node --env-file=.env --import tsx scripts/enable-cirbtc.ts` for an admin preflight, then add `--enable` to apply it. The script verifies chain, admin and decimals and saves the confirmed public transaction in `contracts/cirbtc.arc-testnet.json`.
-
-## Agent wallet options and Circle payments
-
-Margit has one built-in marketplace agent with **four options in Agent Settings**. These options change wallet custody and connection setup, not the AI model. The agent can discover repos, explain listings, query Graph-backed rankings, and perform supported marketplace actions. Seller actions require the relevant GitHub authorization.
-
-| Option | Focus | Setup and custody | Current payment support |
-| --- | --- | --- | --- |
-| **Demo Wallet** | Try the complete Circle x402 buying flow quickly | Shared, preconfigured Arc testnet EOA; its wallet and Gateway funds are shared across demo users | Circle Gateway USDC purchases; demo contract-checkout tooling also exists |
-| **My Agent Wallet** | Use separately funded agent funds tied to this browser | Margit generates a key, stores it encrypted on the backend, and associates it with the browser session; this is not a browser-extension wallet | Circle Gateway USDC purchases using this wallet's funds |
-| **Circle Agent Wallet** | Connect a Circle-managed wallet through email verification | Accept Circle's terms, request an email code, and connect. Margit stores the Circle session encrypted and uses Circle tooling for signing | Implemented Gateway funding, balance and x402 purchase flow; live Circle login/purchase verification remains pending |
-| **1Claw Agent Wallet** | Verify external agent signing and Arc balance access | Supply a 1Claw agent ID, agent API key and Ethereum signing address | **Verification only**; cannot become the active purchasing wallet yet |
-
-For Demo and My Agent Wallet, preview the address and token balances, then click **Confirm** to switch. Circle has its own email connection flow. Selecting 1Claw opens its verification form; successful verification does not silently switch purchases away from the current wallet. AI model/provider settings are separate.
-
-### Circle Gateway and x402 nanopayments
-
-Circle is the agent's USDC payment path on **Arc testnet**. The EOA flow uses `@circle-fin/x402-batching` and its `GatewayClient`; the Circle-managed flow uses Circle wallet/Gateway commands and remote signing. The agent requests a paid repository resource, satisfies its x402 payment requirements, and receives authenticated repository access after payment is accepted. Successful purchases include payment evidence; blockchain explorer links appear when a transaction hash is available.
-
-**Wallet balance and Gateway balance are separate.** Funding the wallet does not automatically fund Gateway. Use **Add to x402 Gateway** to deposit an explicit USDC amount, leaving funds for gas. x402 purchases consume the selected wallet's available Gateway funds, so its ordinary wallet balance may not decrease for every purchase.
-
-- The sidebar displays **x402 Gateway → … USDC**, with two decimals and a refresh control.
-- Hover the wallet name to inspect token balances. The address opens that wallet on Arcscan.
-- Click the Gateway amount to inspect a fresh, address-specific Circle API balance response, including its source request and timestamp. Margit relays this response; the displayed request can be repeated directly against Circle for independent verification. The shared Gateway contract's total balance is not a user's available balance.
-- A Circle-managed wallet can have a separate backing EOA for Gateway signing. Treat wallet and payment-account addresses as distinct when inspecting evidence.
-- Contract-checkout sales power our Graph statistics. **Circle Gateway x402 purchases are not included in that subgraph.**
-
-A live **0.05 USDC** repository purchase and successful Git delivery were verified on September 8, 2026 using the demo EOA. This demonstrates the demo Circle Gateway path; it does not establish that every wallet provider or mainnet flow has been verified. See the [Circle demo guide and evidence](docs/circle-agent-demo.md), [payment implementation](server/src/circle-payment.ts), [Circle-managed integration](server/src/circle-managed.ts), and [wallet selection](server/src/agent-wallet.ts).
-
-Try **Check balance**, **Try Circle x402**, or **Buy this repo** on a repository page. Discovery also includes **Bestselling repos**, **Top buyers**, **Top sellers**, and **Weekly statistics**, backed by the [Leaderboards API](server/src/graph.ts). Catalog prompts focus on discovery and buying; My Repos prompts prioritize listing management.
-
-### 1Claw connection verification (preview)
-
-Open **Agent Settings → 1Claw Agent Wallet → Verify 1Claw connection**. Supply a 1Claw agent ID, agent API key (`ocv_`), and its Ethereum signing address. The agent needs Intents and message signing enabled and a provisioned Ethereum signing key. See the [1Claw Intents documentation](https://docs.1claw.co/docs/agents/intents/overview).
-
-The backend authenticates with 1Claw, requests a unique non-payment EIP-191 message signature, verifies it against the supplied address, and reads the address's native USDC balance on Arc testnet. Credentials are not persisted. The verification endpoint does not accept arbitrary messages, transactions, or destinations.
-
-This is a connection probe, not an enabled fourth payment wallet: live credential verification, contract checkout and Circle Gateway compatibility still need end-to-end testing. See the [backend probe](server/src/oneclaw.ts) and [verification form](src/components/OneClawVerification.tsx).

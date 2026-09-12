@@ -1,3 +1,4 @@
+import { formatListingPrice } from "../../lib/format";
 import type { Listing } from '../../api';
 import { listingMediaStyle } from '../listingMedia';
 
@@ -7,9 +8,9 @@ export function RecentListings({ listings, error, onRetry, loading }: { onRetry:
       <div className="col-12"><p style={{ opacity: .6 }}>No listings yet — be the first to list a repo.</p></div> :
       listings.slice(0, 3).map((listing, i) => <div key={listing.id} className="col-12 col-xl-4 mxd-blog-preview__item mxd-grid-item animate-card-3">
         <a className="mxd-blog-preview__media" href={'/' + listing.repoFullName}>
-          <div className="mxd-blog-preview__image listing-media" style={listingMediaStyle(listing.screenshots[0], i % 2 ? 'var(--additional)' : 'var(--accent)')} />
+          <div className="mxd-blog-preview__image listing-media" style={listingMediaStyle(listing.screenshots[0], i % 2 ? 'var(--additional)' : 'var(--accent)', listing.screenshotBackground)} />
           <div className="mxd-preview-hover"><i className="mxd-preview-hover__icon"><img src="/site/img/icons/icon-eye.svg" alt="" /></i></div>
-          <div className="mxd-blog-preview__tags"><span className="tag tag-default tag-permanent">{listing.language || 'Repo'}</span><span className="tag tag-default tag-permanent">{listing.price}</span></div>
+          <div className="mxd-blog-preview__tags"><span className="tag tag-default tag-permanent">{listing.language || 'Repo'}</span><span className="tag tag-default tag-permanent">{formatListingPrice(listing.price)}</span></div>
         </a>
         <div className="mxd-blog-preview__data"><a href={'/' + listing.repoFullName}>{listing.repoFullName.split('/')[1]}</a></div>
       </div>)}

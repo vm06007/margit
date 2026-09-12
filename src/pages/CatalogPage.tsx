@@ -1,3 +1,4 @@
+import { formatListingPrice } from "../lib/format";
 import { RepositoryAdvisor } from '../components/RepositoryAdvisor';
 import { MarketStatsCard } from "../components/MarketStatsCard";
 import { RecentGraphSales } from "../components/RecentGraphSales";
@@ -42,7 +43,7 @@ function repoName(listing: Listing): string {
 }
 
 function mediaStyle(listing: Listing, altIndex: number): CSSProperties {
-    return listingMediaStyle(listing.screenshots[0], altIndex % 2 === 0 ? FALLBACK_ACCENT : FALLBACK_ADDITIONAL);
+    return listingMediaStyle(listing.screenshots[0], altIndex % 2 === 0 ? FALLBACK_ACCENT : FALLBACK_ADDITIONAL, listing.screenshotBackground);
 }
 
 /** Curated + present-in-listings + "always include the newest listing's language" set. */
@@ -106,7 +107,7 @@ function FeaturedPost({
 }) {
     const href = `/${listing.repoFullName}`;
     return (
-        <article className="mxd-post post-featured radius-m">
+        <article className="mxd-post post-featured catalog-featured radius-m">
             <a className="post-featured__thumb" href={href} onClick={goTo(href)}>
                 <div className="listing-media" style={{ width: "100%", height: "100%", ...mediaStyle(listing, 0) }} />
             </a>
@@ -133,7 +134,7 @@ function FeaturedPost({
                     <p>{listing.sellerDescription || listing.description || "No description"}</p>
                 </div>
                 <div className="listing-card-actions">
-                    <span className="tag tag-default tag-outline-permanent featured-listing-price">{listing.price}</span>
+                    <span className="tag tag-default tag-outline-permanent featured-listing-price">{formatListingPrice(listing.price)}</span>
                     {onEdit && <EditListingButton onClick={onEdit} name={repoName(listing)} />}
                 </div>
             </div>
@@ -189,7 +190,7 @@ export function SimplePost({
                 </div>
                 <div className="post-simple__btn listing-card-actions">
                     <a className="btn btn-anim btn-default btn-outline slide-right-up" href={href} onClick={goTo(href)}>
-                        <span className="btn-caption">Unlock — {listing.price}</span>
+                        <span className="btn-caption">Unlock — {formatListingPrice(listing.price)}</span>
                         <i className="ph ph-arrow-up-right" />
                     </a>
                     {onEdit && <EditListingButton onClick={onEdit} name={repoName(listing)} />}
@@ -412,9 +413,9 @@ export function CatalogPage({
                                     Could not load the catalog.
                                 </p>
                             ) : listings === null ? (
-                                <p className="hint" style={{ opacity: 0.6 }}>
-                                    Loading catalog…
-                                </p>
+                                <div className="catalog-loading" role="status" aria-label="Loading catalog">
+                                    <span className="agent-loading-spinner" aria-hidden="true" />
+                                </div>
                             ) : allListings.length === 0 ? (
                                 <p className="hint" style={{ opacity: 0.6 }}>
                                     No listings yet — be the first to list a repo.

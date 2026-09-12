@@ -7,7 +7,6 @@ import { fetchListings, fetchMe, fetchRepos, logout, type AgentListingChange, ty
 import { SiteHeader } from "./components/layout/SiteHeader";
 import { BackToTop } from "./components/layout/BackToTop";
 import { SiteFooter } from "./components/layout/SiteFooter";
-import { CatalogCTA } from "./components/layout/CatalogCTA";
 import { useSiteMotion } from "./hooks/useSiteMotion";
 import type { MouseEvent } from "react";
 import { AgentSidebar } from "./components/AgentSidebar";
@@ -147,9 +146,8 @@ function App() {
                 ) : (
                     <WelcomePage onRetryListings={reloadListings} listingsLoading={listingsLoading} me={viewer} navigate={navigate} listings={listings} listingsError={listingsError} />
                 )}
-                {path === "/catalog" && <CatalogCTA />}
                 </main>
-                {home && <SiteFooter variant="home" />}
+                <SiteFooter />
             </div>
             <AgentSidebar
                 path={path}

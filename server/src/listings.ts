@@ -21,6 +21,7 @@ export interface Listing {
     // Data URLs (base64) — no external storage wired up, matches the simple
     // approach the reference project used.
     screenshots: string[];
+    screenshotBackground?: string | null;
     demoUrl?: string | null;
     accessPolicy?: AccessPolicy;
 }
@@ -52,6 +53,7 @@ export async function createListing(input: {
     stargazersCount: number;
     sellerDescription: string | null;
     screenshots: string[];
+    screenshotBackground?: string | null;
     demoUrl?: string | null;
     accessPolicy?: AccessPolicy;
 }): Promise<Listing> {
@@ -69,6 +71,7 @@ export async function createListing(input: {
         stargazersCount: input.stargazersCount,
         sellerDescription: input.sellerDescription,
         screenshots: input.screenshots,
+        screenshotBackground: input.screenshotBackground ?? null,
         demoUrl: input.demoUrl ?? null,
         accessPolicy: input.accessPolicy ?? { mode: "window", minutes: 10 },
         encryptedOwnerToken: encryptToken(input.ownerGithubToken),

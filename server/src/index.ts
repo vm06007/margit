@@ -65,7 +65,7 @@ const SESSION_COOKIE = "margit_session";
 const AGENT_SESSION_COOKIE = "margit_agent_session";
 const PRICE_PATTERN = /^\$\d+(\.\d{1,2})?$/;
 const MAX_DESCRIPTION_LENGTH = 4000;
-const MAX_SCREENSHOTS = 4;
+const MAX_SCREENSHOTS = 5;
 const MAX_SCREENSHOT_CHARS = 2_000_000; // ~1.5MB decoded
 
 export const app = new Hono({
@@ -620,6 +620,7 @@ app.post("/api/listings", async (c) => {
         payoutAddress?: string;
         sellerDescription?: string;
         screenshots?: string[];
+        screenshotBackground?: string | null;
         demoUrl?: string;
         accessPolicy?: unknown;
     }>();
@@ -639,6 +640,7 @@ app.post("/api/listings", async (c) => {
     if (sellerDescription && sellerDescription.length > MAX_DESCRIPTION_LENGTH) {
         return c.json({ error: `description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer` }, 400);
     }
+    if (body.screenshotBackground != null && (typeof body.screenshotBackground !== "string" || !/^#[0-9a-fA-F]{6}$/.test(body.screenshotBackground))) return c.json({ error: "Invalid screenshot background color" }, 400);
     if (screenshots) {
         if (screenshots.length > MAX_SCREENSHOTS) {
             return c.json({ error: `at most ${MAX_SCREENSHOTS} screenshots` }, 400);
@@ -686,6 +688,7 @@ app.post("/api/listings", async (c) => {
         stargazersCount: repo.stargazers_count,
         sellerDescription: sellerDescription ?? null,
         screenshots: screenshots ?? [],
+        screenshotBackground: body.screenshotBackground ?? null,
         demoUrl,
         accessPolicy,
     });

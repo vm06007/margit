@@ -16,7 +16,7 @@ export function HomeFooter() {
             <div className="row g-0">
               <div className="col-12 col-xl-3 mxd-demo-footer__item mxd-grid-item">
                 <div className="mxd-demo-footer__logo anim-uni-in-up">
-                  <a href="#0" className="mxd-logo">
+                  <a href="/" className="mxd-logo">
 
                     <Logo />
 
@@ -24,7 +24,7 @@ export function HomeFooter() {
                   </a>
                 </div>
                 <div className="mxd-demo-footer__slogan anim-uni-in-up">
-                  <p className="t-small t-bright">{"👋 Built for ETHGlobal ETHOnline 2026 — sell repos to humans or AI agents, paid in USDC/EURC on Arc Blockchain."}</p>
+                  <p className="t-small t-bright">{"👋 Built for ETHGlobal ETHOnline 2026 sell repos to humans or AI agents, paid in USDC/EURC on Arc Blockchain."}</p>
                 </div>
                 <div className="mxd-demo-footer__btn anim-uni-in-up">
                   <a className="btn btn-anim btn-default btn-small btn-accent slide-right" href="/catalog">

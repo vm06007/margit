@@ -36,7 +36,7 @@ curl --fail-with-body \\
         'cURL': {
             filename: 'Terminal',
             caption: 'Fetch the live connection details, tool list, and skill URLs.',
-            code: `curl --fail --silent --show-error \\\
+            code: `curl --fail --silent --show-error \\
   '${origin}/api/agent-docs'`,
         },
         'SKILL.md': {

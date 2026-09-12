@@ -1,3 +1,7 @@
+export function formatListingPrice(price: string): string {
+    return `$${Number(price.replace("$", "")).toFixed(2)}`;
+}
+
 export function formatUsdc(amount: string): string {
     return `${(Number(amount) / 1_000_000).toFixed(2)} USDC`;
 }

@@ -22,7 +22,7 @@ import {
 
 /** Manage GitHub repositories and their marketplace listings. */
 
-const MAX_SCREENSHOTS = 4;
+const MAX_SCREENSHOTS = 5;
 const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
 
 // Same accent/additional pair CatalogPage.tsx uses for its fallback thumbnails — kept as a
@@ -204,8 +204,19 @@ export function DashboardStyle() {
             }
             .screenshot-upload-btn { display: inline-flex; width: fit-content; cursor: pointer; }
             .screenshot-thumbs { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-bottom: 1.6rem; }
-            .screenshot-thumb { position: relative; width: 7rem; height: 7rem; border-radius: 8px; overflow: hidden; }
-            .screenshot-thumb img { width: 100%; height: 100%; object-fit: cover; }
+            .screenshot-thumb { position: relative; width: 10rem; height: 7rem; border-radius: 8px; overflow: hidden; }
+            .screenshot-thumb img { width: 100%; height: 100%; object-fit: contain; }
+            .screenshot-select { display: block; width: 100%; height: 100%; padding: 0; background: #000; border: 2px solid transparent; border-radius: 8px; cursor: pointer; }
+            .screenshot-select[aria-pressed="true"] { border-color: var(--t-bright); }
+            .screenshot-select:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; }
+            .screenshot-preview { width: 100%; height: clamp(100px, calc(90dvh - 400px), 320px); flex-shrink: 1; min-height: 0; background: #000; border-radius: 1.6rem; overflow: hidden; margin: 1.6rem 0; }
+            .screenshot-cover-badge { position: absolute; left: .4rem; bottom: .4rem; padding: .1rem .5rem; border-radius: .4rem; background: #000c; color: #fff; font-size: 1rem; pointer-events: none; }
+            .screenshot-background { display: flex; flex-wrap: wrap; align-items: center; gap: 1.5rem; margin-bottom: 1rem; }
+            .screenshot-background label { display: flex; align-items: center; gap: 1rem; }
+            .screenshot-background input { width: 3rem; height: 3rem; padding: 0; border: 0; cursor: pointer; }
+            .screenshot-preview img { width: 100%; height: 100%; object-fit: contain; display: block; }
+            .listing-details-panels > [role="tabpanel"] > .modal-screenshot-field { margin-top: 0; flex: 1; display: flex; flex-direction: column; }
+            .modal-screenshot-field .screenshot-action-row { margin-top: auto; }
             .screenshot-remove {
                 position: absolute;
                 top: 0.3rem;
@@ -262,12 +273,22 @@ export function DashboardStyle() {
 function ScreenshotPicker({
     screenshots,
     setScreenshots,
+    background,
+    setBackground,
     actions,
 }: {
     screenshots: string[];
+    background: string | null;
+    setBackground: (color: string | null) => void;
     setScreenshots: (update: (prev: string[]) => string[]) => void;
     actions?: import('react').ReactNode;
 }) {
+    const [selectedScreenshot, setSelectedScreenshot] = useState(0);
+    const activeScreenshot = Math.min(selectedScreenshot, Math.max(0, screenshots.length - 1));
+    const removeScreenshot = (index: number) => {
+        setSelectedScreenshot(Math.max(0, Math.min(index < activeScreenshot ? activeScreenshot - 1 : activeScreenshot, screenshots.length - 2)));
+        setScreenshots(prev => prev.filter((_, i) => i !== index));
+    };
     const addScreenshots = (files: FileList | null) => {
         for (const file of Array.from(files ?? []).slice(0, MAX_SCREENSHOTS - screenshots.length)) {
             const reader = new FileReader();
@@ -281,15 +302,18 @@ function ScreenshotPicker({
 
     return (
         <div className="modal-field modal-screenshot-field">
+            {screenshots.length > 0 && <div className="screenshot-preview" style={{ backgroundColor: background || "#000" }}><img src={screenshots[activeScreenshot]} alt={`Listing preview, screenshot ${activeScreenshot + 1} of ${screenshots.length}`} /></div>}
             {screenshots.length > 0 && (
-                <div className="screenshot-thumbs">
+                <div className="screenshot-thumbs" role="group" aria-label="Listing screenshot previews">
                     {screenshots.map((src, i) => (
                         <div key={i} className="screenshot-thumb">
-                            <img src={src} alt="" />
+                            <button type="button" className="screenshot-select" aria-label={`Preview screenshot ${i + 1}${i === 0 ? ', listing cover' : ''}`} aria-pressed={i === activeScreenshot} onClick={() => setSelectedScreenshot(i)}><img src={src} alt="" /></button>
+                            {i === 0 && <span className="screenshot-cover-badge">Cover</span>}
                             <button
                                 type="button"
                                 className="screenshot-remove"
-                                onClick={() => setScreenshots((prev) => prev.filter((_, idx) => idx !== i))}
+                                aria-label={`Remove screenshot ${i + 1}`}
+                                onClick={() => removeScreenshot(i)}
                             >
                                 ✕
                             </button>
@@ -297,6 +321,11 @@ function ScreenshotPicker({
                     ))}
                 </div>
             )}
+            <div className="screenshot-background">{screenshots.length > 0 && <button type="button" className="modal-link-btn" disabled={activeScreenshot === 0} onClick={() => {
+                const selected = activeScreenshot;
+                setScreenshots(prev => selected < prev.length ? [prev[selected], ...prev.filter((_, i) => i !== selected)] : prev);
+                setSelectedScreenshot(0);
+            }}>{activeScreenshot === 0 ? 'Current cover' : 'Set as cover'}</button>}<label>Background color <input type="color" aria-label="Screenshot background color" value={background || '#000000'} onChange={e => setBackground(e.target.value)} /></label><button type="button" className="modal-link-btn" disabled={!background} onClick={() => setBackground(null)}>Use default</button></div>
             <span className="modal-label">
                 Screenshots <span className="hint" style={{ fontSize: "1.4rem" }}>({screenshots.length}/{MAX_SCREENSHOTS})</span>
             </span>
@@ -367,6 +396,7 @@ export function ListModal({
     };
     const [description, setDescription] = useState(listing?.sellerDescription ?? "");
     const [demoUrl, setDemoUrl] = useState(listing ? listing.demoUrl ?? "" : normalizeDemoUrl(repo.homepage) ?? "");
+    const [screenshotBackground, setScreenshotBackground] = useState<string | null>(listing?.screenshotBackground ?? null);
     const [screenshots, setScreenshots] = useState<string[]>(listing?.screenshots ?? []);
     const [error, setError] = useState<{ message: string; id: number; field?: string } | null>(null);
     const [invalidFields, setInvalidFields] = useState<string[]>([]);
@@ -469,6 +499,7 @@ export function ListModal({
                 payoutAddress: payout,
                 sellerDescription: description.trim() || undefined,
                 screenshots: screenshots.length > 0 ? screenshots : undefined,
+                screenshotBackground,
             });
             onSaved(saved);
             onClose();
@@ -683,7 +714,7 @@ export function ListModal({
                         </div>
                         <div role="tabpanel" id="listing-screenshots-panel" aria-labelledby="listing-screenshots-tab" hidden={detailsTab !== "screenshots"}>
                             <p className="hint">Add up to {MAX_SCREENSHOTS} screenshots. The first image is your listing cover. Remove an image to replace it.</p>
-                            <ScreenshotPicker screenshots={screenshots} setScreenshots={setScreenshots} actions={formActions} />
+                            <ScreenshotPicker background={screenshotBackground} setBackground={setScreenshotBackground} screenshots={screenshots} setScreenshots={setScreenshots} actions={formActions} />
                         </div>
                         <div role="tabpanel" id="listing-access-panel" aria-labelledby="listing-access-tab" hidden={detailsTab !== "access"}>
                         <div className="modal-field modal-delivery-terms">

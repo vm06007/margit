@@ -8,6 +8,14 @@ export function SiteHeader({ home, me, onLogout, agentOpen, onToggleAgent, path 
   home: boolean; me: Me; onLogout: () => void; agentOpen: boolean; onToggleAgent: () => void; path: string;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const scroller = document.querySelector<HTMLElement>('.site-page-wrap');
+    const update = () => setScrolled((scroller?.scrollTop ?? 0) > 0);
+    update();
+    scroller?.addEventListener('scroll', update, { passive: true });
+    return () => scroller?.removeEventListener('scroll', update);
+  }, [path]);
   const [theme, setTheme] = useState(() => localStorage.getItem('template.theme') || 'dark');
   const menuRef = useRef<HTMLDivElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -39,14 +47,13 @@ export function SiteHeader({ home, me, onLogout, agentOpen, onToggleAgent, path 
     {menuOpen && <div ref={menuRef} className="site-menu mxd-nav__wrap" role="dialog" aria-modal={!agentOpen || home} aria-label="Main navigation" onClick={(event) => {
       if((event.target as HTMLElement).closest('a')) setMenuOpen(false);
       if((event.target as HTMLElement).classList.contains('mxd-menu__base')) setMenuOpen(false);
-    }}><MenuContent /></div>}
-    <header id="header" className={`mxd-header site-header ${home ? 'site-header-home' : ''} ${menuOpen ? 'site-menu-open' : ''}`} data-page={path}>
+    }}><MenuContent authenticated={me.authenticated} /></div>}
+    <header id="header" className={`mxd-header site-header ${home ? 'site-header-home' : ''} ${scrolled ? 'is-scrolled' : ''} ${menuOpen ? 'site-menu-open' : ''}`} data-page={path}>
       <div className="mxd-header__logo"><a href="/" className="mxd-logo"><Logo /><span className="mxd-logo__text" style={{ fontSize: '4rem' }}>Margit</span></a></div>
       <div className="mxd-header__controls">
         <button className="mxd-color-switcher" type="button" role="switch" aria-label="light/dark mode" aria-checked={theme === 'dark'} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}><i className={theme === 'dark' ? 'ph ph-sun' : 'ph ph-moon-stars'} /></button>
         {home ? <>
-          <a className="btn btn-anim btn-default btn-small btn-mobile-icon btn-accent slide-right" href="/catalog" aria-label="Browse Catalog"><span className="btn-caption">Catalog</span><i className="ph ph-shopping-cart-simple" /></a>
-          <a className="btn btn-anim btn-default btn-small btn-mobile-icon btn-outline slide-right-up" href="/works" aria-label="My Repos"><span className="btn-caption">My Repos</span><i className="ph ph-arrow-up-right" /></a>
+          <a className="btn btn-anim btn-default btn-mobile-icon btn-outline slide-right" href="/catalog" aria-label="Browse Catalog"><span className="btn-caption">Catalog</span><i className="ph ph-shopping-cart-simple" /></a>
         </> : <>
           <button type="button" className="btn btn-anim btn-default btn-mobile-icon btn-outline slide-right-up header-agent-trigger" aria-label="Agent" aria-expanded={agentOpen} onClick={onToggleAgent}><span className="btn-caption">Agent</span><i className="ph-fill ph-robot" /></button>
           <ProfileDropdown me={me} onLogout={onLogout} />
