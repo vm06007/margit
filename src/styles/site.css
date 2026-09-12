@@ -791,7 +791,7 @@
 .site-app .hero-agent-helmet > img { transition: filter .3s ease; }
 .site-app .hero-usdc-coin { pointer-events: auto; }
 .site-app .hero-usdc-coin:hover,
-.site-app .hero-agent-helmet:is(:hover, :focus-visible) > img { filter: brightness(.8); }
+.site-app .hero-agent-helmet:is(:hover, :focus-visible) > img { filter: brightness(1); }
 @media (prefers-reduced-motion: reduce) {
   .site-app .hero-usdc-coin,
   .site-app .hero-agent-helmet > img { transition: none; }

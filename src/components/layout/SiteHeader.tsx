@@ -44,7 +44,10 @@ export function SiteHeader({ home, me, onLogout, agentOpen, onToggleAgent, path 
       <div className="mxd-header__logo"><a href="/" className="mxd-logo"><Logo /><span className="mxd-logo__text" style={{ fontSize: '4rem' }}>Margit</span></a></div>
       <div className="mxd-header__controls">
         <button className="mxd-color-switcher" type="button" role="switch" aria-label="light/dark mode" aria-checked={theme === 'dark'} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}><i className={theme === 'dark' ? 'ph ph-sun' : 'ph ph-moon-stars'} /></button>
-        {home ? <a className="btn btn-anim btn-default btn-mobile-icon btn-outline slide-right" href="/catalog" aria-label="Browse Catalog"><span className="btn-caption">Catalog</span><i className="ph-bold ph-shopping-cart-simple" /></a> : <>
+        {home ? <>
+          <a className="btn btn-anim btn-default btn-small btn-mobile-icon btn-accent slide-right" href="/catalog" aria-label="Browse Catalog"><span className="btn-caption">Catalog</span><i className="ph ph-shopping-cart-simple" /></a>
+          <a className="btn btn-anim btn-default btn-small btn-mobile-icon btn-outline slide-right-up" href="/works" aria-label="My Repos"><span className="btn-caption">My Repos</span><i className="ph ph-arrow-up-right" /></a>
+        </> : <>
           <button type="button" className="btn btn-anim btn-default btn-mobile-icon btn-outline slide-right-up header-agent-trigger" aria-label="Agent" aria-expanded={agentOpen} onClick={onToggleAgent}><span className="btn-caption">Agent</span><i className="ph-fill ph-robot" /></button>
           <ProfileDropdown me={me} onLogout={onLogout} />
         </>}

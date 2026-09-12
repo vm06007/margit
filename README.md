@@ -4,6 +4,40 @@
 
 Sell access to a private repo. Get paid in **USDC**, **EURC**, or optionally **cirBTC** on [Arc](https://arc.io) (Circle's L1). Buyers — human or AI agent — pay once and get an authenticated `git clone` URL instantly. An agent sidebar with its own funded wallet can browse, buy, list, and unlist repos on command.
 
+## Applied tracks: Arc, The Graph, and Bazantic
+
+Margit connects three parts of a repository marketplace: **Arc handles payments, The Graph makes indexed sales activity useful, and Bazantic helps buyers evaluate project fit.** Each integration serves users in the app and has a dedicated implementation guide.
+
+| Track | Where it appears | How we use it | Track guide |
+| --- | --- | --- | --- |
+| **Arc / Circle** | Repository checkout, agent purchases, wallet funding, and publisher fee settlement | Stablecoin payments on Arc testnet through the checkout contract or Circle Gateway x402; the backend verifies payment before granting repository access | [Arc README](arc-track/README.md) |
+| **The Graph** | Catalog statistics, Recently sold, Leaderboards, Portfolio, and agent activity queries | Indexes Arc checkout events; backend queries and catalog joins turn receipts into sales feeds, rankings, and transaction evidence | [The Graph README](graph-track/README.md) |
+| **Bazantic** | Catalog → Repository advisor, and Margit Agent → ⋮ → Search options → Use Bazantic advisor | Calls the published Repository Advisor Recipe, combining Margit offers with optional public GitHub comparisons to assess requirements and budget | [Bazantic README](bazantic-track/README.md) |
+
+### Arc — pay for repository access
+
+Our implementation covers the purchase lifecycle: quote, payment, verification, and authenticated Git delivery. Human wallet checkout uses `MargitCheckout`; agents can buy through Circle Gateway x402. Publisher fees and settlement are also implemented.
+
+**Code highlights:** [checkout contract](contracts/MargitCheckout.sol), [quote and receipt verification](server/src/checkout.ts), [Circle payment adapter](server/src/circle-payment.ts), and [x402 gateway](server/src/x402-gateway.ts).
+
+**Evidence and scope:** [recorded testnet payment and Git delivery](public/proofs/circle-arc-testnet.json). Arc testnet is the implemented network; mainnet cutover is pending. Contract checkout and Gateway x402 are separate payment routes.
+
+### The Graph — discover activity backed by receipts
+
+Users see what has sold and inspect the underlying transactions. The agent can answer bestseller and leaderboard questions using indexed activity, while current repository names, prices, and availability come from Margit's catalog.
+
+**Code highlights:** [subgraph manifest](subgraph/subgraph.yaml), [event mappings](subgraph/src/mapping.ts), [GraphQL queries](server/src/graph.ts), [catalog statistics](src/components/MarketStatsCard.tsx), and [Leaderboards](src/pages/LeaderboardsPage.tsx).
+
+**Evidence and scope:** [public MargitArc subgraph](https://thegraph.com/explorer/subgraphs/DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn?view=Query). Sales rankings cover indexed contract checkout purchases, not Circle Gateway x402 purchases. The [track guide](graph-track/README.md) records endpoint availability and coverage limits.
+
+### Bazantic — compare repositories before buying
+
+The published Recipe evaluates project requirements against a strict USD budget. It reads Margit's catalog and uses GitHub metadata, languages, and releases only for explicitly supplied comparison repositories. The standalone advisor displays the result; the main agent can use it in a conversation when the browser's saved Bazantic preference is enabled. Disabling the preference removes the tool and blocks its execution.
+
+**Code highlights:** [Recipe request validation and execution](server/src/recipe-advisor.ts), [main agent tool](server/src/agent.ts), [search preference UI](src/components/AgentSidebar.tsx), [advisor modal](src/components/RepositoryAdvisor.tsx), and [Recipe prompt](bazantic-track/recipe-prompt.md).
+
+**Evidence and scope:** [published Recipe and test notes](bazantic-track/README.md), [request/parser tests](server/src/tests/recipe-advisor.test.ts), and [demo script](bazantic-track/demo.md). Live Recipe calls have been verified; they research options and do not purchase repositories. The observed endpoint accepted calls without payment, which is not a claim of permanent free execution. Full production walkthrough and demo recording remain to be documented.
+
 ## Developer resources
 
 | Resource | URL | Purpose |
@@ -24,7 +58,7 @@ The Recipe attributes seller claims, reports unknown license/access terms, and s
 
 **[Integration, gateway URLs and test evidence](bazantic-track/README.md)** · **[Demo recording script](bazantic-track/demo.md)** · **[Reusable Recipe prompt](bazantic-track/recipe-prompt.md)**
 
-The Catalog's **Find with AI** form now invokes the published Recipe through Margit's backend and displays Markdown or structured advice. The verified MCP endpoint accepted a live call without a key or payment header; the app stops explicitly if payment is required later. This app integration is implemented locally; production deployment and browser verification are pending. See [in-app integration](bazantic-track/README.md#in-app-integration).
+The Catalog's **Find with AI** form now invokes the published Recipe through Margit's backend and displays Markdown or structured advice. The verified MCP endpoint accepted a live call without a key or payment header; the app stops explicitly if payment is required later. The main agent also supports the Recipe through **⋮ → Search options → Use Bazantic advisor**. The toggle controls tool availability and remembers the browser preference. Production end-to-end verification remains to be documented. See [in-app integration](bazantic-track/README.md#in-app-integration).
 
 Demo video: **pending — recording to be added by the project owner.**
 
