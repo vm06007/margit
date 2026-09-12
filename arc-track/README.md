@@ -40,9 +40,11 @@ The recorded test called the backend purchase function exposed to the model as `
 
 [Circle's Arc Nanopayments reference app](https://github.com/circlefin/arc-nanopayments) uses the same buyer/payment SDK. Margit applies that payment flow to private repository commerce with Hono, Redis, and GitHub delivery. The reference app's UI, Supabase database, and framework are not required to use this SDK.
 
-The agent can use the shared demo EOA or a personal EOA with its key encrypted by Margit. These wallets use the Circle Nanopayments SDK. Margit handles wallet selection, funding controls, and payment validation.
+Under **⋮ → Agent Settings**, choose Demo Wallet, My Agent Wallet, Circle Agent Wallet, or 1Claw Agent Wallet. Demo and personal EOAs use the Circle Nanopayments SDK. Circle-managed and 1Claw wallets use remote signing for Gateway payments. Margit handles wallet selection, funding controls, and payment validation. See [wallet options](../README.md#agent-wallet-options-and-circle-payments).
 
 ## Architecture
+
+The following diagram shows the demo and personal EOA x402 path. Circle-managed and 1Claw payments use the [remote-signing adapter](../server/src/circle-managed-payment.ts).
 
 ```mermaid
 flowchart LR
@@ -65,15 +67,15 @@ Margit also supports a separate contract checkout path with buyer-bound signed o
 
 ## Using the agent
 
-For local setup, follow [Getting Started](../README.md#getting-started); the default frontend is `http://localhost:5173`.
+For local setup, install dependencies with `npm install`, configure `.env` using [`.env.example`](../.env.example), and run `npm run dev`. The default frontend is `http://localhost:5173`. See [documentation](https://docs.margit.sh/) for integration guides.
 
 1. Open **Catalog → Agent**. Circle purchases do not require GitHub sign-in.
 2. Click **Find repositories** to compare available repositories and delivery terms without paying.
-3. Click **Check Circle balance** to inspect the wallet and Gateway funding.
-4. Click **Try Circle x402**. This sends the purchase request immediately.
+3. Click **Check balance** to inspect the wallet and Gateway funding.
+4. Click **Try Circle x402**, the third Catalog suggestion. This sends the purchase request immediately.
 5. The suggested purchase request includes a 0.10 USDC budget. To choose another budget, type a custom request instead; there is no hard-coded purchase cap or extra checkbox.
 6. Inspect the Circle payment evidence card and returned repository access. An explorer link appears only if the payment response includes an actual transaction hash.
-7. Open **View recorded test evidence** for the historical successful test, also served at `/proofs/circle-arc-testnet.json`.
+7. Open the [recorded test evidence](https://margit.sh/proofs/circle-arc-testnet.json) for the historical successful test.
 
 A fresh paid run requires an available listing within budget, valid seller GitHub credentials, configured model access, and sufficient Gateway funds. The recorded access grant had a ten-minute window; the published evidence remains available, but it is not a permanent access link.
 
@@ -86,7 +88,7 @@ A fresh paid run requires an available listing within budget, valid seller GitHu
 - Repeating a completed user/listing purchase returns the original encrypted receipt and original access expiry, without another charge.
 - No automatic wallet top-ups; no contract-payment fallback for a Circle request.
 
-These controls apply to the Circle demo path. The older contract-buying agent tool still needs separate production hardening.
+The [contract-buying agent tool](../server/src/agent.ts) uses a separate quote and receipt flow. It does not run as a fallback for an x402 purchase.
 
 ## Validation and readiness
 

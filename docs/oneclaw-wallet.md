@@ -21,5 +21,3 @@ The remote adapter verifies the signer and transaction fields before broadcastin
 - [Contract purchase flow](../server/src/agent.ts)
 - [Remote x402 payment flow](../server/src/circle-managed-payment.ts)
 - [Adapter regression test](../server/src/tests/oneclaw.test.ts)
-
-Tests use synthetic credentials and a local signer behind mocked HTTP responses. Live 1Claw credentials, funding, signing-policy configuration, and an actual Arc checkout still need an end-to-end verification run. Connecting does not itself prove transaction or EIP-712 permissions; policy denials are surfaced during the requested operation.

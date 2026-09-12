@@ -1,4 +1,4 @@
-# Margit checkout — current deployment
+# Margit checkout: current deployment
 
 **Arc Testnet · chain 5042002**
 
