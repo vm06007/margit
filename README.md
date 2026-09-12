@@ -152,6 +152,16 @@ Both paths return a repository-specific `/api/access/<random-token>/repo.git` or
 
 ### 3. The agent sidebar
 
+Open **Agent**, then click the **⋮** menu beside the wallet address:
+
+- **Search options** — enable the Bazantic repository advisor.
+- **Circle Gateway** — view Gateway information.
+- **Agent Settings** — choose or connect the agent's purchasing wallet.
+- **AI Model Settings** — choose a model or supply your OpenRouter key.
+- **Clear Chat** — start a fresh conversation.
+
+![Margit Agent sidebar menu showing search, Gateway, wallet and AI model settings](docs/images/agent-settings-menu.jpg)
+
 A chat-driven assistant lives in a slide-in sidebar (push-layout, not an overlay), using the selected demo, personal, Circle-managed, or 1Claw wallet, independently of the human buyer’s connected browser wallet. Circle-managed wallets use x402; demo/personal EOAs and the 1Claw adapter also support contract checkout. The 1Claw flow is implemented but still awaits a live funded purchase test.
 
 ```mermaid
@@ -179,7 +189,7 @@ flowchart TD
     Chat --> UI[Reply, purchase result or listing UI update]
 ```
 
-**Model choice is not hardcoded to one vendor.** The backend talks to [OpenRouter](https://openrouter.ai) (one OpenAI-compatible API proxying Anthropic, OpenAI, Google, and free community models). Default is OpenRouter's own `openrouter/free` auto-router — a shared key configured by the site owner (`OPENROUTER_API_KEY`) means every visitor can try the agent with zero setup. Anyone can override the model or bring their own OpenRouter key in the sidebar's **Settings** panel (gear icon) — stored encrypted per-visitor, same as GitHub tokens.
+**Model choice is not hardcoded to one vendor.** The backend talks to [OpenRouter](https://openrouter.ai) (one OpenAI-compatible API proxying Anthropic, OpenAI, Google, and free community models). Default is OpenRouter's own `openrouter/free` auto-router — a shared key configured by the site owner (`OPENROUTER_API_KEY`) means every visitor can try the agent with zero setup. Anyone can override the model or bring their own OpenRouter key under **⋮ → AI Model Settings** — stored encrypted per-visitor, same as GitHub tokens.
 
 **Voice input**: a mic button next to the chat box uses the browser's native `SpeechRecognition` API (feature-detected, no server round-trip, no extra dependency).
 
@@ -193,18 +203,29 @@ Sellers can enter a payout address as a raw `0x...`, an ENS `.eth` name (resolve
 
 Buyer-side browsing (`/api/listings`, `/api/listings/unlock`) is already public and needs no new plumbing to expose to a third-party agent framework. Seller-side actions (list/unlist) needed a new auth path, since only the browser session cookie could authorize them before:
 
+**Authenticated seller actions**
+
 ```mermaid
-flowchart LR
-    Seller[Signed-in seller requests an API key] --> Key[Margit bearer key]
+flowchart TD
+    Seller[Signed-in seller] --> Key[Create Margit API key]
     Key --> External[External seller agent]
     External --> Rest[Seller REST endpoints]
-    External --> MCP[Authenticated MCP seller tools]
-    Rest & MCP --> Resolve[Resolve bearer key to seller identity]
-    Resolve --> Stored[Decrypt associated GitHub credential]
-    Stored --> Checks[Repository ownership checks and seller actions]
-    Public[Public clients and Bazantic advisor] --> Read[Public catalog and repository discovery]
-    Read -. No seller credentials .-> Catalog[Read-only discovery]
+    External --> MCP[MCP seller tools]
+    Rest & MCP --> Resolve[Resolve bearer key to seller]
+    Resolve --> Stored[Decrypt GitHub credential]
+    Stored --> Checks[Check repository ownership]
+    Checks --> Action[List or unlist repository]
 ```
+
+**Public discovery and Bazantic**
+
+```mermaid
+flowchart TD
+    Public[Public client or Bazantic advisor] --> Read[Browse catalog and repository details]
+    Read --> Catalog[Read-only discovery]
+```
+
+Public discovery needs no seller credentials. The Bazantic advisor cannot list, unlist, or purchase repositories.
 
 Margit now exposes a working **Streamable HTTP MCP server at `/api/mcp`** with seven tools: `browse_catalog`, `get_listing`, `create_checkout_quote`, `confirm_checkout`, `list_my_repos`, `create_listing`, and `unlist_repo`. Its `margit://skill` resource explains the workflows. Public tools need no key; seller tools use `Authorization: Bearer MARGIT_API_KEY` and reuse the existing seller ownership checks. The server never signs or broadcasts payments.
 
@@ -407,7 +428,7 @@ Run this query in the subgraph playground to compare raw events with the applica
 
 **Public subgraph:** [MargitArc — query playground](https://thegraph.com/explorer/subgraphs/DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn?view=Query) · ID: `DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn` · published version `v0.4.0`. Publication is on The Graph’s Arbitrum One network; indexed events come from **Arc testnet**.
 
-At verification on September 11, 2026, Explorer reported **Not indexed**. The application continues using its configured Studio endpoint. Before migrating, verify that the network endpoint serves indexed results, then set `GRAPH_QUERY_URL` to `https://gateway.thegraph.com/api/subgraphs/id/DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn` and supply a server-side `GRAPH_QUERY_API_KEY`; restart/redeploy the backend. Reviewers can inspect the public Explorer page and use the query above when indexing is available. Never publish API keys or deploy keys.
+**Network query endpoint:** `https://gateway.thegraph.com/api/subgraphs/id/DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn`
 
 
 See [contract and deployment details](contracts/README.md), [fee accounting](docs/fee-model.md), and [agent integration](docs/portfolio-and-agent-flow.md). Earlier test deployments are retained for historical receipts; the address above is the active contract.
@@ -426,7 +447,9 @@ The Recipe attributes seller claims, reports unknown license/access terms, and s
 
 The Catalog's **Find with AI** form now invokes the published Recipe through Margit's backend and displays Markdown or structured advice. The verified MCP endpoint accepted a live call without a key or payment header; the app stops explicitly if payment is required later. The main agent also supports the Recipe through **⋮ → Search options → Use Bazantic advisor**. The toggle controls tool availability and remembers the browser preference. Production end-to-end verification remains to be documented. See [in-app integration](bazantic-track/README.md#in-app-integration).
 
-Demo video: **pending — recording to be added by the project owner.**
+![Bazantic Provider Dashboard showing the GitHub and Margit gateways](docs/images/bazantic-provider-dashboard.jpg)
+
+![Bazantic Recipes dashboard showing the published Margit Repository Advisor](docs/images/bazantic-published-recipe.jpg)
 
 ---
 
@@ -436,7 +459,7 @@ Demo video: **pending — recording to be added by the project owner.**
 | --- | --- | --- |
 | Documentation | [docs.margit.sh](https://docs.margit.sh/) | API examples, authentication, wallets, payments, The Graph and Bazantic setup |
 | API discovery | [api.margit.sh](https://api.margit.sh/) | Machine-readable endpoints and MCP client configuration |
-| OpenAPI | [API specification](https://api.margit.sh/api/agent-docs/openapi.json) | Import into API clients and Bazantic's gateway form |
+| OpenAPI | [API&nbsp;specification](https://api.margit.sh/api/agent-docs/openapi.json) | Import into API clients and Bazantic's gateway form |
 
 Documentation source: [docs page](public/docs/index.html). Existing `margit.sh/api/*` URLs remain supported.
 
@@ -454,13 +477,14 @@ Documentation source: [docs page](public/docs/index.html). Existing `margit.sh/a
 | `/api/repos` | GET | Session | List the signed-in user's GitHub repos |
 | `/api/repos/make-private` | POST | Session | Convert a public repo to private |
 | `/api/listings` | GET | Public | Browse the catalog |
-| `/api/listings` | POST | Session | Create a listing (price, payout, description, screenshots) |
+| `/api/listings` | POST | Session | Create or update a listing, delivery terms, screenshots, cover and card color |
 | `/api/listings/:id` | DELETE | Session | Unlist |
 | `/api/listings/unlock` | GET | x402 (402-gated) | Agentic buy path — Circle Gateway settlement |
 | `/api/checkout/quote` | POST | Buyer address | Validate delivery and issue buyer-bound quote |
 | `/api/checkout/confirm` | POST | Private claim secret + tx hash | Verify receipt and recover original access |
 | `/api/portfolio` | GET | Wallet signature / GitHub / operator session | Purchases, sales and Graph indexing status |
-| `/api/download-zip` | POST | Public (clone URL) | Server-proxied ZIP download (no CORS) |
+| `/api/access/:token/download.zip` | GET | Purchase access token | Download repository ZIP under the purchased delivery terms |
+| `/api/access/:token/repo.git/*` | GET/POST | Purchase access token | Server-proxied Git clone/fetch |
 | `/api/resolve-name` | GET | Public | ENS/ArcNS name → 0x address |
 | `/api/resolve-address` | GET | Public | 0x address → ArcNS name (reverse) |
 | `/api/keys` | POST | Session | Issue a margit API key |
@@ -468,9 +492,43 @@ Documentation source: [docs page](public/docs/index.html). Existing `margit.sh/a
 | `/api/agent-api/repos/list` | POST | API key | List a repo for sale (external-agent surface) |
 | `/api/agent-api/repos/unlist` | POST | API key | Unlist a repo (external-agent surface) |
 | `/api/agent/chat` | POST | Anonymous cookie | Agent sidebar conversation turn |
-| `/api/agent/wallet` | GET | Public | Agent's own Arc wallet balance |
+| `/api/agent/wallet` | GET/POST | Anonymous cookie | Preview wallet balances or select shared, personal, Circle, or 1Claw wallet |
 | `/api/agent/settings` | GET/POST | Anonymous cookie | Per-visitor model + API key |
 | `/api/agent/models` | GET | Public | Live OpenRouter model catalog (tool-calling capable) |
+
+| `/api/repos/readme` | GET | Session | Fetch a repository README |
+| `/api/repos/generate-description` | POST | Session | Generate listing copy from repository content |
+| `/api/listings/:id/check-delivery` | POST | Public | Check repository delivery availability for wallet checkout |
+| `/api/checkout/config` | GET | Public | Arc chain ID and configured checkout contract |
+| `/api/checkout/price` | GET | Public | Listing price in an accepted checkout currency |
+| `/api/portfolio/challenge` | POST | Public; nonce cookie | Issue a wallet sign-in challenge |
+| `/api/portfolio/verify` | POST | Nonce cookie + wallet signature | Create a portfolio wallet session |
+| `/api/portfolio/:id/access` | GET | Buyer wallet or agent session | Retrieve unexpired purchase access |
+| `/api/portfolio/fees/prepare` | POST | GitHub session | Prepare publisher fee settlement |
+| `/api/portfolio/fees/confirm` | POST | GitHub session + tx hash | Verify publisher fee payment |
+| `/api/activity/leaderboards` | GET | Public | Graph-backed buyer and seller rankings |
+| `/api/activity/bestsellers` | GET | Public | Graph-backed repository sales rankings |
+| `/api/activity/recent-sales` | GET | Public | Recent indexed contract purchases |
+| `/api/agent/gateway-balance` | GET | Public | Relay fresh Circle Gateway balance for a depositor address |
+| `/api/agent/gateway-deposit` | POST | Anonymous cookie | Deposit an explicit amount from the selected wallet into Gateway |
+| `/api/agent/circle/login` | POST | Anonymous cookie + consent | Start Circle email login |
+| `/api/agent/circle/verify` | POST | Anonymous cookie + email code | Connect and select Circle wallet |
+| `/api/agent/circle/disconnect` | POST | Anonymous cookie | Disconnect Circle and select demo wallet |
+| `/api/agent/oneclaw/verify` | POST | Supplied 1Claw credentials | Verify signing address without storing credentials |
+| `/api/agent/oneclaw/connect` | POST | Anonymous cookie + credentials + consent | Verify, store encrypted credentials and select 1Claw |
+| `/api/agent/oneclaw/disconnect` | POST | Anonymous cookie | Remove 1Claw credentials and select demo wallet |
+| `/api/recipe-advisor` | POST | Public; rate limited | Run the Bazantic repository advisor |
+| `/api/mcp` | POST | Public tools; bearer API key for seller tools | Streamable HTTP MCP requests |
+| `/api/agent-docs` | GET | Public | Agent connection details and tool discovery |
+| `/api/agent-docs/skill` | GET | Public | Agent workflow instructions |
+| `/api/agent-docs/openapi.json` | GET | Public | External-agent OpenAPI description |
+| `/api/agent-docs/checkout-abi` | GET | Public | Checkout contract ABI |
+| `/api/agent-docs/bazantic` | GET | Public | Bazantic registration guidance |
+
+**Legacy routes:** `POST /api/download-zip` returns `410 Gone`; use the scoped purchase download URL. `POST /api/listings/:id/verify-payment` is the old direct-transfer path and returns `410 Gone` when contract checkout is configured.
+
+“Session” means GitHub sign-in; “Anonymous cookie” means the browser's separate agent session. For request examples and integration guides, see [docs.margit.sh](https://docs.margit.sh/).
+
 
 ---
 
