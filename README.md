@@ -160,7 +160,7 @@ Open **Agent**, then click the **⋮** menu beside the wallet address:
 - **AI Model Settings** — choose a model or supply your OpenRouter key.
 - **Clear Chat** — start a fresh conversation.
 
-![Margit Agent sidebar menu showing search, Gateway, wallet and AI model settings](docs/images/agent-settings-menu.jpg)
+![Margit Agent sidebar menu showing search, Gateway, wallet and AI model settings](docs/images/agent-settings-menu-with-suggestions.jpg)
 
 A chat-driven assistant lives in a slide-in sidebar (push-layout, not an overlay), using the selected demo, personal, Circle-managed, or 1Claw wallet, independently of the human buyer’s connected browser wallet. Circle-managed wallets use x402; demo/personal EOAs and the 1Claw adapter also support contract checkout. The 1Claw flow is implemented but still awaits a live funded purchase test.
 
@@ -193,7 +193,7 @@ flowchart TD
 
 **Voice input**: a mic button next to the chat box uses the browser's native `SpeechRecognition` API (feature-detected, no server round-trip, no extra dependency).
 
-**Live UI sync**: when the agent lists/unlists a repo, the result is reported back through the chat response (`listingChange`), so "My Repos" updates immediately and briefly flashes the affected card — no manual refresh needed.
+**Live UI sync**: when the agent lists/unlists a repo, the result is reported back through the chat response (`listingChange`), so "My Repos" updates immediately and briefly flashes the affected card.
 
 ### 4. Payout address resolution (ENS + ArcNS)
 
