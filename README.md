@@ -10,7 +10,7 @@ Sell access to a private repo. Get paid in **USDC**, **EURC**, or optionally **c
 - [The Big Picture](#the-big-picture)
 - [How It Works](#how-it-works)
   - [1. Selling a repo](#1-selling-a-repo)
-  - [2. Buying a repo — two paths](#2-buying-a-repo--two-paths)
+  - [2. Buying a repo: two paths](#2-buying-a-repo--two-paths)
   - [3. The agent sidebar](#3-the-agent-sidebar)
   - [4. Payout address resolution (ENS + ArcNS)](#4-payout-address-resolution-ens--arcns)
   - [5. External-agent API + Bazantic](#5-external-agent-api--bazantic)
@@ -18,11 +18,10 @@ Sell access to a private repo. Get paid in **USDC**, **EURC**, or optionally **c
   - [Circle Gateway and x402 nanopayments](#circle-gateway-and-x402-nanopayments)
   - [1Claw purchasing wallet](#1claw-purchasing-wallet)
   - [Checkout currency conversion](#checkout-currency-conversion)
-  - [Seller access and optional cirBTC](#seller-access-and-optional-cirbtc)
 - [Applied tracks: Arc, The Graph, and Bazantic](#applied-tracks-arc-the-graph-and-bazantic)
-  - [Arc — pay for repository access](#arc--pay-for-repository-access)
-  - [The Graph — discover activity backed by receipts](#the-graph--discover-activity-backed-by-receipts)
-  - [Bazantic — compare repositories before buying](#bazantic--compare-repositories-before-buying)
+  - [Arc: pay for repository access](#arc-pay-for-repository-access)
+  - [The Graph: discover activity backed by receipts](#the-graph-discover-activity-backed-by-receipts)
+  - [Bazantic: compare repositories before buying](#bazantic-compare-repositories-before-buying)
 - [Arc Deployment](#arc-deployment)
   - [Mainnet deployment status](#mainnet-deployment-status)
 - [Verify The Graph integration](#verify-the-graph-integration)
@@ -102,7 +101,7 @@ sequenceDiagram
 
 Sellers can also manage listings **conversationally** through the agent sidebar (`create_listing` / `unlist_repo` tools) instead of the form.
 
-### 2. Buying a repo — two paths
+### 2. Buying a repo: two paths
 
 Two independent payment paths exist side by side, because they serve different callers well:
 
@@ -162,7 +161,7 @@ Open **Agent**, then click the **⋮** menu beside the wallet address:
 
 ![Margit Agent sidebar menu showing search, Gateway, wallet and AI model settings](docs/images/agent-settings-menu-with-suggestions.jpg)
 
-A chat-driven assistant lives in a slide-in sidebar (push-layout, not an overlay), using the selected demo, personal, Circle-managed, or 1Claw wallet, independently of the human buyer’s connected browser wallet. Circle-managed wallets use x402; demo/personal EOAs and the 1Claw adapter also support contract checkout. The 1Claw flow is implemented but still awaits a live funded purchase test.
+A chat-driven assistant lives in a slide-in sidebar, using the selected demo, personal, Circle-managed, or 1Claw wallet, independently of the human buyer’s connected browser wallet. Circle-managed wallets use x402; demo/personal EOAs and the 1Claw adapter also support contract checkout.
 
 ```mermaid
 flowchart TD
@@ -189,7 +188,7 @@ flowchart TD
     Chat --> UI[Reply, purchase result or listing UI update]
 ```
 
-**Model choice is not hardcoded to one vendor.** The backend talks to [OpenRouter](https://openrouter.ai) (one OpenAI-compatible API proxying Anthropic, OpenAI, Google, and free community models). Default is OpenRouter's own `openrouter/free` auto-router — a shared key configured by the site owner (`OPENROUTER_API_KEY`) means every visitor can try the agent with zero setup. Anyone can override the model or bring their own OpenRouter key under **⋮ → AI Model Settings** — stored encrypted per-visitor, same as GitHub tokens.
+**Choose your AI model.** The backend uses [OpenRouter](https://openrouter.ai), which provides access to Anthropic, OpenAI, Google, and free community models through one API. The default is OpenRouter's `openrouter/free` auto-router. A shared key configured by the site owner (`OPENROUTER_API_KEY`) lets visitors try the agent without setup. Open **⋮ → AI Model Settings** to choose another model or supply your own OpenRouter key. Personal keys are stored encrypted per visitor, just like GitHub tokens.
 
 **Voice input**: a mic button next to the chat box uses the browser's native `SpeechRecognition` API (feature-detected, no server round-trip, no extra dependency).
 
@@ -197,7 +196,7 @@ flowchart TD
 
 ### 4. Payout address resolution (ENS + ArcNS)
 
-Sellers can enter a payout address as a raw `0x...`, an ENS `.eth` name (resolved via `viem`'s `getEnsAddress` against mainnet), or an ArcNS `.arc`/`.circle` name (a community Arc-testnet naming service, resolved via its REST API). The same resolver runs both directions — reverse lookup (`resolveArcNsReverse`) shows a connected wallet's or listing's ArcNS name instead of a raw address wherever one exists (nav wallet menu, listing management panel).
+Sellers can enter a payout address as a raw `0x...`, an ENS `.eth` name (resolved via `viem`'s `getEnsAddress` against mainnet), or an ArcNS `.arc`/`.circle` name (a community Arc-testnet naming service, resolved via its REST API). Reverse lookup (`resolveArcNsReverse`) displays a connected wallet's or listing's ArcNS name when available. These names appear in the navigation wallet menu and listing management panel.
 
 ### 5. External-agent API + Bazantic
 
@@ -221,15 +220,15 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    Public[Public client or Bazantic advisor] --> Read[Browse catalog and repository details]
+    Public["Public client or<br/>Bazantic advisor"] --> Read["Browse catalog and<br/>repository details"]
     Read --> Catalog[Read-only discovery]
 ```
 
 Public discovery needs no seller credentials. The Bazantic advisor cannot list, unlist, or purchase repositories.
 
-Margit now exposes a working **Streamable HTTP MCP server at `/api/mcp`** with seven tools: `browse_catalog`, `get_listing`, `create_checkout_quote`, `confirm_checkout`, `list_my_repos`, `create_listing`, and `unlist_repo`. Its `margit://skill` resource explains the workflows. Public tools need no key; seller tools use `Authorization: Bearer MARGIT_API_KEY` and reuse the existing seller ownership checks. The server never signs or broadcasts payments.
+Margit now exposes a working **Streamable HTTP MCP server at `/api/mcp`** with seven tools: `browse_catalog`, `get_listing`, `create_checkout_quote`, `confirm_checkout`, `list_my_repos`, `create_listing`, and `unlist_repo`. Its [margit://skill](https://margit.sh/skills/margit/SKILL.md) MCP resource explains the workflows. Public tools need no key; seller tools use `Authorization: Bearer MARGIT_API_KEY` and reuse the existing seller ownership checks. The server never signs or broadcasts payments.
 
-Open **`/agents`** from the homepage to test the MCP connection, read **`/SKILLS.md`** or **`/skills/margit/SKILL.md`**, and inspect **`/api/agent-docs`**. `/api/agent-docs/checkout-abi` exposes the checkout ABI. The native Arc USDC payment value is the six-decimal order amount multiplied by `10^12`; ERC-20 checkout attaches zero native value.
+Open [/agents](https://margit.sh/agents) from the homepage to test the MCP connection, read [/SKILLS.md](https://margit.sh/SKILLS.md) or [/skills/margit/SKILL.md](https://margit.sh/skills/margit/SKILL.md), and inspect [/api/agent-docs](https://api.margit.sh/api/agent-docs). [/api/agent-docs/checkout-abi](https://api.margit.sh/api/agent-docs/checkout-abi) exposes the checkout ABI. The native Arc USDC payment value is the six-decimal order amount multiplied by `10^12`; ERC-20 checkout attaches zero native value.
 
 Use `npm run mcp:check -- http://localhost:5173` (or your deployed origin) to run an official MCP client against initialization, tools/list, resources/read, and the real catalog. This check never buys or changes a listing. Run `node --import tsx --test server/tests/mcp.test.ts` for isolated protocol and credential tests.
 
@@ -277,18 +276,10 @@ The integration supports Arc contract checkout and Circle Gateway x402, includin
 
 Listing prices are in USD. The wallet button shows the actual token amount: USDC uses the USD amount; EURC uses the latest daily USD/EUR ECB reference rate via [Frankfurter](https://frankfurter.dev/). This assumes each stablecoin tracks its named currency; it is not a token-market swap quote. Rates are cached for an hour and rejected when more than seven days old. If conversion is unavailable, EURC checkout is blocked while USDC remains available.
 
-Converted amounts are rounded to six token decimals and shown with at least two decimals. The signed checkout order locks the payable amount for five minutes. If a fresh order differs from the amount displayed, the wallet flow stops before approval/payment and refreshes the price for review. Purchase history and fees use the amount actually paid in the selected token. x402 remains USDC-denominated.
+cirBTC is also available when enabled by the seller.
 
+Converted amounts use six token decimals for USDC/EURC and eight for cirBTC, and are shown with at least two decimals. The signed checkout order locks the payable amount for five minutes. If a fresh order differs from the amount displayed, the wallet flow stops before approval/payment and refreshes the price for review. Purchase history and fees use the amount actually paid in the selected token. x402 remains USDC-denominated.
 
-### Seller access and optional cirBTC
-
-In the listing editor’s Access tab, choose timed clone/ZIP access, one-time ZIP, or permanent access. Permanent grants have no expiry or download limit and return `expiresAt: null`. They serve the repository’s current source, including updates, while the seller keeps the repository connected and Margit remains available; they are not archived snapshots. Existing purchases and signed quotes retain their original access terms after listing edits.
-
-The **Accepted currencies** cards keep USDC selected and locked. EURC is preselected and optional, and cirBTC is optional. The API rejects quotes and price requests for currencies the seller has disabled. x402 requires USDC and is blocked before settlement on older listings that do not accept it. Legacy listings and pending quotes retain their original currency terms. cirBTC prices use the [Coinbase BTC/USD spot reference](https://docs.cdp.coinbase.com/coinbase-business/track-apis/prices), cached for 30 seconds, assuming one cirBTC tracks one BTC. This is a reference conversion, not a swap. Quotes round to the nearest satoshi; amounts that round to zero satoshis are rejected. The browser preloads conversions and verifies that the signed amount matches the displayed amount before requesting payment.
-
-The [Circle Arc testnet cirBTC contract](https://developers.circle.com/assets/cirbtc-contract-addresses) is `0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF` (8 decimals). Checkout must allowlist it using `setAllowedToken` before quoting cirBTC; payments, fees and portfolio history retain eight-decimal precision. The existing 0.5% fee rounds down in token base units.
-
-Run `node --env-file=.env --import tsx scripts/enable-cirbtc.ts` for an admin preflight, then add `--enable` to apply it. The script verifies chain, admin and decimals and saves the confirmed public transaction in `contracts/cirbtc.arc-testnet.json`.
 
 ---
 
@@ -302,7 +293,7 @@ Margit connects three parts of a repository marketplace: **Arc handles payments,
 | **The Graph** | Catalog statistics, Recently sold, Leaderboards, Portfolio, and agent activity queries | Indexes Arc checkout events; backend queries and catalog joins turn receipts into sales feeds, rankings, and transaction evidence | [The Graph README](graph-track/README.md) |
 | **Bazantic** | Catalog → Repository advisor, and Margit Agent → ⋮ → Search options → Use Bazantic advisor | Calls the published Repository Advisor Recipe, combining Margit offers with optional public GitHub comparisons to assess requirements and budget | [Bazantic README](bazantic-track/README.md) |
 
-### Arc — pay for repository access
+### Arc: pay for repository access
 
 Our implementation covers the purchase lifecycle: quote, payment, verification, and authenticated Git delivery. Human wallet checkout uses `MargitCheckout`; agents can buy through Circle Gateway x402. Publisher fees and settlement are also implemented.
 
@@ -310,7 +301,7 @@ Our implementation covers the purchase lifecycle: quote, payment, verification, 
 
 **Evidence and scope:** [recorded testnet payment and Git delivery](public/proofs/circle-arc-testnet.json). Arc testnet is the implemented network; mainnet cutover is pending. Contract checkout and Gateway x402 are separate payment routes.
 
-### The Graph — discover activity backed by receipts
+### The Graph: discover activity backed by receipts
 
 Users see what has sold and inspect the underlying transactions. The agent can answer bestseller and leaderboard questions using indexed activity, while current repository names, prices, and availability come from Margit's catalog.
 
@@ -318,7 +309,7 @@ Users see what has sold and inspect the underlying transactions. The agent can a
 
 **Evidence and scope:** [public MargitArc subgraph](https://thegraph.com/explorer/subgraphs/DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn?view=Query). Sales rankings cover indexed contract checkout purchases, not Circle Gateway x402 purchases. The [track guide](graph-track/README.md) records endpoint availability and coverage limits.
 
-### Bazantic — compare repositories before buying
+### Bazantic: compare repositories before buying
 
 The published Recipe evaluates project requirements against a strict USD budget. It reads Margit's catalog and uses GitHub metadata, languages, and releases only for explicitly supplied comparison repositories. The standalone advisor displays the result; the main agent can use it in a conversation when the browser's saved Bazantic preference is enabled. Disabling the preference removes the tool and blocks its execution.
 
