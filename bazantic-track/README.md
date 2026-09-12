@@ -7,7 +7,6 @@ Margit Repository Advisor turns repository discovery into a reusable workflow: c
 - [Published Recipe dashboard](https://bazantic.com/dashboard/recipes/margit-repository-advisor) — may require sign-in.
 - [Margit catalog](https://margit.sh/catalog)
 - [Developer documentation](https://docs.margit.sh/)
-- [Recording walkthrough](demo.md)
 - [Recipe prompt](recipe-prompt.md)
 
 ## Architecture
@@ -94,7 +93,7 @@ A GitHub 404 can mean private, missing or inaccessible. This gateway uses no ups
 
 1. Open the Recipe dashboard in an authorized Bazantic account.
 2. Inspect the four bound tools and the prompt snapshot.
-3. Run the two cases in the [demo script](demo.md), preserving the difference between omitted and supplied comparisons.
+3. Test requests both with and without comparison repositories.
 4. Inspect actual tool calls, returned data and the recommendation together.
 5. Save a successful output example and record the published state. Include the dashboard link and handle with the recording for reviewers.
 

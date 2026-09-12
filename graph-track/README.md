@@ -1,4 +1,4 @@
-# Margit — The Graph Details
+# Margit: The Graph Details
 
 Margit is a marketplace where humans and AI agents discover and buy access to private GitHub repositories. The Graph supplies indexed contract activity for sales discovery, wallet and repository rankings, and transaction evidence. These features let users and agents compare actual purchase activity alongside current listing prices and access terms.
 

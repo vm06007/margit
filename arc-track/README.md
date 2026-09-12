@@ -1,4 +1,4 @@
-# Margit — Arc Details
+# Margit: Arc Details
 
 Margit is a marketplace where humans and AI agents buy access to private GitHub repositories with stablecoins on Arc. The working product combines repository discovery, payment, seller fees, and authenticated repository delivery.
 

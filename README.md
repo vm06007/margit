@@ -19,9 +19,9 @@ Sell access to a private repo. Get paid in **USDC**, **EURC**, or optionally **c
   - [1Claw purchasing wallet](#1claw-purchasing-wallet)
   - [Checkout currency conversion](#checkout-currency-conversion)
 - [Applied tracks: Arc, The Graph, and Bazantic](#applied-tracks-arc-the-graph-and-bazantic)
-  - [Arc: pay for repository access](#arc-pay-for-repository-access)
-  - [The Graph: discover activity backed by receipts](#the-graph-discover-activity-backed-by-receipts)
-  - [Bazantic: compare repositories before buying](#bazantic-compare-repositories-before-buying)
+  - [1. Arc: pay for repository access](#1-arc-pay-for-repository-access)
+  - [2. The Graph: discover activity backed by receipts](#2-the-graph-discover-activity-backed-by-receipts)
+  - [3. Bazantic: compare repositories before buying](#3-bazantic-compare-repositories-before-buying)
 - [Arc Deployment](#arc-deployment)
   - [Mainnet deployment status](#mainnet-deployment-status)
 - [Verify The Graph integration](#verify-the-graph-integration)
@@ -261,7 +261,7 @@ Circle is the agent's USDC payment path on **Arc testnet**. The EOA flow uses `@
 - A Circle-managed wallet can have a separate backing EOA for Gateway signing. Treat wallet and payment-account addresses as distinct when inspecting evidence.
 - Contract-checkout sales power our Graph statistics. **Circle Gateway x402 purchases are not included in that subgraph.**
 
-A live **0.05 USDC** repository purchase and successful Git delivery were verified on September 8, 2026 using the demo EOA. This demonstrates the demo Circle Gateway path; it does not establish that every wallet provider or mainnet flow has been verified. See the [Circle demo guide and evidence](docs/circle-agent-demo.md), [payment implementation](server/src/circle-payment.ts), [Circle-managed integration](server/src/circle-managed.ts), and [wallet selection](server/src/agent-wallet.ts).
+A live **0.05 USDC** repository purchase and successful Git delivery were verified with the demo wallet through Circle Gateway. See the [Circle demo guide and evidence](docs/circle-agent-demo.md), [payment implementation](server/src/circle-payment.ts), [Circle-managed integration](server/src/circle-managed.ts), and [wallet selection](server/src/agent-wallet.ts).
 
 Try **Check balance**, **Try Circle x402**, or **Buy this repo** on a repository page. Discovery also includes **Bestselling repos**, **Top buyers**, **Top sellers**, and **Weekly statistics**, backed by the [Leaderboards API](server/src/graph.ts). Catalog prompts focus on discovery and buying; My Repos prompts prioritize listing management.
 
@@ -293,7 +293,7 @@ Margit connects three parts of a repository marketplace: **Arc handles payments,
 | **The Graph** | Catalog statistics, Recently sold, Leaderboards, Portfolio, and agent activity queries | Indexes Arc checkout events; backend queries and catalog joins turn receipts into sales feeds, rankings, and transaction evidence | [The Graph README](graph-track/README.md) |
 | **Bazantic** | Catalog → Repository advisor, and Margit Agent → ⋮ → Search options → Use Bazantic advisor | Calls the published Repository Advisor Recipe, combining Margit offers with optional public GitHub comparisons to assess requirements and budget | [Bazantic README](bazantic-track/README.md) |
 
-### Arc: pay for repository access
+### 1. Arc: pay for repository access
 
 Our implementation covers the purchase lifecycle: quote, payment, verification, and authenticated Git delivery. Human wallet checkout uses `MargitCheckout`; agents can buy through Circle Gateway x402. Publisher fees and settlement are also implemented.
 
@@ -301,7 +301,7 @@ Our implementation covers the purchase lifecycle: quote, payment, verification, 
 
 **Evidence and scope:** [recorded testnet payment and Git delivery](public/proofs/circle-arc-testnet.json). Arc testnet is the implemented network; mainnet cutover is pending. Contract checkout and Gateway x402 are separate payment routes.
 
-### The Graph: discover activity backed by receipts
+### 2. The Graph: discover activity backed by receipts
 
 Users see what has sold and inspect the underlying transactions. The agent can answer bestseller and leaderboard questions using indexed activity, while current repository names, prices, and availability come from Margit's catalog.
 
@@ -309,13 +309,13 @@ Users see what has sold and inspect the underlying transactions. The agent can a
 
 **Evidence and scope:** [public MargitArc subgraph](https://thegraph.com/explorer/subgraphs/DHMqTopWEHw2GuyFtwoGfH2Tizh1cskeiG7X6MTCk3Sn?view=Query). Sales rankings cover indexed contract checkout purchases, not Circle Gateway x402 purchases. The [track guide](graph-track/README.md) records endpoint availability and coverage limits.
 
-### Bazantic: compare repositories before buying
+### 3. Bazantic: compare repositories before buying
 
 The published Recipe evaluates project requirements against a strict USD budget. It reads Margit's catalog and uses GitHub metadata, languages, and releases only for explicitly supplied comparison repositories. The standalone advisor displays the result; the main agent can use it in a conversation when the browser's saved Bazantic preference is enabled. Disabling the preference removes the tool and blocks its execution.
 
 **Code highlights:** [Recipe request validation and execution](server/src/recipe-advisor.ts), [main agent tool](server/src/agent.ts), [search preference UI](src/components/AgentSidebar.tsx), [advisor modal](src/components/RepositoryAdvisor.tsx), and [Recipe prompt](bazantic-track/recipe-prompt.md).
 
-**Evidence and scope:** [published Recipe and test notes](bazantic-track/README.md), [request/parser tests](server/src/tests/recipe-advisor.test.ts), and [demo script](bazantic-track/demo.md). Live Recipe calls have been verified; they research options and do not purchase repositories. The observed endpoint accepted calls without payment, which is not a claim of permanent free execution. Full production walkthrough and demo recording remain to be documented.
+**Evidence and scope:** [published Recipe and test notes](bazantic-track/README.md) and [request/parser tests](server/src/tests/recipe-advisor.test.ts). Live Recipe calls have been verified; they research options and do not purchase repositories. The observed endpoint accepted calls without payment, which is not a claim of permanent free execution.
 
 ---
 
@@ -351,8 +351,6 @@ See the [mainnet runbook](docs/arc-mainnet-readiness.md) for configuration, immu
 On a **1 USDC** contract purchase, the publisher receives **0.995 USDC** and Margit receives **0.005 USDC**. An x402 sale of the same amount records **0.005 USDC owed**. Fees round down to token units; gas is separate. Contract fees never also become deferred debt.
 
 My Portfolio shows gross sales, net earnings, fees collected, x402 fees accrued, paid and owed. Publishers settle x402 fees with one native-USDC transaction; the backend verifies its publisher-bound receipt and credits it once. New listings disclose the fee. Pre-launch sales remain fee-free. Deferred fees are settled by publishers. At 1.00 USDC owed, the backend blocks new x402 purchases across all of that publisher’s listings before payment. Contract checkout and previously purchased access are unaffected.
-
-**Why deferred fees for x402?** Contract checkout collects our fee automatically. Circle x402 pays sellers directly, and we track the platform fee against their seller account for later settlement. This keeps the payment flow simple. New x402 purchases pause at 1.00 USDC in unpaid fees and resume once the balance is below that threshold. The debt belongs to the publisher, not the buyer's agent wallet; eligibility is bound to the permanent GitHub account ID, with historical usernames retained for ledger and receipt compatibility. Reputation is an incentive to settle, not a guarantee of collection.
 
 The Circle Nanopayments SDK we integrate (`@circle-fin/x402-batching` 3.4.0) uses a single payment recipient. We found no documented native marketplace commission split in its [SDK reference](https://developers.circle.com/gateway/nanopayments/references/sdk). This is narrower than saying Circle or x402 cannot support fees: the [standard x402 seller flow](https://docs.x402.org/getting-started/quickstart-for-sellers) also specifies a recipient, while marketplace revenue allocation requires additional application or settlement logic. A buyer-authorized seller/platform split with receipts would be a useful SDK enhancement. See [fee design and alternatives](docs/fee-model.md#why-this-model-and-how-it-compares-with-other-x402-integrations).
 
@@ -434,7 +432,7 @@ Published through the Bazantic dashboard on **September 12, 2026**. With Claude 
 
 The Recipe attributes seller claims, reports unknown license/access terms, and separates purchase prices from API usage charges. It researches options; it does not buy repositories or modify listings. Dashboard tests use Bazantic's operator credential and do not prove paid customer execution. The dashboard link may require sign-in.
 
-**[Integration, gateway URLs and test evidence](bazantic-track/README.md)** · **[Demo recording script](bazantic-track/demo.md)** · **[Reusable Recipe prompt](bazantic-track/recipe-prompt.md)**
+**[Integration, gateway URLs and test evidence](bazantic-track/README.md)** · **[Reusable Recipe prompt](bazantic-track/recipe-prompt.md)**
 
 The Catalog's **Find with AI** form now invokes the published Recipe through Margit's backend and displays Markdown or structured advice. The verified MCP endpoint accepted a live call without a key or payment header; the app stops explicitly if payment is required later. The main agent also supports the Recipe through **⋮ → Search options → Use Bazantic advisor**. The toggle controls tool availability and remembers the browser preference. See [in-app integration](bazantic-track/README.md#in-app-integration).
 
@@ -515,7 +513,6 @@ Documentation source: [docs page](public/docs/index.html). Existing `margit.sh/a
 | `/api/agent-docs/checkout-abi` | GET | Public | Checkout contract ABI |
 | `/api/agent-docs/bazantic` | GET | Public | Bazantic registration guidance |
 
-**Legacy routes:** `POST /api/download-zip` returns `410 Gone`; use the scoped purchase download URL. `POST /api/listings/:id/verify-payment` is the old direct-transfer path and returns `410 Gone` when contract checkout is configured.
 
 “Session” means GitHub sign-in; “Anonymous cookie” means the browser's separate agent session. For request examples and integration guides, see [docs.margit.sh](https://docs.margit.sh/).
 
