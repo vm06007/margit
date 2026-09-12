@@ -2,7 +2,7 @@ import { LeaderboardsPage } from "./pages/LeaderboardsPage";
 import { AgentsPage } from "./pages/AgentsPage";
 import { ListingSuccess } from "./components/ListingSuccess";
 import { PortfolioPage } from "./pages/PortfolioPage";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchListings, fetchMe, fetchRepos, logout, type AgentListingChange, type Listing, type Me, type Repo } from "./api";
 import { SiteHeader } from "./components/layout/SiteHeader";
 import { BackToTop } from "./components/layout/BackToTop";
@@ -29,6 +29,7 @@ function App() {
     const [repos, setRepos] = useState<Repo[] | null>(null);
     const [reposError, setReposError] = useState<string | null>(null);
     const [listings, setListings] = useState<Listing[] | null>(null);
+    const [listingsLoading, setListingsLoading] = useState(false);
     const [listingsError, setListingsError] = useState<string | null>(null);
     const [agentOpen, setAgentOpen] = useState(() => localStorage.getItem(AGENT_OPEN_STORAGE_KEY) === "1");
     const [highlightedRepo, setHighlightedRepo] = useState<string | null>(null);
@@ -65,11 +66,19 @@ function App() {
             .catch(() => setReposError("Could not load repositories."));
     }, [me]);
 
-    useEffect(() => {
-        fetchListings()
-            .then(setListings)
-            .catch(() => setListingsError("Could not load the catalog."));
+    const reloadListings = useCallback(async () => {
+        setListingsLoading(true);
+        try {
+            setListings(await fetchListings());
+            setListingsError(null);
+        } catch {
+            setListingsError("Could not load the catalog.");
+        } finally {
+            setListingsLoading(false);
+        }
     }, []);
+
+    useEffect(() => { void reloadListings(); }, [reloadListings]);
 
     const listingByRepo = useMemo(() => {
         const map = new Map<string, Listing>();
@@ -136,7 +145,7 @@ function App() {
                 ) : repoMatch ? (
                     <RepoDetailPage key={path} owner={repoMatch[1]} name={repoMatch[2]} listings={listings} navigate={navigate} />
                 ) : (
-                    <WelcomePage me={viewer} navigate={navigate} listings={listings} listingsError={listingsError} />
+                    <WelcomePage onRetryListings={reloadListings} listingsLoading={listingsLoading} me={viewer} navigate={navigate} listings={listings} listingsError={listingsError} />
                 )}
                 {path === "/catalog" && <CatalogCTA />}
                 </main>

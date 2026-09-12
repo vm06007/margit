@@ -1068,3 +1068,12 @@
 .site-app .home-listing-cta .mxd-demo-cta__btn { margin-bottom: 4rem; }
 
 .site-app .agent-bazantic-toggle{display:flex;align-items:center;justify-content:space-between;gap:2rem;margin:2rem 0;font-size:1.7rem}.site-app .agent-bazantic-toggle input{width:2rem;height:2rem;accent-color:var(--accent)}.site-app .agent-search-indicator{padding:.6rem 2rem;font-size:1.2rem;color:var(--accent)}
+
+/* Homepage section spacing from the revised layout. */
+.site-home .home-market-directions,
+.site-home .recent-listings-section { margin-top: 150px; }
+.site-home .market-directions { margin-bottom: 0; padding-top: 0; padding-bottom: 0; }
+
+.site-home #x402 .mxd-point-subtitle { margin-top: 20px; }
+
+.site-app .recent-listings-state{min-height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.6rem;text-align:center;padding:3rem 2rem}.site-app .recent-listings-state p{margin:0}.site-app .recent-listings-state button:disabled{opacity:.6;cursor:wait}.site-app .recent-listings-status{font-size:1.3rem}

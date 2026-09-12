@@ -8,20 +8,18 @@ import { FeatureCards } from "../components/home/FeatureCards";
 import { ListingCTA } from "../components/home/ListingCTA";
 import { RecentSection } from "../components/home/RecentSection";
 import { AmbientVideo } from "../components/home/AmbientVideo";
-import { FeedbackCTA } from "../components/home/FeedbackCTA";
 
 /** The complete homepage reference, expressed as editable React sections. */
-export function WelcomePage({ listings = null, listingsError = null }: { me?: Me; navigate?: (path: string) => void; listings?: Listing[] | null; listingsError?: string | null }) {
+export function WelcomePage({ listings = null, listingsError = null, onRetryListings, listingsLoading = false }: { onRetryListings: () => void; listingsLoading?: boolean; me?: Me; navigate?: (path: string) => void; listings?: Listing[] | null; listingsError?: string | null }) {
   return <>
     <Hero />
     <DemoGallery />
     <RolesMarquee />
-    <ResponsivePromo />
     <AgentIntegration />
     <FeatureCards />
-    <RecentSection listings={listings} listingsError={listingsError} />
+    <ResponsivePromo />
+    <RecentSection onRetry={onRetryListings} loading={listingsLoading} listings={listings} listingsError={listingsError} />
     <ListingCTA />
     <AmbientVideo />
-    <FeedbackCTA />
   </>;
 }

@@ -9,7 +9,7 @@ const directions = [
 
 export function ResponsivePromo() {
   return (
-    <section className="mxd-section">
+    <section className="mxd-section home-market-directions">
       <div className="mxd-container">
         <div className="market-directions">
           <div className="market-directions-grid">

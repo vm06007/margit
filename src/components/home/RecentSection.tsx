@@ -1,7 +1,7 @@
 import { RevealText } from "./RevealText";
 import type { Listing } from "../../api";
 import { RecentListings } from "./RecentListings";
-export function RecentSection({ listings, listingsError }: { listings: Listing[] | null; listingsError: string | null }) {
+export function RecentSection({ listings, listingsError, onRetry, loading }: { onRetry: () => void; loading: boolean; listings: Listing[] | null; listingsError: string | null }) {
   return (<>
     <div className="mxd-section padding-blog recent-listings-section" style={{ marginTop: 150 }}>
       <div className="mxd-container grid-container">
@@ -29,7 +29,7 @@ export function RecentSection({ listings, listingsError }: { listings: Listing[]
         <div className="mxd-block">
           <div className="mxd-blog-preview">
             <div className="container-fluid p-0">
-              <RecentListings listings={listings} error={listingsError} />
+              <RecentListings onRetry={onRetry} loading={loading} listings={listings} error={listingsError} />
             </div>
           </div>
         </div>
