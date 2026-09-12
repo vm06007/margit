@@ -224,15 +224,15 @@ flowchart TD
     Read --> Catalog[Read-only discovery]
 ```
 
-Public discovery needs no seller credentials. The Bazantic advisor cannot list, unlist, or purchase repositories.
-
 Margit now exposes a working **Streamable HTTP MCP server at `/api/mcp`** with seven tools: `browse_catalog`, `get_listing`, `create_checkout_quote`, `confirm_checkout`, `list_my_repos`, `create_listing`, and `unlist_repo`. Its [margit://skill](https://margit.sh/skills/margit/SKILL.md) MCP resource explains the workflows. Public tools need no key; seller tools use `Authorization: Bearer MARGIT_API_KEY` and reuse the existing seller ownership checks. The server never signs or broadcasts payments.
 
 Open [/agents](https://margit.sh/agents) from the homepage to test the MCP connection, read [/SKILLS.md](https://margit.sh/SKILLS.md) or [/skills/margit/SKILL.md](https://margit.sh/skills/margit/SKILL.md), and inspect [/api/agent-docs](https://api.margit.sh/api/agent-docs). [/api/agent-docs/checkout-abi](https://api.margit.sh/api/agent-docs/checkout-abi) exposes the checkout ABI. The native Arc USDC payment value is the six-decimal order amount multiplied by `10^12`; ERC-20 checkout attaches zero native value.
 
 Use `npm run mcp:check -- http://localhost:5173` (or your deployed origin) to run an official MCP client against initialization, tools/list, resources/read, and the real catalog. This check never buys or changes a listing. Run `node --import tsx --test server/tests/mcp.test.ts` for isolated protocol and credential tests.
 
-The published Bazantic integration uses two REST gateways: Margit's public API and GitHub's public repository API. Bazantic exposes their generated MCP tools to **Margit Repository Advisor**. The Recipe binds only `browse_catalog`, `github_get_repository`, `github_get_languages`, and `github_list_releases`. Seller mutations and checkout tools are not bound. See the [integration guide](bazantic-track/README.md) for deployed identifiers, scope and evidence. `/api/agent-docs/bazantic` retains earlier registration guidance; the deployed dashboard configuration documented in that guide is the reference for this Recipe.
+The published Bazantic integration uses two REST gateways: Margit's public API and GitHub's public repository API. Bazantic exposes their generated MCP tools to **Margit Repository Advisor**. The Recipe binds only `browse_catalog`, `github_get_repository`, `github_get_languages`, and `github_list_releases`.
+
+Seller mutations and checkout tools are not bound. See the [integration guide](bazantic-track/README.md) for deployed identifiers, scope and evidence. `/api/agent-docs/bazantic` retains earlier registration guidance; the deployed dashboard configuration documented in that guide is the reference for this Recipe.
 
 ---
 
