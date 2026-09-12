@@ -363,63 +363,71 @@ app.get("/api/auth/github/login", async (c) => {
 });
 
 app.get("/api/auth/github/callback", async (c) => {
-    const code = c.req.query("code");
-    const state = c.req.query("state");
+    const failure = (reason: string) => c.redirect(new URL(`/auth-error?reason=${reason}`, APP_URL).toString());
+    try {
+        const code = c.req.query("code");
+        const state = c.req.query("state");
 
-    if (!(await consumeState(state))) {
-        return c.text("Invalid or expired OAuth state.", 400);
+        if (!(await consumeState(state))) {
+            return failure("expired");
+        }
+        if (c.req.query("error")) {
+            return failure(c.req.query("error") === "access_denied" ? "cancelled" : "failed");
+        }
+        if (!code) {
+            return failure("failed");
+        }
+
+        const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({
+                client_id: GITHUB_CLIENT_ID,
+                client_secret: GITHUB_CLIENT_SECRET,
+                code,
+                redirect_uri: GITHUB_REDIRECT_URI,
+            }),
+        });
+        const tokenJson = (await tokenRes.json()) as {
+            access_token?: string;
+            error?: string;
+            error_description?: string;
+        };
+
+        if (!tokenRes.ok || !tokenJson.access_token) {
+            return failure("failed");
+        }
+
+        const userRes = await fetch("https://api.github.com/user", {
+            headers: {
+                Authorization: `Bearer ${tokenJson.access_token}`,
+                Accept: "application/vnd.github+json",
+            },
+        });
+        if (!userRes.ok) return failure("failed");
+        const user = (await userRes.json()) as { id: number; login: string; name: string | null; avatar_url: string };
+        await refreshSellerCredential(user.login, tokenJson.access_token);
+
+        const sessionId = await createSession({
+            githubAccessToken: tokenJson.access_token,
+            login: user.login,
+            githubId: user.id,
+            name: user.name,
+            avatarUrl: user.avatar_url,
+        });
+
+        setCookie(c, SESSION_COOKIE, sessionId, {
+            httpOnly: true,
+            sameSite: "Lax",
+            secure: APP_URL.startsWith("https"),
+            path: "/",
+            maxAge: 60 * 60 * 8,
+        });
+
+        return c.redirect(new URL("/works", APP_URL).toString());
+    } catch {
+        return failure("failed");
     }
-    if (!code) {
-        return c.text("Missing OAuth code.", 400);
-    }
-
-    const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({
-            client_id: GITHUB_CLIENT_ID,
-            client_secret: GITHUB_CLIENT_SECRET,
-            code,
-            redirect_uri: GITHUB_REDIRECT_URI,
-        }),
-    });
-    const tokenJson = (await tokenRes.json()) as {
-        access_token?: string;
-        error?: string;
-        error_description?: string;
-    };
-
-    if (!tokenJson.access_token) {
-        return c.text(`GitHub OAuth error: ${tokenJson.error_description ?? tokenJson.error ?? "unknown"}`, 400);
-    }
-
-    const userRes = await fetch("https://api.github.com/user", {
-        headers: {
-            Authorization: `Bearer ${tokenJson.access_token}`,
-            Accept: "application/vnd.github+json",
-        },
-    });
-    if (!userRes.ok) return c.text("GitHub could not verify your account. Please reconnect.", 502);
-    const user = (await userRes.json()) as { id: number; login: string; name: string | null; avatar_url: string };
-    await refreshSellerCredential(user.login, tokenJson.access_token);
-
-    const sessionId = await createSession({
-        githubAccessToken: tokenJson.access_token,
-        login: user.login,
-        githubId: user.id,
-        name: user.name,
-        avatarUrl: user.avatar_url,
-    });
-
-    setCookie(c, SESSION_COOKIE, sessionId, {
-        httpOnly: true,
-        sameSite: "Lax",
-        secure: APP_URL.startsWith("https"),
-        path: "/",
-        maxAge: 60 * 60 * 8,
-    });
-
-    return c.redirect(new URL("/works", APP_URL).toString());
 });
 
 app.post("/api/auth/logout", async (c) => {

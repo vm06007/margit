@@ -1124,3 +1124,7 @@
 }
 
 @media (max-width: 600px) { .agent-snippet { height: 56rem; } .agent-snippet-formats { flex-wrap: wrap; } }
+
+.auth-error-page { min-height: 55vh; padding-block: 4rem 8rem; }
+.auth-error-page h1 { font-size: clamp(3rem, 5vw, 6rem); margin-block: 1.5rem 2rem; }
+.auth-error-description { max-width: 65rem; margin-bottom: 3rem; }

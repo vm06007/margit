@@ -1,3 +1,4 @@
+import { AuthErrorPage } from "./pages/AuthErrorPage";
 import { LeaderboardsPage } from "./pages/LeaderboardsPage";
 import { AgentsPage } from "./pages/AgentsPage";
 import { ListingSuccess } from "./components/ListingSuccess";
@@ -123,7 +124,7 @@ function App() {
                     onToggleAgent={() => setAgentOpen((v) => !v)}
                 />
                 <main id="mxd-page-content" className={`mxd-page-content ${home ? "" : "inner-page-content"}`}>
-                {path === "/leaderboards" ? <LeaderboardsPage /> : path === "/agents" ? <AgentsPage /> : path === "/portfolio" ? <PortfolioPage /> : publisherMatch ? (
+                {path === "/auth-error" ? <AuthErrorPage /> : path === "/leaderboards" ? <LeaderboardsPage /> : path === "/agents" ? <AgentsPage /> : path === "/portfolio" ? <PortfolioPage /> : publisherMatch ? (
                     <PublisherPage login={publisherMatch[1]} listings={listings} navigate={navigate} />
                 ) : path === "/catalog" ? (
                     <CatalogPage agentOpen={agentOpen} me={viewer} onEdit={setEditingListing} listings={listings} listingsError={listingsError} navigate={navigate} />
