@@ -445,7 +445,7 @@ The Recipe attributes seller claims, reports unknown license/access terms, and s
 
 **[Integration, gateway URLs and test evidence](bazantic-track/README.md)** · **[Demo recording script](bazantic-track/demo.md)** · **[Reusable Recipe prompt](bazantic-track/recipe-prompt.md)**
 
-The Catalog's **Find with AI** form now invokes the published Recipe through Margit's backend and displays Markdown or structured advice. The verified MCP endpoint accepted a live call without a key or payment header; the app stops explicitly if payment is required later. The main agent also supports the Recipe through **⋮ → Search options → Use Bazantic advisor**. The toggle controls tool availability and remembers the browser preference. Production end-to-end verification remains to be documented. See [in-app integration](bazantic-track/README.md#in-app-integration).
+The Catalog's **Find with AI** form now invokes the published Recipe through Margit's backend and displays Markdown or structured advice. The verified MCP endpoint accepted a live call without a key or payment header; the app stops explicitly if payment is required later. The main agent also supports the Recipe through **⋮ → Search options → Use Bazantic advisor**. The toggle controls tool availability and remembers the browser preference. See [in-app integration](bazantic-track/README.md#in-app-integration).
 
 ![Bazantic Provider Dashboard showing the GitHub and Margit gateways](docs/images/bazantic-provider-dashboard.jpg)
 

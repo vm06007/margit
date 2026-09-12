@@ -9,7 +9,6 @@ Margit Repository Advisor turns repository discovery into a reusable workflow: c
 - [Developer documentation](https://docs.margit.sh/)
 - [Recording walkthrough](demo.md)
 - [Recipe prompt](recipe-prompt.md)
-- Demo video: pending owner recording.
 
 ## Architecture
 

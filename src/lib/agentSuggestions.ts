@@ -41,6 +41,11 @@ export function agentSuggestions(path: string): [string, string][] {
         ['Find a project', 'Ask what I want to build and my budget, then suggest relevant repositories from the live catalog. Explain matches using available listing details only. Do not buy.'],
         ['Latest listings', 'Show the most recently listed repositories from the catalog. Include language, price, checkout options, and when each was listed. Do not buy yet.'],
     ];
+    if (path === '/catalog') {
+        const trialIndex = catalog.findIndex(([label]) => label === 'Try Circle x402');
+        const [trial] = catalog.splice(trialIndex, 1);
+        catalog.splice(2, 0, trial);
+    }
     const groups = path === '/works' || path === '/profile'
         ? [seller, catalog, analytics]
         : repo ? [repository, catalog, analytics] : path === "/leaderboards" ? [analytics, catalog] : [catalog, analytics];
@@ -51,4 +56,3 @@ export function agentSuggestions(path: string): [string, string][] {
         return true;
     });
 }
-
