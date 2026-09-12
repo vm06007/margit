@@ -58,6 +58,7 @@ curl --fail-with-body \\
                 <div className="agent-integration-links">
                     <a className="agent-integration-link" href="/agents">Explore MCP <span aria-hidden="true">↗</span></a>
                     <a className="agent-integration-link" href="/skills/margit/SKILL.md" target="_blank" rel="noreferrer">Read SKILL.md <span aria-hidden="true">↗</span></a>
+                    <a className="agent-integration-link" href="https://docs.margit.sh/" target="_blank" rel="noreferrer">Read Docs <span aria-hidden="true">↗</span></a>
                 </div>
             </div>
             <div className="agent-snippet">

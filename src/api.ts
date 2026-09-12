@@ -191,7 +191,7 @@ export async function downloadZip(cloneUrl: string, repoName: string): Promise<v
 }
 
 export interface AgentWallet {
-    mode?: "shared" | "personal" | "circle";
+    mode?: "shared" | "personal" | "circle" | "oneclaw";
     circle?: { provider: string; network: string; walletType: string; address?: string; availableUsdc?: string; ready: boolean; error?: string };
     address?: string;
     nativeGas?: string;
@@ -220,7 +220,7 @@ export interface AgentChatResponse {
     listingChange?: AgentListingChange;
 }
 
-export function fetchAgentWallet(mode?: "shared" | "personal" | "circle"): Promise<AgentWallet> {
+export function fetchAgentWallet(mode?: "shared" | "personal" | "circle" | "oneclaw"): Promise<AgentWallet> {
     return apiFetch<AgentWallet>("/api/agent/wallet" + (mode ? `?mode=${mode}` : ""));
 }
 
@@ -231,7 +231,7 @@ async function agentWalletRequest<T>(path: string, init: RequestInit): Promise<T
     return data;
 }
 
-export function selectAgentWallet(mode: "shared" | "personal" | "circle"): Promise<AgentWallet> {
+export function selectAgentWallet(mode: "shared" | "personal" | "circle" | "oneclaw"): Promise<AgentWallet> {
     return agentWalletRequest<AgentWallet>("/api/agent/wallet", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({mode}) });
 }
 export function depositAgentGateway(amount: string, requestId: string): Promise<{depositTxHash: string}> {

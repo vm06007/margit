@@ -1,3 +1,4 @@
+import { oneClawAccount } from './oneclaw.js';
 import { BatchEvmScheme } from '@circle-fin/x402-batching/client';
 import { createHash } from 'node:crypto';
 import { formatUnits, parseUnits } from 'viem';
@@ -10,9 +11,10 @@ import { redis } from './redis.js';
 import { encryptToken, decryptToken } from './crypto.js';
 import type { AgentPaymentProof } from '../../shared/agentPayment.js';
 
-export async function buyWithManagedCircle(session: string, id: string) {
-  const identity = await getCircleIdentity(session);
-  const key = `margit:managed-purchase:${session}:${identity.buyer}:${id}`;
+export async function buyWithManagedCircle(session: string, id: string, provider: 'circle' | 'oneclaw' = 'circle') {
+  const account = provider === 'oneclaw' ? await oneClawAccount(session) : null;
+  const identity = account ? {address:account.address, buyer:account.address} : await getCircleIdentity(session);
+  const key = `margit:${provider === 'oneclaw' ? 'oneclaw-purchase' : 'managed-purchase'}:${session}:${identity.buyer}:${id}`;
   type Purchase = { cloneUrl: string; repoFullName: string; proof: AgentPaymentProof };
   const prior = await circleStorage.get<string>(key);
   if (prior === 'pending') throw new Error('A Circle purchase is pending reconciliation. No second payment will be sent.');
@@ -36,7 +38,7 @@ export async function buyWithManagedCircle(session: string, id: string) {
   // Retain the intent even if signing times out: Circle may have authorized it remotely.
   const scheme = new BatchEvmScheme({
     address: identity.buyer,
-    signTypedData: async data => circleSign(session, identity.address, JSON.stringify({ ...data,
+    signTypedData: async data => account ? account.signTypedData(data) : circleSign(session, identity.address, JSON.stringify({ ...data,
       types: { EIP712Domain: [{name:'name',type:'string'}, {name:'version',type:'string'}, {name:'chainId',type:'uint256'}, {name:'verifyingContract',type:'address'}], ...data.types },
     }, (_, value) => typeof value === 'bigint' ? value.toString() : value)),
   });
@@ -53,7 +55,7 @@ export async function buyWithManagedCircle(session: string, id: string) {
   const reference = typeof receipt.transaction === 'string' ? receipt.transaction : undefined;
   const result: Purchase = { cloneUrl: access.href, repoFullName: listing.repoFullName, proof: {
     provider: 'Circle Gateway', sdk: '@circle-fin/x402-batching', network: 'Arc testnet', chainId: 5042002, protocol: 'x402',
-    walletType: 'Circle Agent Wallet', buyer: identity.buyer, seller: listing.payoutAddress, amountUsdc: formatUnits(amount, 6),
+    walletType: provider === 'oneclaw' ? '1Claw Agent Wallet' : 'Circle Agent Wallet', buyer: identity.buyer, seller: listing.payoutAddress, amountUsdc: formatUnits(amount, 6),
     paymentId: createHash('sha256').update(JSON.stringify(payload)).digest('hex'), status: 'accepted', recordedAt: new Date().toISOString(),
     ...(reference ? {settlementReference: reference} : {}), ...(reference && /^0x[0-9a-f]{64}$/i.test(reference) ? {transactionHash:reference} : {}),
   } };

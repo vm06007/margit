@@ -1,3 +1,4 @@
+import { oneClawAccount, oneClawBalance } from './oneclaw.js';
 import { recentGraphSales, graphBestsellers, graphLeaderboard } from "./graph.js";
 import { buyWithManagedCircle } from './circle-managed-payment.js';
 import { circleGatewayBalance } from './circle-managed.js';
@@ -44,18 +45,19 @@ const ERC20_ABI = [
 const publicClient = createPublicClient({ chain: arcTestnet, transport: http() });
 
 export interface AgentWalletBalance {
-    mode?: "shared" | "personal" | "circle";
+    mode?: "shared" | "personal" | "circle" | "oneclaw";
     address?: string;
     nativeGas?: string;
     usdc?: string;
     eurc?: string;
     cirbtc?: string;
     error?: string;
-    circle?: Awaited<ReturnType<typeof getCircleStatus>>;
+    circle?: {provider: string; network: string; walletType: string; address?: string; availableUsdc?: string; ready: boolean; error?: string};
 }
 
 export async function getAgentWalletBalance(session?: string, selected?: Awaited<ReturnType<typeof resolveAgentWallet>>): Promise<AgentWalletBalance> {
     const choice = selected ?? await resolveAgentWallet(session);
+    if (choice.mode === 'oneclaw') return oneClawBalance(session!);
     if (choice.mode === 'circle') {
         const usdc = await publicClient.getBalance({ address: choice.address });
         const availableUsdc = await circleGatewayBalance(session!, choice.address);
@@ -99,10 +101,10 @@ interface BuyResult {
     txHash?: string;
 }
 
-async function buyListing(listingId: string, token: PaymentToken, operatorSession?: string, selectedKey?: `0x${string}`): Promise<BuyResult> {
+async function buyListing(listingId: string, token: PaymentToken, operatorSession?: string, selectedKey?: `0x${string}`, remote = false): Promise<BuyResult> {
     const privateKey = selectedKey ?? (await resolveAgentWallet(operatorSession)).privateKey;
-    if (!privateKey) throw new Error('Circle wallet supports x402 purchases only.');
-    const agentAccount = privateKeyToAccount(privateKey);
+    if (!privateKey && !remote) throw new Error('Circle wallet supports x402 purchases only.');
+    const agentAccount = remote ? await oneClawAccount(operatorSession!) : privateKeyToAccount(privateKey!);
     const walletClient = createWalletClient({ account: agentAccount, chain: arcTestnet, transport: http() });
     if (!walletClient || !agentAccount) {
         return { ok: false, reason: "Agent wallet is not configured (ARC_DEMO_BUYER_PRIVATE_KEY missing)" };
@@ -112,9 +114,9 @@ async function buyListing(listingId: string, token: PaymentToken, operatorSessio
     const previous = await redis.get<{secret:string;hash:`0x${string}`}>(pendingKey);
     if (previous) {
         const receipt = await publicClient.waitForTransactionReceipt({hash:previous.hash});
-        if (receipt.status !== "success") {await redis.del(pendingKey);return {ok:false,reason:"Previous checkout failed; no purchase was completed."};}
+        if (receipt.status !== "success") {await redis.del(pendingKey, `${pendingKey}:lock`);return {ok:false,reason:"Previous checkout failed; no purchase was completed."};}
         const access = await completeCheckout(previous.secret,previous.hash);
-        await redis.del(pendingKey);
+        await redis.del(pendingKey, `${pendingKey}:lock`);
         return {ok:true,txHash:previous.hash,...access};
     }
     const listing = await getListing(listingId);
@@ -144,6 +146,7 @@ async function buyListing(listingId: string, token: PaymentToken, operatorSessio
 
     if (quote.order.termsHash !== checkoutTermsHash(listing.price,token,listing.payoutAddress,listing.accessPolicy)) return {ok:false,reason:"Listing changed. Review its latest terms before purchasing."};
     const allowance = token === "USDC" ? BigInt(quote.order.amount) : await publicClient.readContract({address:tokenAddress,abi:[parseAbiItem("function allowance(address owner,address spender) view returns (uint256)")],functionName:"allowance",args:[agentAccount.address,quote.contract]});
+    if (remote && !await redis.set(`${pendingKey}:lock`, 'pending', {nx:true})) return {ok:false,reason:'A 1Claw checkout is pending reconciliation. Do not submit a second payment.'};
     if (allowance < BigInt(quote.order.amount)) {
         const approval = await walletClient.writeContract({address:tokenAddress,abi:[parseAbiItem("function approve(address spender,uint256 amount) returns (bool)")],functionName:"approve",args:[quote.contract,BigInt(quote.order.amount)]});
         const receipt = await publicClient.waitForTransactionReceipt({hash:approval});
@@ -153,9 +156,9 @@ async function buyListing(listingId: string, token: PaymentToken, operatorSessio
     const txHash = await walletClient.writeContract({value:token === "USDC" ? BigInt(quote.order.amount)*10n**12n : 0n,address:quote.contract,abi:checkoutAbi,functionName:"buy",args:[typedOrder(quote.order),Number(signature.v ?? BigInt(27+(signature.yParity ?? 0))),signature.r,signature.s]});
     await redis.set(pendingKey,{secret:quote.claimSecret,hash:txHash});
     const receipt = await publicClient.waitForTransactionReceipt({hash:txHash});
-    if (receipt.status !== "success") {await redis.del(pendingKey);return {ok:false,reason:"Checkout transaction failed"};}
+    if (receipt.status !== "success") {await redis.del(pendingKey, `${pendingKey}:lock`);return {ok:false,reason:"Checkout transaction failed"};}
     const access = await completeCheckout(quote.claimSecret,txHash);
-    await redis.del(pendingKey);
+    await redis.del(pendingKey, `${pendingKey}:lock`);
     return {ok:true,txHash,...access};
 }
 
@@ -512,7 +515,7 @@ async function executeTool(
         case "buy_listing_x402": {
             if (typeof input.id !== "string") return { output: { ok: false, reason: "Missing listing ID" } };
             try {
-                const result = selected?.mode === 'circle' ? await buyWithManagedCircle(operatorSession!, input.id) : await buyWithCircle(input.id, operatorSession ?? "internal", selected?.privateKey ?? (await resolveAgentWallet(operatorSession)).privateKey);
+                const result = (selected?.mode === 'circle' || selected?.mode === 'oneclaw') ? await buyWithManagedCircle(operatorSession!, input.id, selected.mode) : await buyWithCircle(input.id, operatorSession ?? "internal", selected?.privateKey ?? (await resolveAgentWallet(operatorSession)).privateKey);
                 return { output: { ok: true, proof: result.proof }, purchase: { cloneUrl: result.cloneUrl,
                     txHash: result.proof.transactionHash, repoFullName: result.repoFullName, token: "USDC", proof: result.proof } };
             } catch (error) {
@@ -525,7 +528,7 @@ async function executeTool(
             const id = typeof input.id === "string" ? input.id : undefined;
             const token: PaymentToken = input.token === "cirBTC" ? "cirBTC" : input.token === "EURC" ? "EURC" : "USDC";
             if (!id) return { output: { ok: false, reason: "Missing listing id" } };
-            const result = await buyListing(id, token, operatorSession, selected?.privateKey);
+            const result = await buyListing(id, token, operatorSession, selected?.privateKey, selected?.mode === 'oneclaw');
             if (result.ok && result.cloneUrl && result.txHash) {
                 const listing = await getListing(id);
                 return {
@@ -723,7 +726,7 @@ export async function runAgentTurn(
         } catch (error) { return {reply: error instanceof Error ? error.message : 'Gateway deposit failed.'}; }
     }
     const selectedWallet = await resolveAgentWallet(sessionId);
-    const selectedAddress = selectedWallet.mode === 'circle' ? selectedWallet.buyer : privateKeyToAccount(selectedWallet.privateKey).address;
+    const selectedAddress = selectedWallet.mode === 'oneclaw' ? selectedWallet.address : selectedWallet.mode === 'circle' ? selectedWallet.buyer : privateKeyToAccount(selectedWallet.privateKey).address;
     const circleRequest = /\b(x402|circle)\b/i.test(userMessage);
     const credentials = await resolveCredentials(sessionId);
     if ("error" in credentials) return { reply: credentials.error };

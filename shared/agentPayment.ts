@@ -4,7 +4,7 @@ export interface AgentPaymentProof {
     network: 'Arc testnet';
     chainId: 5042002;
     protocol: 'x402';
-    walletType: 'Demo EOA' | 'Personal EOA' | 'Circle Agent Wallet';
+    walletType: 'Demo EOA' | 'Personal EOA' | 'Circle Agent Wallet' | '1Claw Agent Wallet';
     buyer: string;
     seller: string;
     amountUsdc: string;

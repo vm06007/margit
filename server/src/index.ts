@@ -1,7 +1,7 @@
 import { createAdvisorRoutes } from './recipe-advisor.js';
 import { redis } from './redis.js';
 import { summarizeCatalog } from './catalog-summary.js';
-import { verifyOneClaw } from './oneclaw.js';
+import { verifyOneClaw, connectOneClaw, disconnectOneClaw } from './oneclaw.js';
 import { recentGraphSales, graphBestsellers, graphLeaderboard } from "./graph.js";
 import { startCircleLogin, finishCircleLogin, disconnectCircle } from './circle-managed.js';
 import { serve } from "@hono/node-server";
@@ -249,17 +249,36 @@ app.get('/api/agent/gateway-balance', async c => {
 app.get("/api/agent/wallet", async (c) => {
     const session = getOrCreateAgentSessionId(c);
     const mode = c.req.query('mode');
-    if (mode !== undefined && mode !== 'shared' && mode !== 'personal' && mode !== 'circle') return c.json({error: 'Invalid wallet mode'}, 400);
+    if (mode !== undefined && mode !== 'shared' && mode !== 'personal' && mode !== 'circle' && mode !== 'oneclaw') return c.json({error: 'Invalid wallet mode'}, 400);
     return c.json(await getAgentWalletBalance(session, mode ? await resolveAgentWallet(session, mode) : undefined));
 });
 
 app.post("/api/agent/wallet", async (c) => {
     const session = getOrCreateAgentSessionId(c);
     const { mode } = await c.req.json();
-    if (mode !== 'shared' && mode !== 'personal' && mode !== 'circle') return c.json({error: 'Invalid wallet mode'}, 400);
+    if (mode !== 'shared' && mode !== 'personal' && mode !== 'circle' && mode !== 'oneclaw') return c.json({error: 'Invalid wallet mode'}, 400);
     await selectAgentWallet(session, mode);
     return c.json(await getAgentWalletBalance(session));
 });
+app.post('/api/agent/oneclaw/connect', async c => {
+    if (c.req.header('origin') && c.req.header('origin') !== APP_URL) return c.json({error:'Invalid origin'},403);
+    try {
+        const input = await c.req.json();
+        if (input.acceptedTerms !== true) return c.json({error:'Authorize encrypted credential storage and requested wallet actions to connect.'},400);
+        const session = getOrCreateAgentSessionId(c);
+        await connectOneClaw(session, input);
+        await selectAgentWallet(session, 'oneclaw');
+        return c.json({connected:true});
+    } catch (error) { return c.json({error:error instanceof Error ? error.message : '1Claw connection failed'},400); }
+});
+app.post('/api/agent/oneclaw/disconnect', async c => {
+    if (c.req.header('origin') && c.req.header('origin') !== APP_URL) return c.json({error:'Invalid origin'},403);
+    const session = getOrCreateAgentSessionId(c);
+    await disconnectOneClaw(session);
+    await selectAgentWallet(session, 'shared');
+    return c.json({disconnected:true});
+});
+
 app.post('/api/agent/oneclaw/verify', async c => {
     try {
         const input = await c.req.json();

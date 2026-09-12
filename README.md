@@ -9,19 +9,30 @@ Sell access to a private repo. Get paid in **USDC**, **EURC**, or optionally **c
 - [What is this?](#what-is-this)
 - [The Big Picture](#the-big-picture)
 - [How It Works](#how-it-works)
+  - [1. Selling a repo](#1-selling-a-repo)
+  - [2. Buying a repo — two paths](#2-buying-a-repo--two-paths)
+  - [3. The agent sidebar](#3-the-agent-sidebar)
+  - [4. Payout address resolution (ENS + ArcNS)](#4-payout-address-resolution-ens--arcns)
+  - [5. External-agent API + Bazantic](#5-external-agent-api--bazantic)
 - [Agent wallet options and Circle payments](#agent-wallet-options-and-circle-payments)
-- [Architecture](#architecture)
-- [Tech Stack](#tech-stack)
+  - [Circle Gateway and x402 nanopayments](#circle-gateway-and-x402-nanopayments)
+  - [1Claw purchasing wallet](#1claw-purchasing-wallet)
+  - [Checkout currency conversion](#checkout-currency-conversion)
+  - [Seller access and optional cirBTC](#seller-access-and-optional-cirbtc)
 - [Applied tracks: Arc, The Graph, and Bazantic](#applied-tracks-arc-the-graph-and-bazantic)
+  - [Arc — pay for repository access](#arc--pay-for-repository-access)
+  - [The Graph — discover activity backed by receipts](#the-graph--discover-activity-backed-by-receipts)
+  - [Bazantic — compare repositories before buying](#bazantic--compare-repositories-before-buying)
 - [Arc Deployment](#arc-deployment)
+  - [Mainnet deployment status](#mainnet-deployment-status)
 - [Verify The Graph integration](#verify-the-graph-integration)
+  - [Where the indexed data is used](#where-the-indexed-data-is-used)
+  - [Reviewer walkthrough](#reviewer-walkthrough)
 - [Published Bazantic Recipe: Margit Repository Advisor](#published-bazantic-recipe-margit-repository-advisor)
 - [Developer resources](#developer-resources)
 - [API Reference](#api-reference)
 - [Project Structure](#project-structure)
-- [Getting Started](#getting-started)
 - [Security Model](#security-model)
-- [Known Limitations / Roadmap](#known-limitations--roadmap)
 
 ---
 
@@ -45,39 +56,21 @@ The seller's GitHub token is encrypted at rest (AES-256-GCM). When a buyer pays,
 
 ```mermaid
 flowchart LR
-    subgraph Seller["👤 Seller"]
-        GH[GitHub Account]
-    end
-
-    subgraph Platform["😺 Margit"]
-        direction TB
-        Dash[My Repos Dashboard]
-        Cat[Public Catalog]
-        Direct["Contract payment<br/>quote / confirm (viem)"]
-        X402[x402 Gateway<br/>Circle Gateway facilitator]
-        Vault[(Encrypted<br/>Token Vault — Redis)]
-    end
-
-    subgraph Arc["🔵 Arc (Circle L1)"]
-        RPC[Arc Testnet RPC]
-    end
-
-    subgraph Buyer["🛒 Buyer / Agent"]
-        Wallet[Connected Wallet]
-        AgentWallet[Margit Agent<br/>own funded wallet]
-    end
-
-    GH -->|OAuth connect| Dash
-    Dash -->|list repo + price + payout| Cat
-    Dash -.->|store encrypted token| Vault
-    Buyer -->|browse| Cat
-    Wallet -->|USDC/EURC transfer| RPC
-    RPC -->|tx hash| Direct
-    Direct -->|verify on-chain| Vault
-    AgentWallet -->|x402 payment| X402
-    X402 -->|settle via Circle Gateway| RPC
-    X402 -->|verify| Vault
-    Vault -->|authenticated clone URL| Buyer
+    Seller[Seller connects GitHub] --> Dashboard[My Repos / seller tools]
+    Dashboard --> Catalog[Public repository listings]
+    Dashboard --> Credentials[Encrypted GitHub credentials in Redis]
+    Buyer[Human or agent] --> Catalog
+    Buyer --> Contract[Buyer-bound checkout quote]
+    Contract --> Wallet[Buyer signs MargitCheckout.buy on Arc testnet]
+    Wallet --> Confirm[Backend verifies PurchaseCompleted receipt]
+    Buyer --> Challenge[x402 payment challenge]
+    Challenge --> Gateway[Funded Circle Gateway balance and signed authorization]
+    Gateway --> Settlement[Gateway facilitator verifies and settles]
+    Confirm --> Access[Repository-specific access grant]
+    Settlement --> Access
+    Credentials --> Access
+    Access --> Delivery[Server-proxied Git clone or ZIP]
+    Wallet -. Contract events .-> Graph[The Graph activity and statistics]
 ```
 
 ---
@@ -92,19 +85,19 @@ A seller authenticates with GitHub (OAuth, `repo` scope), then picks a private r
 sequenceDiagram
     actor S as Seller
     participant UI as My Repos
-    participant API as POST /api/listings
-    participant Names as resolvePayoutAddress
-    participant Store as Redis (encrypted)
-
-    S->>UI: Sign in with GitHub (OAuth)
-    UI->>S: List of repos (private + public, via GitHub API)
-    S->>UI: Pick repo, set price ("$0.05"),<br/>payout address (0x / .eth / .arc / .circle)
-    UI->>API: POST { repoFullName, price, payoutAddress, sellerDescription, screenshots }
-    API->>Names: resolve ENS/ArcNS name to 0x address
-    API->>API: verify caller owns the repo (GitHub API)
-    API->>Store: save listing + AES-256-GCM encrypted GitHub token
-    API->>UI: listing { id, ... }
-    UI->>S: 🎉 Repo is live in the catalog
+    participant API as Margit listings API
+    participant GH as GitHub API
+    participant Store as Redis
+    S->>UI: Connect GitHub and choose repository
+    S->>UI: Set price, payout, access policy and currencies
+    S->>UI: Add description, up to 5 screenshots, cover and background
+    UI->>API: POST /api/listings
+    API->>API: Validate fields and resolve payout address
+    API->>GH: Check seller ownership and repository access
+    GH-->>API: Repository metadata
+    API->>Store: Save listing and encrypted GitHub credential
+    API-->>UI: Saved listing
+    UI-->>S: Listing available in catalog
 ```
 
 Sellers can also manage listings **conversationally** through the agent sidebar (`create_listing` / `unlist_repo` tools) instead of the form.
@@ -115,68 +108,75 @@ Two independent payment paths exist side by side, because they serve different c
 
 ```mermaid
 flowchart TD
-    subgraph Listing["📦 One repo listing"]
-        L[owner/repo · $0.05 · payout 0xabc...]
-    end
-
-    L --> Direct["🟢 Direct path<br/>USDC/EURC contract checkout<br/>quote → buy → confirm"]
-    L --> X402["🔵 x402 path<br/>GET /api/listings/unlock (402-gated)<br/>Circle Gateway facilitator"]
-
-    Direct --> Human["Human with a connected wallet<br/>(wallet connect button)<br/>one-shot, no pre-funding"]
-    X402 --> Agent["Any x402-aware agent<br/>repeated, gasless via Gateway<br/>(after a one-time deposit)"]
+    Listing[Listing price, accepted currencies and checkout policy] --> Channel{Permitted checkout channel}
+    Channel --> Contract[Contract checkout]
+    Channel --> X402[Circle Gateway x402]
+    Contract --> Quote[Delivery check and buyer-bound signed quote]
+    Quote --> Funding[Fund buyer wallet and gas]
+    Funding --> Currency{Accepted currency}
+    Currency --> USDC[USDC: buy with native value]
+    Currency --> ERC20[EURC or cirBTC: approve if needed, then buy]
+    USDC --> Receipt[Verify contract receipt]
+    ERC20 --> Receipt
+    X402 --> Deposit[Fund wallet and deposit USDC into Gateway]
+    Deposit --> Sign[Sign the validated 402 payment challenge]
+    Sign --> Settle[Gateway facilitator settlement]
+    Receipt --> Grant[Access grant under purchased delivery policy]
+    Settle --> Grant
 ```
 
-**Contract path:** the backend checks delivery and signs a short-lived, buyer-bound quote. USDC buyers call `MargitCheckout.buy()` with native USDC in one transaction; EURC buyers approve the ERC-20 amount first. The server verifies the resulting `PurchaseCompleted` event before granting access. The same order cannot be paid twice; confirmation can be retried without extending access. Sellers need not remain online or submit onchain listing transactions.
+**Contract path:** humans and agents can use it when the listing allows wallet checkout. The backend checks delivery and signs a five-minute, buyer-bound quote. USDC buyers call `MargitCheckout.buy()` with native USDC; EURC and optional cirBTC buyers approve the ERC-20 amount first if needed. The buyer needs funds and gas in the purchasing wallet; no Gateway deposit is required. The server verifies the resulting `PurchaseCompleted` event before granting access. The same order cannot be paid twice; confirmation can be retried without extending access. Sellers need not remain online or submit onchain listing transactions.
 
-**x402 path** (`BuyButton` → `GET /api/listings/unlock`): a real `402 Payment Required` challenge, settled through `@circle-fin/x402-batching`'s `BatchFacilitatorClient`/`GatewayEvmScheme` against Circle's testnet Gateway facilitator (`gateway-api-testnet.circle.com`). Requires a one-time `deposit()` into the `GatewayWallet` contract (real bundled ABI, not guessed) before the first payment. Built for agents that pay repeatedly.
+**x402 path** (`buy_listing_x402` or an external x402 client → `GET /api/listings/unlock`): a real `402 Payment Required` challenge, settled through `@circle-fin/x402-batching`'s `BatchFacilitatorClient`/`GatewayEvmScheme` against Circle's testnet Gateway facilitator (`gateway-api-testnet.circle.com`). Requires enough USDC deposited into the `GatewayWallet` contract before paying; top up that separate balance as needed. Built for agents that pay repeatedly.
 
 ```mermaid
 sequenceDiagram
     actor A as Agent / x402 client
-    participant GW as GET /api/listings/unlock
-    participant CG as Circle Gateway
-
-    A->>GW: GET (no payment)
-    GW->>A: 402 + payment-required header (price, payTo, network, asset)
-    A->>A: build BatchEvmScheme payment payload, sign
-    A->>GW: GET with payment signature header
-    GW->>CG: settle via Gateway facilitator
-    CG->>GW: settled ✓
-    GW->>A: 200 + clone URL
+    participant API as GET /api/listings/unlock
+    participant CG as Circle Gateway facilitator
+    participant Store as Access and purchase records
+    Note over A,CG: Buyer already has sufficient Gateway USDC balance
+    A->>API: GET with listing ID, no payment
+    API-->>A: 402 and payment-required challenge
+    A->>A: Validate terms and sign Gateway EIP-712 authorization
+    A->>API: GET with PAYMENT-SIGNATURE
+    API->>CG: Verify and settle authorization
+    CG-->>API: Settlement result
+    API->>Store: Mint access grant and record purchase
+    API-->>A: Access URL, policy, expiry and payment-response
 ```
 
-Both paths mint a repository-specific `/api/access/<random-token>/repo.git` or one-time ZIP URL. GitHub credentials stay on the server. Seller-selected delivery terms determine expiry and retry behavior.
+Both paths return a repository-specific `/api/access/<random-token>/repo.git` or one-time ZIP URL. GitHub credentials stay on the server. Seller-selected delivery terms determine expiry and retry behavior.
 
 **For buyers without a CLI**: the result panel also offers a one-click **Copy clone command** and **Download ZIP** (server-proxied through `/api/access/:token/download.zip`, since GitHub's `codeload` response doesn't send CORS headers our origin can read).
 
 ### 3. The agent sidebar
 
-A chat-driven assistant lives in a slide-in sidebar (push-layout, not an overlay), with its own funded Arc wallet, independent of any human buyer's connected wallet.
+A chat-driven assistant lives in a slide-in sidebar (push-layout, not an overlay), using the selected demo, personal, Circle-managed, or 1Claw wallet, independently of the human buyer’s connected browser wallet. Circle-managed wallets use x402; demo/personal EOAs and the 1Claw adapter also support contract checkout. The 1Claw flow is implemented but still awaits a live funded purchase test.
 
 ```mermaid
 flowchart TD
-    User([User chats with Margit Agent]) --> LLM[Any model via OpenRouter]
-    LLM --> Decide{Needs a<br/>tool?}
-    Decide -->|No| Reply[Plain-text reply]
-    Decide -->|Yes| Tools
-
-    subgraph Tools["🛠️ Agent Tools"]
-        T1[list_listings]
-        T2[get_listing]
-        T3[get_wallet_balance]
-        T4[buy_listing]
-        T5[list_my_repos]
-        T6[create_listing]
-        T7[unlist_repo]
-        T8[generate_api_key]
-    end
-
-    T4 -->|sign with agent's<br/>own Arc keypair| AgentWallet[(Agent Wallet<br/>ARC_DEMO_BUYER key)]
-    AgentWallet -->|ERC-20 transfer + verify| Arc[Arc Testnet]
-    T6 & T7 -->|acts on behalf of<br/>the signed-in seller| GitHubAPI[GitHub API]
-    Arc --> Reply
-    GitHubAPI --> Reply
-    Tools --> LLM
+    User[User request] --> Chat[Margit backend and selected OpenRouter model]
+    Chat --> Tools{Tool call}
+    Tools --> Read[Catalog and listing details]
+    Tools --> Activity[Graph leaderboards, bestsellers and recent sales]
+    Tools --> Seller[GitHub repos, list, unlist or API key]
+    Seller --> Auth[Requires signed-in seller]
+    Tools --> Advisor[Bazantic advisor only when enabled]
+    Tools --> Buy[Purchase requested by user]
+    Buy --> Selected{Selected wallet}
+    Selected --> EOA[Demo or personal EOA]
+    Selected --> Claw[1Claw remote signer]
+    Selected --> Circle[Circle-managed wallet]
+    EOA --> Contract[Contract checkout]
+    Claw --> Contract
+    EOA --> X402[Circle Gateway x402]
+    Claw --> X402
+    Circle --> X402
+    Contract --> Proof[Verified receipt and access]
+    X402 --> Proof
+    Read & Activity & Auth & Advisor & Proof --> Chat
+    Chat --> UI[Reply, purchase result or listing UI update]
 ```
 
 **Model choice is not hardcoded to one vendor.** The backend talks to [OpenRouter](https://openrouter.ai) (one OpenAI-compatible API proxying Anthropic, OpenAI, Google, and free community models). Default is OpenRouter's own `openrouter/free` auto-router — a shared key configured by the site owner (`OPENROUTER_API_KEY`) means every visitor can try the agent with zero setup. Anyone can override the model or bring their own OpenRouter key in the sidebar's **Settings** panel (gear icon) — stored encrypted per-visitor, same as GitHub tokens.
@@ -195,10 +195,15 @@ Buyer-side browsing (`/api/listings`, `/api/listings/unlock`) is already public 
 
 ```mermaid
 flowchart LR
-    Seller["Seller (in the agent sidebar)"] -->|generate_api_key tool| Key[margit_sk_... API key<br/>encrypted at rest]
-    Key --> Ext["Any external agent<br/>(e.g. via a Bazantic Gateway)"]
-    Ext -->|POST /api/agent-api/repos/list<br/>POST /api/agent-api/repos/unlist<br/>GET /api/agent-api/repos| Backend[Margit backend]
-    Backend -->|resolves key → GitHub token| GitHub[GitHub API]
+    Seller[Signed-in seller requests an API key] --> Key[Margit bearer key]
+    Key --> External[External seller agent]
+    External --> Rest[Seller REST endpoints]
+    External --> MCP[Authenticated MCP seller tools]
+    Rest & MCP --> Resolve[Resolve bearer key to seller identity]
+    Resolve --> Stored[Decrypt associated GitHub credential]
+    Stored --> Checks[Repository ownership checks and seller actions]
+    Public[Public clients and Bazantic advisor] --> Read[Public catalog and repository discovery]
+    Read -. No seller credentials .-> Catalog[Read-only discovery]
 ```
 
 Margit now exposes a working **Streamable HTTP MCP server at `/api/mcp`** with seven tools: `browse_catalog`, `get_listing`, `create_checkout_quote`, `confirm_checkout`, `list_my_repos`, `create_listing`, and `unlist_repo`. Its `margit://skill` resource explains the workflows. Public tools need no key; seller tools use `Authorization: Bearer MARGIT_API_KEY` and reuse the existing seller ownership checks. The server never signs or broadcasts payments.
@@ -220,9 +225,9 @@ Margit has one built-in marketplace agent with **four options in Agent Settings*
 | **Demo Wallet** | Try the complete Circle x402 buying flow quickly | Shared, preconfigured Arc testnet EOA; its wallet and Gateway funds are shared across demo users | Circle Gateway USDC purchases; demo contract-checkout tooling also exists |
 | **My Agent Wallet** | Use separately funded agent funds tied to this browser | Margit generates a key, stores it encrypted on the backend, and associates it with the browser session; this is not a browser-extension wallet | Circle Gateway USDC purchases using this wallet's funds |
 | **Circle Agent Wallet** | Connect a Circle-managed wallet through email verification | Accept Circle's terms, request an email code, and connect. Margit stores the Circle session encrypted and uses Circle tooling for signing | Implemented Gateway funding, balance and x402 purchase flow; live Circle login/purchase verification remains pending |
-| **1Claw Agent Wallet** | Verify external agent signing and Arc balance access | Supply a 1Claw agent ID, agent API key and Ethereum signing address | **Verification only**; cannot become the active purchasing wallet yet |
+| **1Claw Agent Wallet** | Use an external signer for Arc purchases and Gateway deposits | Supply a 1Claw agent ID, agent API key and Ethereum signing address | Active purchasing wallet for Arc contract checkout and Circle Gateway x402 |
 
-For Demo and My Agent Wallet, preview the address and token balances, then click **Confirm** to switch. Circle has its own email connection flow. Selecting 1Claw opens its verification form; successful verification does not silently switch purchases away from the current wallet. AI model/provider settings are separate.
+For Demo and My Agent Wallet, preview the address and token balances, then click **Confirm** to switch. Circle has its own email connection flow. Selecting 1Claw opens its connection form; **Connect and select wallet** verifies the signer, stores credentials encrypted with consent, and makes it the active purchasing wallet. AI model/provider settings are separate.
 
 ### Circle Gateway and x402 nanopayments
 
@@ -240,92 +245,29 @@ A live **0.05 USDC** repository purchase and successful Git delivery were verifi
 
 Try **Check balance**, **Try Circle x402**, or **Buy this repo** on a repository page. Discovery also includes **Bestselling repos**, **Top buyers**, **Top sellers**, and **Weekly statistics**, backed by the [Leaderboards API](server/src/graph.ts). Catalog prompts focus on discovery and buying; My Repos prompts prioritize listing management.
 
-### 1Claw connection verification (preview)
+### 1Claw purchasing wallet
 
-Open **Agent Settings → 1Claw Agent Wallet → Verify 1Claw connection**. Supply a 1Claw agent ID, agent API key (`ocv_`), and its Ethereum signing address. The agent needs Intents and message signing enabled and a provisioned Ethereum signing key. See the [1Claw Intents documentation](https://docs.1claw.co/docs/agents/intents/overview).
+Open **Agent Settings → 1Claw Agent Wallet → Connect and select wallet**. Supply the agent ID, agent API key (`ocv_`), and its EVM signing address. Authorize encrypted credential storage for your requested purchases and deposits. The private key stays with 1Claw.
 
-The backend authenticates with 1Claw, requests a unique non-payment EIP-191 message signature, verifies it against the supplied address, and reads the address's native USDC balance on Arc testnet. Credentials are not persisted. The verification endpoint does not accept arbitrary messages, transactions, or destinations.
+The integration supports Arc contract checkout and Circle Gateway x402, including Gateway deposits. It verifies returned signatures and transaction fields before use. See [setup, permissions, code references, and verification status](docs/oneclaw-wallet.md). Automated tests use a synthetic signer; a live funded 1Claw checkout has not yet been verified.
 
-This is a connection probe, not an enabled fourth payment wallet: live credential verification, contract checkout and Circle Gateway compatibility still need end-to-end testing. See the [backend probe](server/src/oneclaw.ts) and [verification form](src/components/OneClawVerification.tsx).
 
----
+### Checkout currency conversion
 
-## Architecture
+Listing prices are in USD. The wallet button shows the actual token amount: USDC uses the USD amount; EURC uses the latest daily USD/EUR ECB reference rate via [Frankfurter](https://frankfurter.dev/). This assumes each stablecoin tracks its named currency; it is not a token-market swap quote. Rates are cached for an hour and rejected when more than seven days old. If conversion is unavailable, EURC checkout is blocked while USDC remains available.
 
-```mermaid
-flowchart TB
-    subgraph Client["🖥️ Browser (Vite + React 19)"]
-        Pages["Pages: /catalog, /profile,<br/>/repo/:owner/:name, /publisher/:login"]
-        Landing["/ — static ported homepage<br/>(public/landing/index.html)"]
-        Sidebar["AgentSidebar — chat + settings + voice"]
-        WalletSDK["Wallet SDK — connect modal, wallet details modal"]
-    end
+Converted amounts are rounded to six token decimals and shown with at least two decimals. The signed checkout order locks the payable amount for five minutes. If a fresh order differs from the amount displayed, the wallet flow stops before approval/payment and refreshes the price for review. Purchase history and fees use the amount actually paid in the selected token. x402 remains USDC-denominated.
 
-    subgraph Server["⚙️ Hono API (Node, tsx)"]
-        Auth["/api/auth/* — GitHub OAuth"]
-        Repos["/api/repos* — GitHub proxy"]
-        Listings["/api/listings* — CRUD + unlock (x402)"]
-        Verify["/api/checkout/quote + confirm — contract path"]
-        AgentChat["/api/agent/* — chat, wallet, settings, models"]
-        AgentApi["/api/agent-api/* — API-key auth, external agents"]
-        Names["/api/resolve-name, /api/resolve-address"]
-        Zip["/api/download-zip"]
-    end
 
-    subgraph Libs["📚 server/src/"]
-        PaymentsLib["payments.ts — Arc chain def, direct verify"]
-        GatewayLib["x402-gateway.ts — Circle Gateway facilitator"]
-        AgentLib["agent.ts — OpenRouter loop, tools, own wallet"]
-        NamesLib["names.ts — ENS + ArcNS resolution"]
-        CryptoLib["crypto.ts — AES-256-GCM"]
-        ApiKeysLib["api-keys.ts — margit API keys"]
-    end
+### Seller access and optional cirBTC
 
-    subgraph External["🌐 External"]
-        GitHubAPI["GitHub API"]
-        ArcRPC["Arc Testnet RPC"]
-        CircleGW["Circle Gateway facilitator"]
-        OpenRouterAPI["OpenRouter"]
-        Redis["Upstash Redis"]
-    end
+In the listing editor’s Access tab, choose timed clone/ZIP access, one-time ZIP, or permanent access. Permanent grants have no expiry or download limit and return `expiresAt: null`. They serve the repository’s current source, including updates, while the seller keeps the repository connected and Margit remains available; they are not archived snapshots. Existing purchases and signed quotes retain their original access terms after listing edits.
 
-    Pages --> WalletSDK
-    Pages -->|fetch| Server
-    Sidebar -->|fetch| AgentChat
-    Server --> Libs
-    Auth --> GitHubAPI
-    Repos --> GitHubAPI
-    Verify --> PaymentsLib --> ArcRPC
-    Listings --> GatewayLib --> CircleGW
-    AgentChat --> AgentLib --> OpenRouterAPI
-    AgentLib --> ArcRPC
-    AgentApi --> ApiKeysLib
-    Names --> NamesLib
-    Libs --> Redis
-    Libs --> CryptoLib
-```
+The **Accepted currencies** cards keep USDC selected and locked. EURC is preselected and optional, and cirBTC is optional. The API rejects quotes and price requests for currencies the seller has disabled. x402 requires USDC and is blocked before settlement on older listings that do not accept it. Legacy listings and pending quotes retain their original currency terms. cirBTC prices use the [Coinbase BTC/USD spot reference](https://docs.cdp.coinbase.com/coinbase-business/track-apis/prices), cached for 30 seconds, assuming one cirBTC tracks one BTC. This is a reference conversion, not a swap. Quotes round to the nearest satoshi; amounts that round to zero satoshis are rejected. The browser preloads conversions and verifies that the signed amount matches the displayed amount before requesting payment.
 
-**State persistence:** Upstash Redis (REST API) for everything — sessions, OAuth CSRF state, listings, encrypted GitHub tokens, agent chat history, per-visitor agent settings, margit API keys. No SQL database.
+The [Circle Arc testnet cirBTC contract](https://developers.circle.com/assets/cirbtc-contract-addresses) is `0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF` (8 decimals). Checkout must allowlist it using `setAllowedToken` before quoting cirBTC; payments, fees and portfolio history retain eight-decimal precision. The existing 0.5% fee rounds down in token base units.
 
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Build tool | Vite 8 (Rolldown-based) |
-| UI | React 19, TypeScript |
-| Backend framework | Hono (`@hono/node-server`), `tsx watch` |
-| Chain | Arc — Circle's L1, testnet chain ID `5042002`, native-gas-as-USDC |
-| Payments (wallet/agent) | MargitCheckout receipts on Arc, verified server-side via `viem` |
-| Payments (agentic) | x402 standard (`@x402/core`, `@x402/hono`) + `@circle-fin/x402-batching` (Circle Gateway) |
-| Wallet connect | Wallet SDK (connect modal, wallet details modal) |
-| Naming | ENS (`.eth`, via `viem`) + ArcNS (`.arc`/`.circle`, community REST API) |
-| Agent LLM | OpenRouter (`openai` SDK pointed at `openrouter.ai/api/v1`) — any model, default `openrouter/free` |
-| Voice input | Web Speech API (browser-native, no dependency) |
-| Token/key encryption | AES-256-GCM (Node `crypto`) |
-| Storage | Upstash Redis (REST API) |
-| Auth | GitHub OAuth (custom, not a library) |
+Run `node --env-file=.env --import tsx scripts/enable-cirbtc.ts` for an admin preflight, then add `--enable` to apply it. The script verifies chain, admin and decimals and saves the confirmed public transaction in `contracts/cirbtc.arc-testnet.json`.
 
 ---
 
@@ -534,68 +476,47 @@ Documentation source: [docs page](public/docs/index.html). Existing `margit.sh/a
 
 ## Project Structure
 
-```
+```text
 margit/
-├── src/
-│   ├── App.tsx                  # Entire frontend — pages, NavBar, AgentSidebar, all components
-│   ├── App.css                  # All app styling
-│   ├── api.ts                   # Typed fetch wrappers for every backend route
-│   ├── speech.d.ts              # Ambient types for the Web Speech API
-│   └── lib/thirdweb.ts          # Wallet client, chain, wallet list, theme
-├── server/src/
-│   ├── index.ts                 # All Hono routes
-│   ├── agent.ts                 # OpenRouter tool-use loop, agent wallet, settings, model catalog
-│   ├── api-keys.ts              # Margit API keys (external-agent auth)
-│   ├── payments.ts              # Arc chain def, direct-payment verification
-│   ├── x402-gateway.ts          # Circle Gateway facilitator registration
-│   ├── listings.ts              # Listing CRUD (Redis)
-│   ├── names.ts                 # ENS + ArcNS resolution
-│   ├── session.ts                # GitHub OAuth session (Redis)
-│   ├── oauth-state.ts           # OAuth CSRF state (Redis)
-│   ├── crypto.ts                # AES-256-GCM encrypt/decrypt
-│   └── redis.ts                 # Upstash Redis client
-├── public/landing/               # Ported static marketing homepage (served at "/" via a dev-only
-│                                  # Vite middleware plugin — see vite.config.ts)
-├── portfolio-html-template/      # Reference HTML template the homepage was ported from (gitignored)
-└── vite.config.ts               # Dev server config + landing-page middleware
+├── src/                         # React frontend
+│   ├── App.tsx                  # Routing, shared layout, and application state
+│   ├── pages/                   # Home, catalog, listing details, My Repos, and portfolio
+│   ├── components/              # Shared UI, agent chat, payments, and listing previews
+│   ├── hooks/                   # Navigation and page interactions
+│   ├── lib/                     # Wallet setup, formatting, and frontend helpers
+│   ├── styles/                  # Page and component styles
+│   └── api.ts                   # Typed backend requests and response models
+├── server/src/                  # Hono API and backend services
+│   ├── index.ts                 # Routes, authentication, and request validation
+│   ├── listings.ts              # Repository listings and screenshot settings
+│   ├── agent.ts                 # Chat agent and tool execution
+│   ├── mcp.ts                   # MCP tools for external agents
+│   ├── recipe-advisor.ts        # Bazantic repository recommendations
+│   ├── graph.ts                 # The Graph activity and statistics queries
+│   ├── checkout.ts              # Contract checkout orders and settlement
+│   ├── payments.ts              # Arc payment verification
+│   ├── x402-gateway.ts          # Circle Gateway x402 integration
+│   ├── circle-*.ts              # Circle wallet and payment flows
+│   ├── purchase-access.ts       # Purchased repository access and delivery
+│   └── tests/                   # Backend regression tests
+├── shared/                      # Shared payment, access-policy, and activity types
+├── contracts/                   # MargitCheckout.sol, deployment records, and tests
+├── subgraph/                    # The Graph schema, event mappings, and manifest
+├── arc-track/README.md          # Arc integration, code references, and evidence
+├── graph-track/README.md        # The Graph integration and verification
+├── bazantic-track/README.md     # Bazantic gateways, Recipe, and verification
+├── public/
+│   ├── docs/                   # Static developer documentation
+│   ├── skills/                 # Published instructions for agents
+│   ├── site/                   # Shared visual assets and base styles
+│   ├── images/                 # Marketplace illustrations
+│   └── videos/                 # Homepage video assets
+├── docs/                       # Deployment, payments, and integration guides
+├── scripts/                    # Deployment, verification, and maintenance commands
+├── api/index.ts                # Vercel entry point for the Hono API
+├── vite.config.ts              # Frontend build, docs routing, and local API proxy
+└── vercel.json                 # Production deployment and routing
 ```
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js + npm
-- A [GitHub OAuth App](https://github.com/settings/developers)
-- An [Upstash Redis](https://console.upstash.com) database (free tier is fine)
-- Two Arc-testnet wallets, funded via [faucet.circle.com](https://faucet.circle.com) ("Arc Testnet") — one to receive payments, one for the agent sidebar's own funded wallet
-- A free [OpenRouter](https://openrouter.ai/keys) API key (optional but recommended — powers the agent for every visitor)
-- A [wallet SDK client ID](https://thirdweb.com/dashboard) (free)
-
-### Setup
-
-```bash
-npm install
-cp .env.example .env
-# Fill in the values — see comments in .env.example for where to get each one
-```
-
-### Run
-
-```bash
-npm run dev      # starts both the Vite dev server (5173) and the Hono API (8788)
-```
-
-Visit `http://localhost:5173`.
-
-### Build
-
-```bash
-npm run build
-```
-
-> Note: the static homepage (`public/landing/index.html`) is currently only served at `/` via a **dev-only** Vite middleware plugin (`vite.config.ts`). Production serving of `/` isn't wired up yet — see [Known Limitations](#known-limitations--roadmap).
 
 ---
 
@@ -603,15 +524,15 @@ npm run build
 
 ```mermaid
 flowchart LR
-    Token[GitHub OAuth Token] -->|AES-256-GCM| Enc[Encrypted at rest]
-    Enc --> Store[(Redis)]
-    Store -->|decrypt on demand| Mint[Mint clone URL]
-
-    ApiKey[Margit API key] -->|AES-256-GCM| Enc2[Encrypted at rest]
-    Enc2 --> Store
-
-    OwnKey[Bring-your-own OpenRouter key] -->|AES-256-GCM| Enc3[Encrypted at rest]
-    Enc3 --> Store
+    GitHub[GitHub credentials] --> Encrypt[AES-256-GCM]
+    Router[Personal OpenRouter key] --> Encrypt
+    Wallet[Personal agent key and connected wallet credentials] --> Encrypt
+    Encrypt --> Redis[(Redis)]
+    Key[Margit API bearer key] --> Lookup[Redis lookup key]
+    Lookup --> Seller[Seller record with encrypted GitHub credential]
+    Payment[Verified purchase] --> Grant[Repository-scoped bearer grant]
+    Grant --> Policy[Expiry and delivery-policy checks]
+    Policy --> Proxy[Server fetches GitHub content]
 ```
 
 - **GitHub tokens** encrypted with AES-256-GCM before storage; the key lives only in `TOKEN_ENCRYPTION_KEY`.
@@ -619,19 +540,8 @@ flowchart LR
 - **Contract order IDs are single-use onchain**. Receipt recovery is idempotent and never resets delivery expiry or download consumption.
 - **Wallet keys never touch the server for human buyers** — the wallet SDK only ever handles signing in-browser.
 - **The agent's own wallet key** (`ARC_DEMO_BUYER_PRIVATE_KEY`) is a real private key held server-side — fund it only with what you're willing to let the agent spend.
-- **Bring-your-own OpenRouter keys and margit API keys** are encrypted at rest the same way GitHub tokens are.
+- **Personal OpenRouter keys, personal agent private keys, and connected wallet credentials** are encrypted at rest. Margit API bearer keys are currently Redis lookup keys; their associated GitHub credentials are encrypted. The bearer keys themselves are not encrypted or hashed in that lookup.
 - **Payments are verified independently on-chain** (contract path via `viem` receipt decode; x402 path via the Circle Gateway facilitator) — the server never trusts a client's claim that it paid.
-
----
-
-## Known Limitations / Roadmap
-
-- **Reviews/ratings are UI placeholders only** (`StarRating`, `ReviewsSection`) — intentionally honest "not built yet" rather than fake data. Planned basis: ERC-8004 (Trustless Agents — Identity/Reputation/Validation registries).
-- **The Graph**: MargitArc powers portfolio receipt enrichment, Recently sold, and agent bestseller queries. Configure `GRAPH_QUERY_URL` on the backend. Circle Gateway x402 purchases are not indexed by this contract subgraph.
-- **Bazantic**: two live gateways and a published Recipe have passed operator tests. Paid customer execution, billing and unauthenticated access to the dashboard link are not verified. Model outputs can vary; see [test coverage and limitations](bazantic-track/README.md#verification-and-limitations).
-- **Production deployment**: Vercel serves the Vite build and Hono API through `vercel.json`. See [Vercel setup](docs/vercel-deployment.md) for environment configuration.
-- **Landing page leftover content**: the mid-body "demo showcase" sections (ported from the source HTML template) still contain unrelated template-vendor marketing copy and dead links to pages that were never copied over — nav, footer, hero, and header CTAs are all real and wired to margit routes; the deep body content is a separate, larger content-authoring pass.
-- **Network scope**: this implementation targets Arc Testnet only; mainnet deployment is out of scope.
 
 ---
 
@@ -640,20 +550,3 @@ flowchart LR
 **Built for ETHGlobal ETHOnline 2026** · USDC + EURC on Arc · agent-native by design
 
 </div>
-
-### Checkout currency conversion
-
-Listing prices are in USD. The wallet button shows the actual token amount: USDC uses the USD amount; EURC uses the latest daily USD/EUR ECB reference rate via [Frankfurter](https://frankfurter.dev/). This assumes each stablecoin tracks its named currency; it is not a token-market swap quote. Rates are cached for an hour and rejected when more than seven days old. If conversion is unavailable, EURC checkout is blocked while USDC remains available.
-
-Converted amounts are rounded to six token decimals and shown with at least two decimals. The signed checkout order locks the payable amount for five minutes. If a fresh order differs from the amount displayed, the wallet flow stops before approval/payment and refreshes the price for review. Purchase history and fees use the amount actually paid in the selected token. x402 remains USDC-denominated.
-
-
-### Seller access and optional cirBTC
-
-In the listing editor’s Access tab, choose timed clone/ZIP access, one-time ZIP, or permanent access. Permanent grants have no expiry or download limit and return `expiresAt: null`. They serve the repository’s current source, including updates, while the seller keeps the repository connected and Margit remains available; they are not archived snapshots. Existing purchases and signed quotes retain their original access terms after listing edits.
-
-The **Accepted currencies** cards keep USDC selected and locked. EURC is preselected and optional, and cirBTC is optional. The API rejects quotes and price requests for currencies the seller has disabled. x402 requires USDC and is blocked before settlement on older listings that do not accept it. Legacy listings and pending quotes retain their original currency terms. cirBTC prices use the [Coinbase BTC/USD spot reference](https://docs.cdp.coinbase.com/coinbase-business/track-apis/prices), cached for 30 seconds, assuming one cirBTC tracks one BTC. This is a reference conversion, not a swap. Quotes round to the nearest satoshi; amounts that round to zero satoshis are rejected. The browser preloads conversions and verifies that the signed amount matches the displayed amount before requesting payment.
-
-The [Circle Arc testnet cirBTC contract](https://developers.circle.com/assets/cirbtc-contract-addresses) is `0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF` (8 decimals). Checkout must allowlist it using `setAllowedToken` before quoting cirBTC; payments, fees and portfolio history retain eight-decimal precision. The existing 0.5% fee rounds down in token base units.
-
-Run `node --env-file=.env --import tsx scripts/enable-cirbtc.ts` for an admin preflight, then add `--enable` to apply it. The script verifies chain, admin and decimals and saves the confirmed public transaction in `contracts/cirbtc.arc-testnet.json`.

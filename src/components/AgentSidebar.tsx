@@ -435,9 +435,9 @@ export function AgentSidebar({
                             <p className="agent-wallet-meta">
                                 <span className="agent-wallet-line">
                                     <i className="ph ph-wallet" aria-hidden="true" />
-                                    <span className="agent-wallet-address-tooltip" tabIndex={0} aria-describedby="agent-wallet-balance-tooltip"><span className="agent-wallet-label">{wallet.mode === "circle" ? "Circle Agent Wallet" : wallet.mode === "personal" ? "My Agent Wallet" : "Demo Wallet"}</span>
+                                    <span className="agent-wallet-address-tooltip" tabIndex={0} aria-describedby="agent-wallet-balance-tooltip"><span className="agent-wallet-label">{wallet.mode === "oneclaw" ? "1Claw Agent Wallet" : wallet.mode === "circle" ? "Circle Agent Wallet" : wallet.mode === "personal" ? "My Agent Wallet" : "Demo Wallet"}</span>
                                     <span id="agent-wallet-balance-tooltip" role="tooltip" className="agent-wallet-tooltip">
-                                        <span className="agent-wallet-tooltip-title">{wallet.mode === "circle" ? "Circle Agent Wallet" : wallet.mode === "personal" ? "My Agent Wallet" : "Demo Wallet"} Balance</span>
+                                        <span className="agent-wallet-tooltip-title">{wallet.mode === "oneclaw" ? "1Claw Agent Wallet" : wallet.mode === "circle" ? "Circle Agent Wallet" : wallet.mode === "personal" ? "My Agent Wallet" : "Demo Wallet"} Balance</span>
                                         <span className="agent-wallet-tooltip-coin"><img src="/icons/usdc.svg" alt="" />{Number(wallet.usdc ?? '0').toLocaleString(undefined, {maximumFractionDigits: 6})} USDC</span>
                                         <span className="agent-wallet-tooltip-coin"><img src="/icons/eurc.svg" alt="" />{Number(wallet.eurc ?? '0').toLocaleString(undefined, {maximumFractionDigits: 6})} EURC</span>
                                     </span>
@@ -722,9 +722,9 @@ export function AgentSidebar({
                     <div className="agent-settings-header"><strong>Circle Gateway</strong><button autoFocus type="button" className="agent-icon-btn" aria-label="Close Gateway settings" onClick={() => {setShowCircleInfo(false); requestAnimationFrame(() => menuTrigger.current?.focus());}}><i className="ph ph-x" /></button></div>
                     <small>USDC · Arc testnet</small>
                     <span>{wallet?.circle?.availableUsdc !== undefined ? `${wallet.circle.availableUsdc} USDC available for x402` : wallet?.circle?.error ?? 'Checking Gateway balance…'}</span>
-                    <small>{wallet?.mode === "circle" ? "Circle Agent Wallet" : wallet?.mode === "personal" ? "My Agent Wallet" : "Demo Wallet"}</small>
+                    <small>{wallet?.mode === "oneclaw" ? "1Claw Agent Wallet" : wallet?.mode === "circle" ? "Circle Agent Wallet" : wallet?.mode === "personal" ? "My Agent Wallet" : "Demo Wallet"}</small>
                     <small>x402 purchases reduce this Gateway balance. The header shows funds held in the wallet.</small>
-                    <p className="hint">{wallet?.mode === 'circle' ? 'Your Circle wallet funds Gateway through its signing account. Deposit to make that balance available for x402 purchases.' : wallet?.mode === 'personal' ? 'Your wallet and Gateway hold separate balances. Add testnet USDC to your wallet, then deposit the amount you want the agent to spend.' : 'This demo wallet and its Gateway balance are shared. Use My Agent Wallet or Circle Agent Wallet for your own funds.'}</p>
+                    <p className="hint">{wallet?.mode === 'circle' ? 'Your Circle wallet funds Gateway through its signing account. Deposit to make that balance available for x402 purchases.' : (wallet?.mode === 'personal' || wallet?.mode === 'oneclaw') ? 'Your wallet and Gateway hold separate balances. Add testnet USDC to your wallet, then deposit the amount you want the agent to spend.' : 'This demo wallet and its Gateway balance are shared. Use My Agent Wallet or Circle Agent Wallet for your own funds.'}</p>
                     {wallet?.address && <>
                         <details className="agent-gateway-funding"><summary>{wallet.mode === 'shared' ? 'Refill demo balance' : 'Add funds'}</summary>
                         <small>Wallet funding address</small>
@@ -776,7 +776,7 @@ export function AgentSidebar({
                             <option value="circle">Circle Agent Wallet</option>
                             <option value="oneclaw">1Claw Agent Wallet</option>
                         </select>
-                        <p className="hint">{pendingWalletMode === 'oneclaw' ? 'Verify your 1Claw wallet connection. Payments are not enabled yet.' : pendingWalletMode === 'circle' ? 'Connect your Circle account to use its agent wallet.' : pendingWalletMode === 'personal' ? 'A separate agent wallet for this browser, funded by you.' : 'Try the agent with the shared demo wallet on Arc testnet.'}</p>
+                        <p className="hint">{pendingWalletMode === 'oneclaw' ? 'Use your 1Claw signer for Arc purchases and Gateway deposits.' : pendingWalletMode === 'circle' ? 'Connect your Circle account to use its agent wallet.' : pendingWalletMode === 'personal' ? 'A separate agent wallet for this browser, funded by you.' : 'Try the agent with the shared demo wallet on Arc testnet.'}</p>
                         {previewLoading && <p className="hint" role="status">Loading wallet…</p>}
                         {walletPreview?.address && <div className="agent-wallet-preview">
                             <span className="hint">Wallet address</span>
@@ -816,7 +816,12 @@ export function AgentSidebar({
                 </div>}
                     {pendingWalletMode === 'circle' && wallet?.mode === 'circle' && <button type="button" disabled={walletBusy || sending} onClick={() => { void walletAction(async () => {setWallet(await disconnectCircleAgent()); setCircleSetup(false); setMessages([]);}); }}>Disconnect Circle wallet</button>}
                         {!circleSetup && walletError && <p role="alert" className="error">{walletError}</p>}
-                        {pendingWalletMode === 'oneclaw' && <OneClawVerification />}
+                        {pendingWalletMode === 'oneclaw' && wallet?.mode === 'oneclaw' && <button type="button" disabled={sending || walletBusy} onClick={() => { void walletAction(async () => {
+                            const response = await fetch('/api/agent/oneclaw/disconnect', {method:'POST'});
+                            if (!response.ok) throw new Error('Could not disconnect 1Claw.');
+                            setWallet(null); setMessages([]); setPendingWalletMode('shared');
+                        }); }}>Disconnect 1Claw wallet</button>}
+                        {pendingWalletMode === 'oneclaw' && wallet?.mode !== 'oneclaw' && <OneClawVerification disabled={sending || walletBusy} onConnected={() => { setMessages([]); void fetchAgentWallet().then(setWallet).catch(error => setWalletError(error instanceof Error ? error.message : 'Unable to refresh wallet')); closeAgentSettings(); }} />}
                     </div>
                 </div>}
                 {showSearchOptions && <div className="agent-settings-overlay" role="dialog" aria-modal="true" aria-label="Search options" onClick={event => { if (event.target === event.currentTarget) { setShowSearchOptions(false); menuTrigger.current?.focus(); } }} onKeyDown={event => {
