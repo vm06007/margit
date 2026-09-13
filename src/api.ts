@@ -1,3 +1,4 @@
+import { withRequestTimeout } from "../shared/requestTimeout";
 import type { AgentPaymentProof } from "../shared/agentPayment";
 import type { AccessPolicy } from "../shared/accessPolicy";
 export interface Me {
@@ -90,15 +91,18 @@ export async function fetchRepoReadme(fullName: string): Promise<string> {
 
 /** Asks the OpenRouter-backed endpoint to draft a listing description from the repo's README. */
 export async function generateRepoDescription(fullName: string): Promise<string> {
-    const res = await fetch("/api/repos/generate-description", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName }),
-    });
-    const body = (await res.json().catch(() => ({}))) as { description?: string; error?: string };
-    if (!res.ok || !body.description) throw new Error(body.error ?? "Failed to generate a description");
-    return body.description;
+    return withRequestTimeout(async signal => {
+        const res = await fetch("/api/repos/generate-description", {
+            signal,
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fullName }),
+        });
+        const body = (await res.json().catch(() => ({}))) as { description?: string; error?: string };
+        if (!res.ok || !body.description) throw new Error(body.error ?? "Failed to generate a description");
+        return body.description;
+    }, 60000, "Description generation took too long. Please try again or write a description yourself.");
 }
 
 export async function logout(): Promise<void> {
@@ -147,28 +151,34 @@ export async function createListing(input: {
     demoUrl?: string;
     accessPolicy?: AccessPolicy;
 }): Promise<Listing> {
-    const res = await fetch("/api/listings", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-    });
-    if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error ?? `Failed to create listing (${res.status})`);
-    }
-    return res.json() as Promise<Listing>;
+    return withRequestTimeout(async signal => {
+        const res = await fetch("/api/listings", {
+            signal,
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(input),
+        });
+        if (!res.ok) {
+            const body = (await res.json().catch(() => ({}))) as { error?: string };
+            throw new Error(body.error ?? `Failed to create listing (${res.status})`);
+        }
+        return res.json() as Promise<Listing>;
+    }, 60000, "Saving took too long. Check My Repos before trying again; the listing may have been saved.");
 }
 
 export async function deleteListing(id: string): Promise<void> {
-    const res = await fetch(`/api/listings/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-        credentials: "include",
-    });
-    if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error ?? `Failed to unlist (${res.status})`);
-    }
+    return withRequestTimeout(async signal => {
+        const res = await fetch(`/api/listings/${encodeURIComponent(id)}`, {
+            signal,
+            method: "DELETE",
+            credentials: "include",
+        });
+        if (!res.ok) {
+            const body = (await res.json().catch(() => ({}))) as { error?: string };
+            throw new Error(body.error ?? `Failed to unlist (${res.status})`);
+        }
+    }, 30000, "Unlisting took too long. Refresh My Repos to check whether it completed.");
 }
 
 /** Downloads a purchased repo as a zip via our server (proxies GitHub's zipball API). */

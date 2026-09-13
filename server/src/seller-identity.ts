@@ -15,7 +15,7 @@ export async function authenticateSellerIdentity(token: string, historicalLogin:
     const tokenKey = 'margit:seller-token-id:' + createHash('sha256').update(token).digest('hex');
     let user = await identityStorage.get<{id:number;login:string}>(tokenKey);
     if (!user) {
-        const response = await fetch('https://api.github.com/user', {headers:{Authorization:`Bearer ${token}`, Accept:'application/vnd.github+json'}});
+        const response = await fetch('https://api.github.com/user', {signal: AbortSignal.timeout(10000), headers:{Authorization:`Bearer ${token}`, Accept:'application/vnd.github+json'}});
         if (!response.ok) throw new Error('Reconnect GitHub to verify seller fee eligibility.');
         const result = await response.json() as {id:number;login:string};
         if (!Number.isSafeInteger(result.id) || typeof result.login !== 'string') throw new Error('Invalid GitHub seller identity');

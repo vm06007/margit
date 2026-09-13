@@ -447,7 +447,7 @@ export function ListModal({
     }, [payoutAddress]);
 
     const generateWithAi = async () => {
-        if (aiBusy) return;
+        if (aiBusy || submitting) return;
         setAiBusy(true);
         try {
             setDescription(await generateRepoDescription(repo.fullName));
@@ -459,7 +459,7 @@ export function ListModal({
     };
 
     const submit = async () => {
-        if (submitting) return;
+        if (submitting || aiBusy) return;
         const normalizedDemoUrl = normalizeDemoUrl(demoUrl);
         const fields: string[] = [];
         const messages: string[] = [];
@@ -541,7 +541,7 @@ export function ListModal({
                             <button
                                 type="button"
                                 className="btn btn-anim btn-default btn-accent btn-small"
-                                disabled={submitting || resolved === "loading"}
+                                disabled={submitting || aiBusy || resolved === "loading"}
                                 onClick={submit}
                             >
                                 <span className="btn-caption">
@@ -689,7 +689,7 @@ export function ListModal({
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
                                 <span className="modal-label">Description</span>
                                 <div style={{ display: "flex", gap: "1.2rem", flexShrink: 0 }}>
-                                    <button type="button" className="modal-link-btn modal-generate-btn" disabled={aiBusy} aria-busy={aiBusy} onClick={generateWithAi}>
+                                    <button type="button" className="modal-link-btn modal-generate-btn" disabled={aiBusy || submitting} aria-busy={aiBusy} onClick={generateWithAi}>
                                         {aiBusy ? <><span className="modal-generate-spinner" aria-hidden="true" />Generating…</> : <><i className="ph ph-sparkle" aria-hidden="true" />Generate with AI</>}
                                     </button>
 

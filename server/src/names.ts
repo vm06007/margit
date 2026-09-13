@@ -5,7 +5,7 @@ import { normalize } from "viem/ens";
 const ARCNS_API = "https://arcname.services/api/v1/resolve/name";
 const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
 
-const ensClient = createPublicClient({ chain: mainnet, transport: http() });
+const ensClient = createPublicClient({ chain: mainnet, transport: http(undefined, { timeout: 10000, retryCount: 0 }) });
 
 interface ArcNsResponse {
     status: "ok" | "not_found" | "error";
@@ -22,7 +22,7 @@ interface ArcNsReverseResponse {
 }
 
 async function resolveArcNs(name: string): Promise<string> {
-    const res = await fetch(`${ARCNS_API}/${encodeURIComponent(name.toLowerCase())}`);
+    const res = await fetch(`${ARCNS_API}/${encodeURIComponent(name.toLowerCase())}`, { signal: AbortSignal.timeout(10000) });
     const data = (await res.json().catch(() => ({}))) as ArcNsResponse;
 
     if (data.status === "ok" && data.address) return data.address;
@@ -32,7 +32,7 @@ async function resolveArcNs(name: string): Promise<string> {
 
 /** Reverse lookup: verified primary ArcNS name for an address, or null if none. */
 export async function resolveArcNsReverse(address: string): Promise<string | null> {
-    const res = await fetch(`https://arcname.services/api/v1/resolve/address/${encodeURIComponent(address)}`);
+    const res = await fetch(`https://arcname.services/api/v1/resolve/address/${encodeURIComponent(address)}`, { signal: AbortSignal.timeout(10000) });
     const data = (await res.json().catch(() => ({}))) as ArcNsReverseResponse;
     if (data.status === "ok" && data.verified && data.name) return data.name;
     return null;

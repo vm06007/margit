@@ -1,3 +1,4 @@
+import { withRequestTimeout } from "../../shared/requestTimeout.js";
 import { createAdvisorRoutes } from './recipe-advisor.js';
 import { redis } from './redis.js';
 import { summarizeCatalog } from './catalog-summary.js';
@@ -550,8 +551,9 @@ app.post("/api/repos/make-private", async (c) => {
     return c.json({ ok: true });
 });
 
-async function fetchReadmeText(fullName: string, githubAccessToken: string): Promise<string | null> {
+async function fetchReadmeText(fullName: string, githubAccessToken: string, signal = AbortSignal.timeout(10000)): Promise<string | null> {
     const res = await fetch(`https://api.github.com/repos/${fullName}/readme`, {
+        signal,
         headers: { Authorization: `Bearer ${githubAccessToken}`, Accept: "application/vnd.github+json" },
     });
     if (!res.ok) return null;
@@ -586,38 +588,47 @@ app.post("/api/repos/generate-description", async (c) => {
         );
     }
 
-    const readme = await fetchReadmeText(fullName, session.githubAccessToken);
-    const repoRes = await fetch(`https://api.github.com/repos/${fullName}`, {
-        headers: { Authorization: `Bearer ${session.githubAccessToken}`, Accept: "application/vnd.github+json" },
-    });
-    const repo = repoRes.ok
-        ? ((await repoRes.json()) as { description?: string | null; language?: string | null })
-        : {};
+    try {
+        return await withRequestTimeout(async signal => {
+            const readme = await fetchReadmeText(fullName, session.githubAccessToken, signal);
+            const repoRes = await fetch(`https://api.github.com/repos/${fullName}`, {
+                signal,
+                headers: { Authorization: `Bearer ${session.githubAccessToken}`, Accept: "application/vnd.github+json" },
+            });
+            const repo = repoRes.ok
+                ? ((await repoRes.json()) as { description?: string | null; language?: string | null })
+                : {};
 
-    const prompt =
-        `Write a compelling 2-3 sentence marketplace listing description for a GitHub repo, aimed at a ` +
-        `buyer deciding whether to purchase access. Repo: ${fullName}. ` +
-        `Language: ${repo.language ?? "unknown"}. ` +
-        `GitHub description: ${repo.description ?? "none"}. ` +
-        `README (may be truncated):\n${(readme ?? "none available").slice(0, 4000)}\n\n` +
-        `Reply with only the description text, no preamble, no quotes.`;
+            const prompt =
+                `Write a compelling 2-3 sentence marketplace listing description for a GitHub repo, aimed at a ` +
+                `buyer deciding whether to purchase access. Repo: ${fullName}. ` +
+                `Language: ${repo.language ?? "unknown"}. ` +
+                `GitHub description: ${repo.description ?? "none"}. ` +
+                `README (may be truncated):\n${(readme ?? "none available").slice(0, 4000)}\n\n` +
+                `Reply with only the description text, no preamble, no quotes.`;
 
-    const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            model: "openrouter/free",
-            messages: [{ role: "user", content: prompt }],
-        }),
-    });
-    if (!aiRes.ok) return c.json({ error: "The AI model didn't respond" }, 502);
-    const aiBody = (await aiRes.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    const description = aiBody.choices?.[0]?.message?.content?.trim();
-    if (!description) return c.json({ error: "The AI model returned an empty response" }, 502);
-    return c.json({ description });
+            const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                method: "POST",
+                signal,
+                headers: {
+                    Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    model: "openrouter/free",
+                    max_tokens: 300,
+                    messages: [{ role: "user", content: prompt }],
+                }),
+            });
+            if (!aiRes.ok) return c.json({ error: "The AI model didn't respond" }, 502);
+            const aiBody = (await aiRes.json()) as { choices?: Array<{ message?: { content?: string } }> };
+            const description = aiBody.choices?.[0]?.message?.content?.trim();
+            if (!description) return c.json({ error: "The AI model returned an empty response" }, 502);
+            return c.json({ description });
+        }, 45000, "Description generation took too long. Try again or enter your own description.");
+    } catch {
+        return c.json({ error: "Description generation is unavailable or timed out. Try again or enter your own description." }, 503);
+    }
 });
 
 app.get("/api/activity/leaderboards", async c => {
@@ -638,88 +649,93 @@ app.get("/api/listings", async (c) => {
 });
 
 app.post("/api/listings", async (c) => {
-    const session = await getSession(getCookie(c, SESSION_COOKIE));
-    if (!session) return c.json({ error: "Not authenticated" }, 401);
-
-    const body = await c.req.json<{
-        repoFullName?: string;
-        price?: string;
-        payoutAddress?: string;
-        sellerDescription?: string;
-        screenshots?: string[];
-        screenshotBackground?: string | null;
-        demoUrl?: string;
-        accessPolicy?: unknown;
-    }>();
-    const { repoFullName, price, payoutAddress, sellerDescription, screenshots } = body;
-    let accessPolicy;
-    try { accessPolicy = parseAccessPolicy(body.accessPolicy); }
-    catch (error) { return c.json({ error: error instanceof Error ? error.message : "Choose valid delivery terms." }, 400); }
-    const demoUrl = normalizeDemoUrl(body.demoUrl);
-    if (body.demoUrl && !demoUrl) return c.json({ error: "Enter a valid HTTP or HTTPS demo URL." }, 400);
-
-    if (!repoFullName || !price || !payoutAddress) {
-        return c.json({ error: "repoFullName, price, and payoutAddress are required" }, 400);
-    }
-    if (!PRICE_PATTERN.test(price)) {
-        return c.json({ error: 'price must look like "$1.50"' }, 400);
-    }
-    if (sellerDescription && sellerDescription.length > MAX_DESCRIPTION_LENGTH) {
-        return c.json({ error: `description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer` }, 400);
-    }
-    if (body.screenshotBackground != null && (typeof body.screenshotBackground !== "string" || !/^#[0-9a-fA-F]{6}$/.test(body.screenshotBackground))) return c.json({ error: "Invalid screenshot background color" }, 400);
-    if (screenshots) {
-        if (screenshots.length > MAX_SCREENSHOTS) {
-            return c.json({ error: `at most ${MAX_SCREENSHOTS} screenshots` }, 400);
-        }
-        if (screenshots.some((s) => !s.startsWith("data:image/") || s.length > MAX_SCREENSHOT_CHARS)) {
-            return c.json({ error: "each screenshot must be a data:image/... URL under 2MB" }, 400);
-        }
-    }
-
-    let resolvedPayoutAddress: string;
     try {
-        resolvedPayoutAddress = await resolvePayoutAddress(payoutAddress);
-    } catch (err) {
-        return c.json({ error: err instanceof Error ? err.message : "Could not resolve payoutAddress" }, 400);
-    }
+        const session = await getSession(getCookie(c, SESSION_COOKIE));
+        if (!session) return c.json({ error: "Not authenticated" }, 401);
 
-    const repoRes = await fetch(`https://api.github.com/repos/${repoFullName}`, {
-        headers: {
-            Authorization: `Bearer ${session.githubAccessToken}`,
-            Accept: "application/vnd.github+json",
-        },
-    });
-    if (!repoRes.ok) {
-        return c.json({ error: "Repo not found or not accessible with your GitHub token" }, 404);
-    }
-    const repo = (await repoRes.json()) as {
-        owner: { login: string };
-        description: string | null;
-        language: string | null;
-        stargazers_count: number;
-    };
-    // MVP: only the repo's direct owner can list it (excludes org-owned repos for now).
-    if (repo.owner.login.toLowerCase() !== session.login.toLowerCase()) {
-        return c.json({ error: "You can only list repos you own" }, 403);
-    }
+        const body = await c.req.json<{
+            repoFullName?: string;
+            price?: string;
+            payoutAddress?: string;
+            sellerDescription?: string;
+            screenshots?: string[];
+            screenshotBackground?: string | null;
+            demoUrl?: string;
+            accessPolicy?: unknown;
+        }>();
+        const { repoFullName, price, payoutAddress, sellerDescription, screenshots } = body;
+        let accessPolicy;
+        try { accessPolicy = parseAccessPolicy(body.accessPolicy); }
+        catch (error) { return c.json({ error: error instanceof Error ? error.message : "Choose valid delivery terms." }, 400); }
+        const demoUrl = normalizeDemoUrl(body.demoUrl);
+        if (body.demoUrl && !demoUrl) return c.json({ error: "Enter a valid HTTP or HTTPS demo URL." }, 400);
 
-    const listing = await createListing({
-        repoFullName,
-        ownerLogin: session.login,
-        ownerGithubToken: session.githubAccessToken,
-        price,
-        payoutAddress: resolvedPayoutAddress,
-        description: repo.description,
-        language: repo.language,
-        stargazersCount: repo.stargazers_count,
-        sellerDescription: sellerDescription ?? null,
-        screenshots: screenshots ?? [],
-        screenshotBackground: body.screenshotBackground ?? null,
-        demoUrl,
-        accessPolicy,
-    });
-    return c.json(listing, 201);
+        if (!repoFullName || !price || !payoutAddress) {
+            return c.json({ error: "repoFullName, price, and payoutAddress are required" }, 400);
+        }
+        if (!PRICE_PATTERN.test(price)) {
+            return c.json({ error: 'price must look like "$1.50"' }, 400);
+        }
+        if (sellerDescription && sellerDescription.length > MAX_DESCRIPTION_LENGTH) {
+            return c.json({ error: `description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer` }, 400);
+        }
+        if (body.screenshotBackground != null && (typeof body.screenshotBackground !== "string" || !/^#[0-9a-fA-F]{6}$/.test(body.screenshotBackground))) return c.json({ error: "Invalid screenshot background color" }, 400);
+        if (screenshots) {
+            if (screenshots.length > MAX_SCREENSHOTS) {
+                return c.json({ error: `at most ${MAX_SCREENSHOTS} screenshots` }, 400);
+            }
+            if (screenshots.some((s) => !s.startsWith("data:image/") || s.length > MAX_SCREENSHOT_CHARS)) {
+                return c.json({ error: "each screenshot must be a data:image/... URL under 2MB" }, 400);
+            }
+        }
+
+        let resolvedPayoutAddress: string;
+        try {
+            resolvedPayoutAddress = await resolvePayoutAddress(payoutAddress);
+        } catch (err) {
+            return c.json({ error: err instanceof Error ? err.message : "Could not resolve payoutAddress" }, 400);
+        }
+
+        const repoRes = await fetch(`https://api.github.com/repos/${repoFullName}`, {
+            signal: AbortSignal.timeout(10000),
+            headers: {
+                Authorization: `Bearer ${session.githubAccessToken}`,
+                Accept: "application/vnd.github+json",
+            },
+        });
+        if (!repoRes.ok) {
+            return c.json({ error: "Repo not found or not accessible with your GitHub token" }, 404);
+        }
+        const repo = (await repoRes.json()) as {
+            owner: { login: string };
+            description: string | null;
+            language: string | null;
+            stargazers_count: number;
+        };
+        // MVP: only the repo's direct owner can list it (excludes org-owned repos for now).
+        if (repo.owner.login.toLowerCase() !== session.login.toLowerCase()) {
+            return c.json({ error: "You can only list repos you own" }, 403);
+        }
+
+        const listing = await createListing({
+            repoFullName,
+            ownerLogin: session.login,
+            ownerGithubToken: session.githubAccessToken,
+            price,
+            payoutAddress: resolvedPayoutAddress,
+            description: repo.description,
+            language: repo.language,
+            stargazersCount: repo.stargazers_count,
+            sellerDescription: sellerDescription ?? null,
+            screenshots: screenshots ?? [],
+            screenshotBackground: body.screenshotBackground ?? null,
+            demoUrl,
+            accessPolicy,
+        });
+        return c.json(listing, 201);
+    } catch {
+        return c.json({ error: "Could not finish saving. Check My Repos before retrying; the listing may have been saved." }, 503);
+    }
 });
 
 app.delete("/api/listings/:id", async (c) => {
