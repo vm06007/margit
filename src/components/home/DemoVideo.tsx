@@ -26,7 +26,7 @@ export function DemoVideo({ onClose }: { onClose: () => void }) {
         <h2 id={titleId}>Watch Demo</h2>
         <button type="button" className="demo-preview-control" aria-label="Close demo video" autoFocus onClick={onClose}>×</button>
       </header>
-      <video ref={video} src="/videos/demo.mp4" controls autoPlay playsInline preload="metadata" onError={() => setFailed(true)} />
+      <video ref={video} src="https://ethglobal.storage/projects/p19zk/video/high.mp4?t=1789299354944" controls autoPlay playsInline preload="metadata" onError={() => setFailed(true)} />
       {failed && <p className="demo-video-error" role="alert">The demo video is unavailable. Please try again later.</p>}
     </div>
   </dialog>, document.body);
