@@ -34,8 +34,8 @@ export function MenuContent({ authenticated }: { authenticated: boolean }) {
                     </a>
                   </li>
                   <li className="main-menu__item">
-                    <a className="main-menu__link btn btn-anim" href={authenticated ? "/works" : "/api/auth/github/login"}>
-                      <span className="btn-caption">{"Connect GitHub"}</span>
+                    <a className="main-menu__link btn btn-anim" href={authenticated ? "/portfolio" : "/api/auth/github/login"}>
+                      <span className="btn-caption">{authenticated ? "My Portfolio" : "Connect GitHub"}</span>
                     </a>
                   </li>
                   <li className="main-menu__item">
